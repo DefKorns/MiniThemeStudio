@@ -252,25 +252,63 @@ public sealed partial class MainWindow : Window, IDisposable
         }
     }
 
-    private async void ExportTheme_Click(object? sender, RoutedEventArgs e)
+    private async void SendToOmThemes_Click(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel { CurrentDraftPath: not null } viewModel)
         {
             return;
         }
 
-        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        var omThemesRootPath = _settingsStore.Current.OmThemesRootPath;
+        if (!Directory.Exists(Path.Combine(omThemesRootPath, "new-packaging")))
         {
-            Title = "Export theme",
-            DefaultExtension = "zip",
-            SuggestedFileName = $"{Path.GetFileName(Path.TrimEndingDirectorySeparator(viewModel.ThemePath))}.zip",
-            FileTypeChoices = [new FilePickerFileType("Zip archive") { Patterns = ["*.zip"] }],
-        });
+            omThemesRootPath = await PickFolderAsync("Select your om_themes folder (the one containing new-packaging)") ?? "";
+            if (omThemesRootPath.Length == 0)
+            {
+                return;
+            }
 
-        var zipPath = file?.TryGetLocalPath();
-        if (zipPath is not null && !viewModel.ExportTheme(zipPath))
+            if (!Directory.Exists(Path.Combine(omThemesRootPath, "new-packaging")))
+            {
+                await _errorHandlingService.ShowErrorAsync(this, "Not an om_themes folder", $"{omThemesRootPath} has no new-packaging folder.");
+                return;
+            }
+
+            _settingsStore.Save(_settingsStore.Current with { OmThemesRootPath = omThemesRootPath });
+        }
+
+        var targetPath = Path.Combine(omThemesRootPath, "new-packaging", viewModel.PackagingSystem ?? "", "themes", viewModel.PackagingName);
+        if (viewModel.PackagingSystem is not null
+            && Directory.Exists(targetPath)
+            && !await _dialogService.ShowConfirmationAsync(
+                this,
+                "Replace theme in om_themes?",
+                $"{targetPath} already exists and will be replaced.",
+                DialogVariant.Warning,
+                "Replace",
+                "Cancel",
+                true))
         {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot export theme", viewModel.Status);
+            return;
+        }
+
+        if (!viewModel.SendToOmThemes(omThemesRootPath))
+        {
+            await _errorHandlingService.ShowErrorAsync(this, "Cannot send to om_themes", viewModel.Status);
+        }
+    }
+
+    private async void ExportPackage_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel { CurrentDraftPath: not null } viewModel)
+        {
+            return;
+        }
+
+        var outputDirectory = await PickFolderAsync("Select the output folder for the .tar.gz package");
+        if (outputDirectory is not null && !viewModel.ExportPackage(outputDirectory))
+        {
+            await _errorHandlingService.ShowErrorAsync(this, "Cannot export package", viewModel.Status);
         }
     }
 

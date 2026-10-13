@@ -1,36 +1,109 @@
+using System.Formats.Tar;
 using System.IO.Compression;
 using MiniThemeStudio.Infrastructure.Themes;
 
 namespace MiniThemeStudio.Infrastructure.Tests.Themes;
 
-public sealed class ThemeExporterTests
+public sealed class ThemeExporterTests : IDisposable
 {
-    [Fact]
-    public void ExportsThemeUnderRootFolderWithoutInternalFiles()
+    private readonly string _rootPath = Directory.CreateTempSubdirectory().FullName;
+    private readonly string _themePath;
+
+    public ThemeExporterTests()
     {
-        var rootPath = Directory.CreateTempSubdirectory().FullName;
-        var themePath = Path.Combine(rootPath, "draft");
-        var zipPath = Path.Combine(rootPath, "my_theme.zip");
-        Directory.CreateDirectory(Path.Combine(themePath, "resources", "sprites"));
-        File.WriteAllText(Path.Combine(themePath, "title.txt"), "My Theme");
-        File.WriteAllText(Path.Combine(themePath, "resources", "sprites", "packed.png"), "png");
-        File.WriteAllText(Path.Combine(themePath, ".mts-base.json"), "{}");
-        File.WriteAllText(zipPath, "previous export");
+        _themePath = Path.Combine(_rootPath, "draft");
+        WriteFile(_themePath, "resources/sprites/packed.png", "png");
+        WriteFile(_themePath, "dependencies.json", "{}");
+        WriteFile(_themePath, "title.txt", "My Theme");
+        WriteFile(_themePath, "author.txt", "Me");
+        WriteFile(_themePath, "info", "NAME=My Theme");
+        WriteFile(_themePath, ".mts-base.json", "{}");
+    }
 
-        try
-        {
-            var count = new ThemeExporter().ExportZip(themePath, zipPath, "my_theme");
+    public void Dispose()
+    {
+        Directory.Delete(_rootPath, true);
+    }
 
-            using var archive = ZipFile.OpenRead(zipPath);
-            Assert.Equal(2, count);
-            Assert.Equal(
-                ["my_theme/resources/sprites/packed.png", "my_theme/title.txt"],
-                archive.Entries.Select(entry => entry.FullName).Order(StringComparer.Ordinal));
-            Assert.Empty(Directory.GetFiles(rootPath, "*.tmp"));
-        }
-        finally
+    [Fact]
+    public void ExportsPackageInOmThemesLayout()
+    {
+        var previewPath = Path.Combine(_rootPath, "my_theme.png");
+        File.WriteAllText(previewPath, "preview");
+        var outputPath = Path.Combine(_rootPath, "out");
+
+        var result = new ThemeExporter().ExportPackage(_themePath, outputPath, "snes", "my_theme", previewPath);
+
+        Assert.Equal(Path.Combine(outputPath, "SNES.my_theme.tar.gz"), result.PackagePath);
+        Assert.True(result.IncludesPreview);
+        Assert.Equal(2, result.FileCount);
+        Assert.Equal(
+            [
+                "my_theme.png",
+                "my_theme/",
+                "my_theme/dependencies.json",
+                "my_theme/resources/",
+                "my_theme/resources/sprites/",
+                "my_theme/resources/sprites/packed.png",
+            ],
+            ReadEntryNames(result.PackagePath).Order(StringComparer.Ordinal));
+        Assert.Empty(Directory.GetFiles(outputPath, "*.tmp"));
+    }
+
+    [Fact]
+    public void ExportsPackageWithoutPreviewWhenNoneExists()
+    {
+        var result = new ThemeExporter().ExportPackage(_themePath, _rootPath, "shonen", "my_theme", Path.Combine(_rootPath, "missing.png"));
+
+        Assert.False(result.IncludesPreview);
+        Assert.EndsWith("SHONEN.my_theme.tar.gz", result.PackagePath, StringComparison.Ordinal);
+        Assert.DoesNotContain("my_theme.png", ReadEntryNames(result.PackagePath));
+    }
+
+    [Fact]
+    public void SendToPackagingReplacesThemeFolderAndKeepsMetadata()
+    {
+        var omThemesPath = Path.Combine(_rootPath, "om_themes");
+        Directory.CreateDirectory(Path.Combine(omThemesPath, "new-packaging"));
+        WriteFile(omThemesPath, "new-packaging/shonen/themes/my_theme/stale.txt", "old");
+
+        var targetPath = new ThemeExporter().SendToPackaging(_themePath, omThemesPath, "shonen", "my_theme");
+
+        Assert.Equal(Path.Combine(omThemesPath, "new-packaging", "shonen", "themes", "my_theme"), targetPath);
+        Assert.True(File.Exists(Path.Combine(targetPath, "title.txt")));
+        Assert.True(File.Exists(Path.Combine(targetPath, "resources", "sprites", "packed.png")));
+        Assert.False(File.Exists(Path.Combine(targetPath, "stale.txt")));
+        Assert.False(File.Exists(Path.Combine(targetPath, ".mts-base.json")));
+        Assert.Equal(["my_theme"], Directory.GetDirectories(Path.GetDirectoryName(targetPath)!).Select(Path.GetFileName));
+    }
+
+    [Fact]
+    public void RejectsFolderThatIsNotOmThemesAndInvalidNames()
+    {
+        var exporter = new ThemeExporter();
+
+        Assert.Throws<DirectoryNotFoundException>(() => exporter.SendToPackaging(_themePath, _rootPath, "snes", "my_theme"));
+        Assert.Throws<ArgumentException>(() => exporter.ExportPackage(_themePath, _rootPath, "snes", "../escape", null));
+    }
+
+    private static List<string> ReadEntryNames(string packagePath)
+    {
+        using var stream = File.OpenRead(packagePath);
+        using var gzip = new GZipStream(stream, CompressionMode.Decompress);
+        using var reader = new TarReader(gzip);
+        var names = new List<string>();
+        while (reader.GetNextEntry() is { } entry)
         {
-            Directory.Delete(rootPath, true);
+            names.Add(entry.Name);
         }
+
+        return names;
+    }
+
+    private static void WriteFile(string root, string relativePath, string content)
+    {
+        var path = Path.Combine(root, relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, content);
     }
 }

@@ -6,4 +6,5 @@ public sealed record AppSettings(
     ApplicationThemePreference Theme,
     string ConsoleHost,
     bool InitialSetupCompleted = false,
-    ConsoleConnectionMode ConsoleConnectionMode = ConsoleConnectionMode.Usb);
+    ConsoleConnectionMode ConsoleConnectionMode = ConsoleConnectionMode.Usb,
+    string OmThemesRootPath = "");

@@ -24,6 +24,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private ThemeDraft? _draft;
     private string? _currentBaseUiPath;
+    private FirmwareDefinition? _currentBase;
 
     public MainWindowViewModel(
         IThemeMetadataReader metadataReader,
@@ -418,17 +419,26 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    public bool ExportTheme(string zipPath)
+    public string? PackagingSystem => _currentBase is null ? null : ConsoleFamilies.PackagingSystem(ConsoleFamilies.Of(_currentBase));
+
+    public string PackagingName => _draft is null
+        ? ""
+        : ThemeDirectoryName.FromDisplayName(Path.GetFileName(Path.TrimEndingDirectorySeparator(_draft.SavePath)));
+
+    public bool ExportPackage(string outputDirectory)
     {
-        if (_draft is null || !ValidateBeforeOutput("exporting"))
+        if (!CanPackage(out var system) || !ValidateBeforeOutput("exporting"))
         {
             return false;
         }
 
         try
         {
-            var count = _themeExporter.ExportZip(_draft.DraftPath, zipPath, Path.GetFileName(Path.TrimEndingDirectorySeparator(_draft.SavePath)));
-            Status = $"Exported {count} files to {zipPath}";
+            var previewPath = $"{Path.TrimEndingDirectorySeparator(_draft!.SavePath)}.png";
+            var result = _themeExporter.ExportPackage(_draft.DraftPath, outputDirectory, system, PackagingName, previewPath);
+            Status = result.IncludesPreview
+                ? $"Exported {result.FileCount} files to {result.PackagePath}"
+                : $"Exported {result.FileCount} files to {result.PackagePath} without a preview (no {Path.GetFileName(previewPath)} next to the theme folder).";
             return true;
         }
         catch (Exception exception) when (
@@ -437,6 +447,44 @@ public partial class MainWindowViewModel : ViewModelBase
             Status = exception.Message;
             return false;
         }
+    }
+
+    public bool SendToOmThemes(string omThemesRootPath)
+    {
+        if (!CanPackage(out var system) || !ValidateBeforeOutput("sending to om_themes"))
+        {
+            return false;
+        }
+
+        try
+        {
+            var targetPath = _themeExporter.SendToPackaging(_draft!.DraftPath, omThemesRootPath, system, PackagingName);
+            Status = $"Copied to {targetPath}. Next: sh new-packaging/generate_theme.sh {system} {PackagingName}";
+            return true;
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            Status = exception.Message;
+            return false;
+        }
+    }
+
+    private bool CanPackage(out string system)
+    {
+        system = PackagingSystem ?? "";
+        if (_draft is null)
+        {
+            return false;
+        }
+
+        if (system.Length == 0)
+        {
+            Status = "Choose the Base of this theme first (click the console badge in the header).";
+            return false;
+        }
+
+        return true;
     }
 
     private bool ValidateBeforeOutput(string action)
@@ -521,10 +569,10 @@ public partial class MainWindowViewModel : ViewModelBase
         ThemePath = draft.SavePath;
         RequiresOverlay = metadata.RequiresOverlay;
 
-        CurrentBaseLabel = _baseFirmwareManager.GetInstalledBases()
-            .FirstOrDefault(info => info.Status == BaseInstallStatus.Valid && PathsEqual(info.LocalPath, _currentBaseUiPath)) is { } currentBase
-            ? ConsoleFamilies.ShortLabel(currentBase.Definition)
-            : "No Base";
+        _currentBase = _baseFirmwareManager.GetInstalledBases()
+            .FirstOrDefault(info => info.Status == BaseInstallStatus.Valid && PathsEqual(info.LocalPath, _currentBaseUiPath))?
+            .Definition;
+        CurrentBaseLabel = _currentBase is null ? "No Base" : ConsoleFamilies.ShortLabel(_currentBase);
         Atlases = _textureAtlasReader.ReadAll(draft.DraftPath, _currentBaseUiPath);
         SelectedAtlas = Atlases.Count > 0 ? Atlases[0] : null;
         if (SelectedAtlas is null)

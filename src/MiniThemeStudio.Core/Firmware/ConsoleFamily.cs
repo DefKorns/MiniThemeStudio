@@ -31,6 +31,14 @@ public static class ConsoleFamilies
         _ => family.ToString(),
     };
 
+    public static string PackagingSystem(ConsoleFamily family) => family switch
+    {
+        ConsoleFamily.NesFamicom => "nes",
+        ConsoleFamily.Snes => "snes",
+        ConsoleFamily.Shonen => "shonen",
+        _ => throw new ArgumentOutOfRangeException(nameof(family)),
+    };
+
     public static string ShortLabel(FirmwareDefinition definition)
     {
         ArgumentNullException.ThrowIfNull(definition);

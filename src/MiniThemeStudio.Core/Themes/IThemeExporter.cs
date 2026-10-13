@@ -1,6 +1,10 @@
 namespace MiniThemeStudio.Core.Themes;
 
+public sealed record ThemePackageResult(string PackagePath, int FileCount, bool IncludesPreview);
+
 public interface IThemeExporter
 {
-    int ExportZip(string themePath, string zipPath, string rootFolderName);
+    ThemePackageResult ExportPackage(string themePath, string outputDirectory, string system, string name, string? previewPath);
+
+    string SendToPackaging(string themePath, string omThemesRootPath, string system, string name);
 }

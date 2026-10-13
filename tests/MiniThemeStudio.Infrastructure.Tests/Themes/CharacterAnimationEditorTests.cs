@@ -24,7 +24,8 @@ public sealed class CharacterAnimationEditorTests : IDisposable
               {"id":"scene","type":"Scene","dependencies":[{"id":"t1","refCount":1}],"path":"/prefab/demo.scn","groupId":"1"},
               {"id":"anim","type":"SceneAnimation","dependencies":[{"id":"t1","refCount":2},{"id":"t2","refCount":1}],"path":"/layout/lyt_hero@run.sceneanimation","groupId":"2"},
               {"id":"t1","type":"TextureResource","path":"/layout/asset/sprite/hero/hero_run01.png","groupId":"3"},
-              {"id":"t2","type":"TextureResource","path":"/layout/asset/sprite/hero/hero_run02.png","groupId":"4"}
+              {"id":"t2","type":"TextureResource","path":"/layout/asset/sprite/hero/hero_run02.png","groupId":"4"},
+              {"id":"t1.frame.png","type":"SpriteResource","dependencies":[{"id":"t1","refCount":1}],"content":"{\"textureId\":\"t1\",\"textureFrame\":[0,0,8,8],\"pivot\":[4,4]}","contentType":1,"groupId":"5"}
             ],"resourceGroups":[]}
             """);
         WriteFile("resources/prefab/demo.scn", """
@@ -78,8 +79,8 @@ public sealed class CharacterAnimationEditorTests : IDisposable
         var texture = resources.Single(resource => resource!["id"]!.GetValue<string>() == id)!;
         var sheet = resources.Single(resource => resource!["id"]!.GetValue<string>() == $"sheet_{id}")!;
         Assert.Equal("/layout/asset/sprite/hero/hero_run03.png", texture["path"]!.GetValue<string>());
-        Assert.Equal("5", texture["groupId"]!.GetValue<string>());
-        Assert.Equal("6", sheet["groupId"]!.GetValue<string>());
+        Assert.Equal("6", texture["groupId"]!.GetValue<string>());
+        Assert.Equal("7", sheet["groupId"]!.GetValue<string>());
         Assert.Equal(id, ReadJson(Path.Combine(_draftPath, "resources", "layout", "asset", "sprite", "hero", "hero_run03.json"))["texture"]!["id"]!.GetValue<string>());
         Assert.Equal(_baseDependencies, File.ReadAllText(Path.Combine(_basePath, "dependencies.json")));
         Assert.Throws<IOException>(() => editor.AddTexture(_draftPath, _basePath, "resources/layout/asset/sprite/hero/hero_run03.png", source));
@@ -98,7 +99,12 @@ public sealed class CharacterAnimationEditorTests : IDisposable
         Assert.Equal("""[{"time":0,"value":"t1"},{"time":0.025,"value":"t2"},{"time":0.05,"value":"t2"}]""", keys);
         Assert.Equal(0.075, animation["duration"]!.GetValue<double>());
         Assert.Equal("""[{"id":"t1","refCount":1},{"id":"t2","refCount":2}]""", dependencies);
-        Assert.Contains("\n    \"duration\"", File.ReadAllText(Path.Combine(_draftPath, "resources", "layout", "lyt_hero@run.sceneanimation")).Replace("\r", ""));
+        var animationText = File.ReadAllText(Path.Combine(_draftPath, "resources", "layout", "lyt_hero@run.sceneanimation"));
+        var dependenciesText = File.ReadAllText(Path.Combine(_draftPath, "dependencies.json"));
+        Assert.Contains("\n    \"duration\"", animationText);
+        Assert.DoesNotContain('\r', animationText);
+        Assert.Contains("\"content\":\"{\\\"textureId\\\":\\\"t1\\\"", dependenciesText);
+        Assert.DoesNotContain("\\u0022", dependenciesText);
         Assert.Throws<InvalidDataException>(() =>
             editor.SetTrackKeys(_draftPath, _basePath, RunAnimation, "Sprite_Hero_0", [new(0, "missing")], 0.1));
     }

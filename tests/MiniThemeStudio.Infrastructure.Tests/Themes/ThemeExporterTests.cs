@@ -32,7 +32,7 @@ public sealed class ThemeExporterTests : IDisposable
         File.WriteAllText(previewPath, "preview");
         var outputPath = Path.Combine(_rootPath, "out");
 
-        var result = new ThemeExporter().ExportPackage(_themePath, outputPath, "snes", "my_theme", previewPath);
+        var result = new ThemeExporter().ExportPackage(_themePath, outputPath, "snes", "my_theme", previewPath, null);
 
         Assert.Equal(Path.Combine(outputPath, "SNES.my_theme.tar.gz"), result.PackagePath);
         Assert.True(result.IncludesPreview);
@@ -53,7 +53,7 @@ public sealed class ThemeExporterTests : IDisposable
     [Fact]
     public void ExportsPackageWithoutPreviewWhenNoneExists()
     {
-        var result = new ThemeExporter().ExportPackage(_themePath, _rootPath, "shonen", "my_theme", Path.Combine(_rootPath, "missing.png"));
+        var result = new ThemeExporter().ExportPackage(_themePath, _rootPath, "shonen", "my_theme", Path.Combine(_rootPath, "missing.png"), null);
 
         Assert.False(result.IncludesPreview);
         Assert.EndsWith("SHONEN.my_theme.tar.gz", result.PackagePath, StringComparison.Ordinal);
@@ -61,29 +61,42 @@ public sealed class ThemeExporterTests : IDisposable
     }
 
     [Fact]
-    public void SendToPackagingReplacesThemeFolderAndKeepsMetadata()
+    public void LeavesOutFilesIdenticalToTheBase()
     {
-        var omThemesPath = Path.Combine(_rootPath, "om_themes");
-        Directory.CreateDirectory(Path.Combine(omThemesPath, "new-packaging"));
-        WriteFile(omThemesPath, "new-packaging/shonen/themes/my_theme/stale.txt", "old");
+        var basePath = Path.Combine(_rootPath, "base");
+        WriteFile(basePath, "dependencies.json", "{}");
+        WriteFile(basePath, "resources/sprites/packed.png", "stock png");
+        WriteFile(basePath, "resources/prefab/bg.scn", "scene");
+        WriteFile(_themePath, "resources/prefab/bg.scn", "scene");
 
-        var targetPath = new ThemeExporter().SendToPackaging(_themePath, omThemesPath, "shonen", "my_theme");
+        var result = new ThemeExporter().ExportPackage(_themePath, Path.Combine(_rootPath, "out"), "snes", "my_theme", null, basePath);
 
-        Assert.Equal(Path.Combine(omThemesPath, "new-packaging", "shonen", "themes", "my_theme"), targetPath);
-        Assert.True(File.Exists(Path.Combine(targetPath, "title.txt")));
-        Assert.True(File.Exists(Path.Combine(targetPath, "resources", "sprites", "packed.png")));
-        Assert.False(File.Exists(Path.Combine(targetPath, "stale.txt")));
-        Assert.False(File.Exists(Path.Combine(targetPath, ".mts-base.json")));
-        Assert.Equal(["my_theme"], Directory.GetDirectories(Path.GetDirectoryName(targetPath)!).Select(Path.GetFileName));
+        Assert.Equal(1, result.FileCount);
+        Assert.Equal(2, result.UnchangedFilesSkipped);
+        Assert.Equal(
+            ["my_theme/", "my_theme/resources/", "my_theme/resources/sprites/", "my_theme/resources/sprites/packed.png"],
+            ReadEntryNames(result.PackagePath).Order(StringComparer.Ordinal));
     }
 
     [Fact]
-    public void RejectsFolderThatIsNotOmThemesAndInvalidNames()
+    public void MarksPackagesWithNewFilesForOverlay()
     {
-        var exporter = new ThemeExporter();
+        var basePath = Path.Combine(_rootPath, "base");
+        WriteFile(basePath, "resources/sprites/packed.png", "stock png");
+        WriteFile(_themePath, "resources/layout/asset/sprite/mario/mario_run04.png", "new frame");
 
-        Assert.Throws<DirectoryNotFoundException>(() => exporter.SendToPackaging(_themePath, _rootPath, "snes", "my_theme"));
-        Assert.Throws<ArgumentException>(() => exporter.ExportPackage(_themePath, _rootPath, "snes", "../escape", null));
+        var withNewFile = new ThemeExporter().ExportPackage(_themePath, Path.Combine(_rootPath, "a"), "snes", "my_theme", null, basePath);
+        File.Delete(Path.Combine(_themePath, "resources", "layout", "asset", "sprite", "mario", "mario_run04.png"));
+        var changedOnly = new ThemeExporter().ExportPackage(_themePath, Path.Combine(_rootPath, "b"), "snes", "my_theme", null, basePath);
+
+        Assert.Contains("my_theme/needs_overlay", ReadEntryNames(withNewFile.PackagePath));
+        Assert.DoesNotContain("my_theme/needs_overlay", ReadEntryNames(changedOnly.PackagePath));
+    }
+
+    [Fact]
+    public void RejectsInvalidNames()
+    {
+        Assert.Throws<ArgumentException>(() => new ThemeExporter().ExportPackage(_themePath, _rootPath, "snes", "../escape", null, null));
     }
 
     private static List<string> ReadEntryNames(string packagePath)

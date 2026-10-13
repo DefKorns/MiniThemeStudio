@@ -442,35 +442,15 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var previewPath = $"{Path.TrimEndingDirectorySeparator(_draft!.SavePath)}.png";
-            var result = _themeExporter.ExportPackage(_draft.DraftPath, outputDirectory, system, PackagingName, previewPath);
+            var result = _themeExporter.ExportPackage(_draft.DraftPath, outputDirectory, system, PackagingName, previewPath, _currentBaseUiPath);
+            var summary = $"Exported {result.FileCount} changed files to {result.PackagePath} ({result.UnchangedFilesSkipped} unchanged Base files left out)";
             Status = result.IncludesPreview
-                ? $"Exported {result.FileCount} files to {result.PackagePath}"
-                : $"Exported {result.FileCount} files to {result.PackagePath} without a preview (no {Path.GetFileName(previewPath)} next to the theme folder).";
+                ? $"{summary}."
+                : $"{summary}, without a preview (no {Path.GetFileName(previewPath)} next to the theme folder).";
             return true;
         }
         catch (Exception exception) when (
             exception is IOException or UnauthorizedAccessException or ArgumentException or InvalidDataException)
-        {
-            Status = exception.Message;
-            return false;
-        }
-    }
-
-    public bool SendToOmThemes(string omThemesRootPath)
-    {
-        if (!CanPackage(out var system) || !ValidateBeforeOutput("sending to om_themes"))
-        {
-            return false;
-        }
-
-        try
-        {
-            var targetPath = _themeExporter.SendToPackaging(_draft!.DraftPath, omThemesRootPath, system, PackagingName);
-            Status = $"Copied to {targetPath}. Next: sh new-packaging/generate_theme.sh {system} {PackagingName}";
-            return true;
-        }
-        catch (Exception exception) when (
-            exception is IOException or UnauthorizedAccessException or ArgumentException)
         {
             Status = exception.Message;
             return false;

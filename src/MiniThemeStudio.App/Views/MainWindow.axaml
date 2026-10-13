@@ -78,17 +78,11 @@
               <TextBlock Text="Validate" />
             </StackPanel>
           </Button>
-          <Button Padding="12,6" Background="Transparent" ToolTip.Tip="Validate and publish the theme for om_themes">
+          <Button Padding="12,6" Background="Transparent" Click="ExportPackage_Click" ToolTip.Tip="Validate and export the changed files as a .tar.gz theme package">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <lucide:LucideIcon Kind="Package" Size="16" />
-              <TextBlock Text="Publish" />
+              <TextBlock Text="Export .tar.gz" />
             </StackPanel>
-            <Button.Flyout>
-              <MenuFlyout Placement="BottomEdgeAlignedRight">
-                <MenuItem Header="Send to om_themes (new-packaging)" Click="SendToOmThemes_Click" />
-                <MenuItem Header="Export .tar.gz package" Click="ExportPackage_Click" />
-              </MenuFlyout>
-            </Button.Flyout>
           </Button>
           <Button Padding="12,6" Background="Transparent" Click="SaveDraft_Click" ToolTip.Tip="Keep this work in progress and resume it later">
             <StackPanel Orientation="Horizontal" Spacing="6">

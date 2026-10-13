@@ -9,8 +9,6 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
 {
     private const string LayoutPrefix = "/layout/lyt_";
 
-    private static readonly JsonSerializerOptions AnimationWriteOptions = new() { WriteIndented = true, IndentSize = 4 };
-
     public IReadOnlyList<string> GetCharacters(string themePath, string? baseUiPath)
     {
         return ReadDependencies(themePath, baseUiPath)
@@ -135,11 +133,11 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
         File.Copy(sourceImagePath, imagePath, false);
         File.WriteAllText(
             DraftPath(themeDraftPath, definitionResourcePath),
-            new JsonObject
+            EngineJson.ToCompactString(new JsonObject
             {
                 ["texture"] = new JsonObject { ["id"] = textureId, ["width"] = bitmap.Width, ["height"] = bitmap.Height },
                 ["sprites"] = new JsonObject(),
-            }.ToJsonString());
+            }));
 
         var nextGroup = resources.Max(resource => int.TryParse(resource?["groupId"]?.GetValue<string>(), out var group) ? group : 0) + 1;
         resources.Add(new JsonObject
@@ -210,7 +208,7 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
 
         var targetPath = DraftPath(themeDraftPath, animationResourcePath);
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-        WriteAtomically(targetPath, animation.ToJsonString(AnimationWriteOptions));
+        EngineJson.WriteAtomically(targetPath, EngineJson.ToIndentedString(animation));
         SaveDependencies(themeDraftPath, dependencies);
     }
 
@@ -257,7 +255,7 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
 
             var targetPath = DraftPath(themeDraftPath, scene.Path!);
             Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-            WriteAtomically(targetPath, root.ToJsonString());
+            EngineJson.WriteAtomically(targetPath, EngineJson.ToCompactString(root));
         }
 
         if (changed == 0)
@@ -350,7 +348,7 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
 
     private static void SaveDependencies(string themeDraftPath, JsonObject dependencies)
     {
-        WriteAtomically(Path.Combine(themeDraftPath, "dependencies.json"), dependencies.ToJsonString());
+        EngineJson.WriteAtomically(Path.Combine(themeDraftPath, "dependencies.json"), EngineJson.ToCompactString(dependencies));
     }
 
     private static List<DependencyResource> ReadDependencies(string themePath, string? baseUiPath)
@@ -394,13 +392,6 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
         }
 
         return path;
-    }
-
-    private static void WriteAtomically(string path, string content)
-    {
-        var temporaryPath = $"{path}.{Guid.NewGuid():N}.tmp";
-        File.WriteAllText(temporaryPath, content);
-        File.Move(temporaryPath, path, true);
     }
 
     private sealed record DependencyResource(string Id, string Type, string? Path);

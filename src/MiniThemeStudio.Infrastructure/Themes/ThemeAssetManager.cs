@@ -565,7 +565,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
     private static void WriteTextureJson(string jsonPath, JsonObject root)
     {
         var tempJson = $"{jsonPath}.{Guid.NewGuid():N}.tmp";
-        File.WriteAllText(tempJson, root.ToJsonString());
+        File.WriteAllText(tempJson, EngineJson.ToCompactString(root));
         File.Move(tempJson, jsonPath, true);
     }
 }

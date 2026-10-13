@@ -14,7 +14,7 @@ public sealed partial class ThemeExporter : IThemeExporter
 
     private const UnixFileMode DirectoryMode = FileMode | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute;
 
-    public ThemePackageResult ExportPackage(string themePath, string outputDirectory, string system, string name, string? previewPath)
+    public ThemePackageResult ExportPackage(string themePath, string outputDirectory, string system, string name, string? previewPath, string? baseUiPath)
     {
         ValidateArguments(themePath, system, name);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputDirectory);
@@ -22,8 +22,11 @@ public sealed partial class ThemeExporter : IThemeExporter
 
         var packagePath = Path.Combine(outputDirectory, $"{system.ToUpperInvariant()}.{name}.tar.gz");
         var temporaryPath = $"{packagePath}.{Guid.NewGuid():N}.tmp";
-        var fileCount = 0;
         var includesPreview = previewPath is not null && File.Exists(previewPath);
+        var (files, skipped) = SelectFiles(themePath, baseUiPath);
+        var needsOverlay = baseUiPath is not null
+            && !files.Contains("needs_overlay")
+            && files.Any(relativePath => !File.Exists(Path.Combine(baseUiPath, relativePath)) && relativePath.StartsWith("resources/", StringComparison.Ordinal));
         try
         {
             using (var output = File.Create(temporaryPath))
@@ -31,19 +34,19 @@ public sealed partial class ThemeExporter : IThemeExporter
             using (var writer = new TarWriter(gzip, TarEntryFormat.Gnu))
             {
                 writer.WriteEntry(new GnuTarEntry(TarEntryType.Directory, $"{name}/") { Mode = DirectoryMode });
-                foreach (var directory in Directory.EnumerateDirectories(themePath, "*", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
+                foreach (var directory in ParentDirectories(files))
                 {
-                    var relativePath = ToArchivePath(themePath, directory);
-                    if (!UiTreeHash.IsIgnored(relativePath))
-                    {
-                        writer.WriteEntry(new GnuTarEntry(TarEntryType.Directory, $"{name}/{relativePath}/") { Mode = DirectoryMode });
-                    }
+                    writer.WriteEntry(new GnuTarEntry(TarEntryType.Directory, $"{name}/{directory}/") { Mode = DirectoryMode });
                 }
 
-                foreach (var filePath in EnumeratePackagedFiles(themePath))
+                foreach (var relativePath in files)
                 {
-                    WriteFile(writer, filePath, $"{name}/{ToArchivePath(themePath, filePath)}");
-                    fileCount++;
+                    WriteFile(writer, Path.Combine(themePath, relativePath), $"{name}/{relativePath}");
+                }
+
+                if (needsOverlay)
+                {
+                    writer.WriteEntry(new GnuTarEntry(TarEntryType.RegularFile, $"{name}/needs_overlay") { Mode = FileMode, DataStream = new MemoryStream() });
                 }
 
                 if (includesPreview)
@@ -53,7 +56,7 @@ public sealed partial class ThemeExporter : IThemeExporter
             }
 
             File.Move(temporaryPath, packagePath, true);
-            return new ThemePackageResult(packagePath, fileCount, includesPreview);
+            return new ThemePackageResult(packagePath, files.Count, includesPreview, skipped);
         }
         finally
         {
@@ -64,78 +67,56 @@ public sealed partial class ThemeExporter : IThemeExporter
         }
     }
 
-    public string SendToPackaging(string themePath, string omThemesRootPath, string system, string name)
+    private static (List<string> Files, int Skipped) SelectFiles(string themePath, string? baseUiPath)
     {
-        ValidateArguments(themePath, system, name);
-        ArgumentException.ThrowIfNullOrWhiteSpace(omThemesRootPath);
-        if (!Directory.Exists(Path.Combine(omThemesRootPath, "new-packaging")))
+        var files = new List<string>();
+        var skipped = 0;
+        foreach (var filePath in Directory.EnumerateFiles(themePath, "*", SearchOption.AllDirectories))
         {
-            throw new DirectoryNotFoundException($"{omThemesRootPath} is not an om_themes folder (new-packaging/ not found).");
+            var relativePath = ToArchivePath(themePath, filePath);
+            if (UiTreeHash.IsIgnored(relativePath)
+                || PackagingOnlyFiles.Contains(relativePath, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (baseUiPath is not null && IsUnchanged(filePath, Path.Combine(baseUiPath, relativePath)))
+            {
+                skipped++;
+                continue;
+            }
+
+            files.Add(relativePath);
         }
 
-        var themesPath = Path.Combine(omThemesRootPath, "new-packaging", system, "themes");
-        var targetPath = Path.Combine(themesPath, name);
-        var stagingPath = Path.Combine(themesPath, $".{name}.mts-stage-{Guid.NewGuid():N}");
-        var backupPath = Path.Combine(themesPath, $".{name}.mts-backup-{Guid.NewGuid():N}");
-        var targetMoved = false;
-        Directory.CreateDirectory(themesPath);
-
-        try
-        {
-            foreach (var filePath in Directory.EnumerateFiles(themePath, "*", SearchOption.AllDirectories))
-            {
-                var relativePath = Path.GetRelativePath(themePath, filePath);
-                if (UiTreeHash.IsIgnored(relativePath))
-                {
-                    continue;
-                }
-
-                var destinationPath = Path.Combine(stagingPath, relativePath);
-                Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
-                File.Copy(filePath, destinationPath);
-            }
-
-            Directory.CreateDirectory(stagingPath);
-            if (Directory.Exists(targetPath))
-            {
-                Directory.Move(targetPath, backupPath);
-                targetMoved = true;
-            }
-
-            Directory.Move(stagingPath, targetPath);
-            if (targetMoved)
-            {
-                Directory.Delete(backupPath, true);
-            }
-
-            return targetPath;
-        }
-        catch
-        {
-            if (Directory.Exists(stagingPath))
-            {
-                Directory.Delete(stagingPath, true);
-            }
-
-            if (targetMoved && !Directory.Exists(targetPath))
-            {
-                Directory.Move(backupPath, targetPath);
-            }
-
-            throw;
-        }
+        files.Sort(StringComparer.Ordinal);
+        return (files, skipped);
     }
 
-    private static IEnumerable<string> EnumeratePackagedFiles(string themePath)
+    private static bool IsUnchanged(string themeFile, string baseFile)
     {
-        return Directory.EnumerateFiles(themePath, "*", SearchOption.AllDirectories)
-            .Where(filePath =>
+        if (!File.Exists(baseFile) || new FileInfo(themeFile).Length != new FileInfo(baseFile).Length)
+        {
+            return false;
+        }
+
+        return File.ReadAllBytes(themeFile).AsSpan().SequenceEqual(File.ReadAllBytes(baseFile));
+    }
+
+    private static SortedSet<string> ParentDirectories(IEnumerable<string> files)
+    {
+        var directories = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (var file in files)
+        {
+            var separator = file.LastIndexOf('/');
+            while (separator > 0)
             {
-                var relativePath = ToArchivePath(themePath, filePath);
-                return !UiTreeHash.IsIgnored(relativePath)
-                    && !PackagingOnlyFiles.Contains(relativePath, StringComparer.OrdinalIgnoreCase);
-            })
-            .Order(StringComparer.Ordinal);
+                directories.Add(file[..separator]);
+                separator = file.LastIndexOf('/', separator - 1);
+            }
+        }
+
+        return directories;
     }
 
     private static void WriteFile(TarWriter writer, string filePath, string entryName)

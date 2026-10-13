@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MiniThemeStudio.App/MiniThemeStudio.App.csproj" />
+    <Project Path="src/MiniThemeStudio.Core/MiniThemeStudio.Core.csproj" />
+    <Project Path="src/MiniThemeStudio.Infrastructure/MiniThemeStudio.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MiniThemeStudio.Core.Tests/MiniThemeStudio.Core.Tests.csproj" />
+    <Project Path="tests/MiniThemeStudio.Infrastructure.Tests/MiniThemeStudio.Infrastructure.Tests.csproj" />
+  </Folder>
+</Solution>

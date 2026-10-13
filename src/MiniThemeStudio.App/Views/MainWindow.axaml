@@ -1,0 +1,372 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MiniThemeStudio.App.ViewModels"
+        xmlns:themes="using:MiniThemeStudio.Core.Themes"
+        xmlns:lucide="using:Lucide.Avalonia"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="780"
+        x:Class="MiniThemeStudio.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="Mini Theme Studio"
+        Width="1200" Height="780"
+        MinWidth="960" MinHeight="600"
+        Background="{DynamicResource PageBackgroundBrush}"
+        FontFamily="Segoe UI, Ubuntu, sans-serif">
+
+  <Grid RowDefinitions="56,*,28" ColumnDefinitions="56,*">
+    <!-- Left Navigation Bar -->
+    <Border Grid.RowSpan="3" Background="{DynamicResource HeaderBackgroundBrush}" BorderBrush="{DynamicResource HeaderBorderBrush}" BorderThickness="0,0,1,0">
+      <Grid RowDefinitions="56,*,Auto">
+        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontFamily="Georgia, serif" FontSize="20" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" Text="M" />
+        <StackPanel Grid.Row="1" Margin="8,14" Spacing="8">
+          <Button Width="40" Height="40" Padding="0" Background="Transparent" Click="CreateTheme_Click" ToolTip.Tip="Create new theme">
+            <lucide:LucideIcon Kind="Plus" Size="20" Foreground="{DynamicResource HeaderMutedBrush}" />
+          </Button>
+          <Button Width="40" Height="40" Padding="0" Background="Transparent" Click="OpenTheme_Click" ToolTip.Tip="Edit existing theme">
+            <lucide:LucideIcon Kind="FolderOpen" Size="20" Foreground="{DynamicResource HeaderMutedBrush}" />
+          </Button>
+          <Button Width="40" Height="40" Padding="0" Background="Transparent" Click="ManageBases_Click" ToolTip.Tip="Manage Base Firmwares">
+            <lucide:LucideIcon Kind="Database" Size="20" Foreground="{DynamicResource HeaderMutedBrush}" />
+          </Button>
+          <Button Width="40" Height="40" Padding="0" Background="{DynamicResource SidebarSelectedBrush}" ToolTip.Tip="Workspace" IsVisible="{Binding IsThemeOpen}">
+            <lucide:LucideIcon Kind="LayoutDashboard" Size="20" Foreground="{DynamicResource AccentBrush}" />
+          </Button>
+          <Button Width="40" Height="40" Padding="0" Background="Transparent" Click="ShowHome_Click" ToolTip.Tip="Discard draft and return to start" IsVisible="{Binding IsThemeOpen}">
+            <lucide:LucideIcon Kind="House" Size="20" Foreground="{DynamicResource HeaderMutedBrush}" />
+          </Button>
+        </StackPanel>
+        <StackPanel Grid.Row="2" Margin="8,0,8,12" Spacing="8">
+          <Button Width="40" Height="40" Padding="0" Background="Transparent" Click="ShowSettings_Click" ToolTip.Tip="Settings">
+            <lucide:LucideIcon Kind="Settings" Size="20" Foreground="{DynamicResource HeaderMutedBrush}" />
+          </Button>
+          <Button Width="40" Height="40" Padding="0" Background="Transparent" Click="ThemeMode_Click" ToolTip.Tip="Toggle dark mode">
+            <lucide:LucideIcon x:Name="ThemeModeIcon" Kind="Moon" Size="20" Foreground="{DynamicResource HeaderMutedBrush}" />
+          </Button>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- Header Bar -->
+    <Border Grid.Row="0" Grid.Column="1" Background="{DynamicResource HeaderBackgroundBrush}" BorderBrush="{DynamicResource HeaderBorderBrush}" BorderThickness="0,0,0,1">
+      <Grid ColumnDefinitions="240,*,Auto" Margin="20,0">
+        <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource HeaderTextBrush}" FontFamily="Georgia, serif" FontSize="18" FontWeight="SemiBold" Text="Mini Theme Studio" />
+        <StackPanel Grid.Column="1" Margin="24,0" VerticalAlignment="Center" Orientation="Horizontal" Spacing="12" IsVisible="{Binding IsThemeOpen}">
+          <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource HeaderTextBrush}" Text="{Binding ThemeName}" TextTrimming="CharacterEllipsis" />
+          <Border Padding="6,2" Background="{DynamicResource SidebarSelectedBrush}" CornerRadius="4">
+            <TextBlock FontSize="11" Foreground="{DynamicResource HeaderMutedBrush}" Text="{Binding Author, StringFormat='by {0}'}" />
+          </Border>
+          <Border Padding="6,2" Background="{DynamicResource DialogWarningBrush}" CornerRadius="4" IsVisible="{Binding HasUnsavedChanges}">
+            <TextBlock FontSize="11" FontWeight="Bold" Foreground="#151515" Text="Unsaved changes" />
+          </Border>
+        </StackPanel>
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" IsVisible="{Binding IsThemeOpen}">
+          <Button Padding="12,6" Background="Transparent" Click="RunValidation_Click" ToolTip.Tip="Validate theme integrity">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <lucide:LucideIcon Kind="Check" Size="16" />
+              <TextBlock Text="Validate" />
+            </StackPanel>
+          </Button>
+          <Button Padding="16,6" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" IsEnabled="{Binding HasUnsavedChanges}" Click="SaveTheme_Click" Content="Save" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- Home / Start View -->
+    <Grid Grid.Row="1" Grid.Column="1" IsVisible="{Binding IsHomeVisible}">
+      <Grid Width="880" HorizontalAlignment="Center" VerticalAlignment="Center" RowDefinitions="Auto,Auto" ColumnDefinitions="*,*,*">
+        <StackPanel Grid.ColumnSpan="3" Margin="0,0,0,32" Spacing="6">
+          <TextBlock FontFamily="Georgia, serif" FontSize="32" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Mini Theme Studio" />
+          <TextBlock Foreground="{DynamicResource SecondaryTextBrush}" Text="Choose an action to start building or editing retro themes." />
+        </StackPanel>
+
+        <Button Grid.Row="1" Margin="0,0,8,0" Padding="20" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Click="CreateTheme_Click">
+          <StackPanel Spacing="10">
+            <lucide:LucideIcon Kind="Plus" Size="28" Foreground="{DynamicResource AccentBrush}" />
+            <TextBlock FontFamily="Georgia, serif" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Create theme" />
+            <TextBlock Foreground="{DynamicResource SecondaryTextBrush}" Text="Clone a base stock UI into a new theme project." TextWrapping="Wrap" />
+          </StackPanel>
+        </Button>
+
+        <Button Grid.Row="1" Grid.Column="1" Margin="4,0,4,0" Padding="20" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Click="OpenTheme_Click">
+          <StackPanel Spacing="10">
+            <lucide:LucideIcon Kind="FolderOpen" Size="28" Foreground="{DynamicResource AccentBrush}" />
+            <TextBlock FontFamily="Georgia, serif" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Edit existing" />
+            <TextBlock Foreground="{DynamicResource SecondaryTextBrush}" Text="Open an existing theme folder from disk." TextWrapping="Wrap" />
+          </StackPanel>
+        </Button>
+
+        <Button Grid.Row="1" Grid.Column="2" Margin="8,0,0,0" Padding="20" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Click="ManageBases_Click">
+          <StackPanel Spacing="10">
+            <lucide:LucideIcon Kind="Database" Size="28" Foreground="{DynamicResource AccentBrush}" />
+            <TextBlock FontFamily="Georgia, serif" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Base firmwares" />
+            <TextBlock Foreground="{DynamicResource SecondaryTextBrush}" Text="Import .tar / .tar.gz archives or extracted folders." TextWrapping="Wrap" />
+          </StackPanel>
+        </Button>
+      </Grid>
+    </Grid>
+
+    <!-- Theme Workspace View -->
+    <TabControl Grid.Row="1" Grid.Column="1" IsVisible="{Binding IsThemeOpen}">
+      <!-- TAB 1: PACKED ATLAS SPRITES -->
+      <TabItem Header="Packed Sprites">
+        <Grid ColumnDefinitions="*,340" Margin="16,12">
+          <!-- Sprites List -->
+          <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+            <Grid RowDefinitions="Auto,*">
+              <Grid Margin="16,12" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                <TextBox Grid.Row="0" Margin="0,0,0,8" Height="36" Watermark="Search sprites by name..." Text="{Binding SpriteSearchText}" />
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+                  <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Sprites" />
+                  <TextBlock Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding AtlasSummary}" />
+                </StackPanel>
+                <TextBlock Grid.Row="1" Grid.Column="1" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding FilteredSprites.Count, StringFormat='{}{0} matching'}" />
+              </Grid>
+
+              <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding FilteredSprites}" SelectedItem="{Binding SelectedSprite}" SelectionChanged="SpriteList_SelectionChanged">
+                <ListBox.Styles>
+                  <Style Selector="ListBoxItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+                    <Setter Property="Padding" Value="8,4" />
+                  </Style>
+                </ListBox.Styles>
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="themes:SpriteRegion">
+                    <Grid Margin="4,2" ColumnDefinitions="*,60,16,60">
+                      <TextBlock Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Grid.Column="1" HorizontalAlignment="Right" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Frame.Width}" />
+                      <TextBlock Grid.Column="2" HorizontalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="×" />
+                      <TextBlock Grid.Column="3" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Frame.Height}" />
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Grid>
+          </Border>
+
+          <!-- Sprite Preview and Controls Panel -->
+          <Border Grid.Column="1" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+            <ScrollViewer>
+              <StackPanel Margin="20" Spacing="14">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock FontFamily="Georgia, serif" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Sprite Preview" />
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                    <Button Padding="6,2" Content="1x" Click="Zoom1x_Click" ToolTip.Tip="100% Zoom" />
+                    <Button Padding="6,2" Content="2x" Click="Zoom2x_Click" ToolTip.Tip="200% Zoom" />
+                    <Button Padding="6,2" Content="4x" Click="Zoom4x_Click" ToolTip.Tip="400% Zoom" />
+                    <Button Padding="6,2" Content="Fit" Click="ZoomFit_Click" ToolTip.Tip="Fit frame" />
+                  </StackPanel>
+                </Grid>
+
+                <Border Height="240" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                  <Image x:Name="SpritePreviewImage" Margin="12" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
+                </Border>
+
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedSprite.Name}" TextWrapping="Wrap" />
+
+                <Grid ColumnDefinitions="*,*" Margin="0,4">
+                  <Button Margin="0,0,4,0" Padding="12,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" IsEnabled="{Binding CanReplaceSprite}" Click="ReplaceSprite_Click" Content="Replace PNG" />
+                  <Button Grid.Column="1" Margin="4,0,0,0" Padding="12,8" HorizontalAlignment="Stretch" IsEnabled="{Binding CanReplaceSprite}" Click="ExportSprite_Click" Content="Export PNG" />
+                </Grid>
+
+                <Border Height="1" Background="{DynamicResource BorderBrush}" />
+                <TextBlock FontWeight="Bold" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="FRAME &amp; POSITION" />
+                <Grid ColumnDefinitions="90,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+                  <TextBlock Foreground="{DynamicResource SecondaryTextBrush}" Text="Dimensions" />
+                  <TextBlock Grid.Column="1" Text="{Binding SelectedSprite.Frame.Width, StringFormat='{}{0} × '}" />
+                  <TextBlock Grid.Row="1" Foreground="{DynamicResource SecondaryTextBrush}" Text="Offset (X, Y)" />
+                  <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="{Binding SelectedSprite.Frame.X}" />
+                    <TextBlock Text="," />
+                    <TextBlock Text="{Binding SelectedSprite.Frame.Y}" />
+                  </StackPanel>
+                  <TextBlock Grid.Row="2" Foreground="{DynamicResource SecondaryTextBrush}" Text="Pivot" />
+                  <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                    <TextBlock Text="{Binding SelectedSprite.Pivot.X}" />
+                    <TextBlock Text="," />
+                    <TextBlock Text="{Binding SelectedSprite.Pivot.Y}" />
+                  </StackPanel>
+                </Grid>
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <!-- TAB 2: WALLPAPERS -->
+      <TabItem Header="Wallpapers">
+        <Grid ColumnDefinitions="*,380" Margin="16,12">
+          <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+            <Grid RowDefinitions="Auto,*">
+              <TextBlock Margin="16,12" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Background Wallpapers (wall, wall_near, wall_far)" />
+              <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding Wallpapers}" SelectedItem="{Binding SelectedWallpaper}" SelectionChanged="WallpaperList_SelectionChanged">
+                <ListBox.Styles>
+                  <Style Selector="ListBoxItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="Padding" Value="10,8" />
+                  </Style>
+                </ListBox.Styles>
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="themes:WallpaperAsset">
+                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="4,2">
+                      <Border Width="32" Height="32" Background="{DynamicResource PanelBackgroundBrush}" CornerRadius="4" Margin="0,0,12,0">
+                        <lucide:LucideIcon Kind="Image" Size="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Border>
+                      <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                        <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding DisplayName}" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Width, StringFormat='{}{0} × '}" />
+                          <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Height, StringFormat='{}{0} px'}" />
+                          <TextBlock FontSize="11" Foreground="{DynamicResource AccentBrush}" Text="(Inherited from Base)" IsVisible="{Binding IsFromBaseUi}" />
+                        </StackPanel>
+                      </StackPanel>
+                      <lucide:LucideIcon Grid.Column="2" Kind="ChevronRight" Size="16" Foreground="{DynamicResource SecondaryTextBrush}" />
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Grid>
+          </Border>
+
+          <Border Grid.Column="1" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+            <ScrollViewer>
+              <StackPanel Margin="20" Spacing="14">
+                <TextBlock FontFamily="Georgia, serif" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Wallpaper Preview" />
+                <Border Height="240" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                  <Image x:Name="WallpaperPreviewImage" Margin="8" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
+                </Border>
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedWallpaper.DisplayName}" />
+                <Grid ColumnDefinitions="*,*" Margin="0,4">
+                  <Button Margin="0,0,4,0" Padding="12,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" IsEnabled="{Binding CanReplaceWallpaper}" Click="ReplaceWallpaper_Click" Content="Replace PNG" />
+                  <Button Grid.Column="1" Margin="4,0,0,0" Padding="12,8" HorizontalAlignment="Stretch" IsEnabled="{Binding CanReplaceWallpaper}" Click="ExportWallpaper_Click" Content="Export PNG" />
+                </Grid>
+                <Border Height="1" Background="{DynamicResource BorderBrush}" />
+                <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="Wallpapers define the main background, near foreground parallax layer, and far distant layer. Dimensions are automatically preserved or updated in JSON." TextWrapping="Wrap" />
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <!-- TAB 3: EXTRA ELEMENTS -->
+      <TabItem Header="Extra Elements">
+        <Grid ColumnDefinitions="*,380" Margin="16,12">
+          <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+            <Grid RowDefinitions="Auto,*">
+              <Grid Margin="16,12" ColumnDefinitions="*,Auto">
+                <TextBlock VerticalAlignment="Center" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Characters &amp; Standalone Assets (Shonen, Chrono, etc.)" />
+                <Button Grid.Column="1" Click="AddExtraAsset_Click" Padding="10,6" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <lucide:LucideIcon Kind="Plus" Size="16" />
+                    <TextBlock Text="Add Element" />
+                  </StackPanel>
+                </Button>
+              </Grid>
+
+              <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding ExtraAssets}" SelectedItem="{Binding SelectedExtraAsset}" SelectionChanged="ExtraAssetList_SelectionChanged">
+                <ListBox.Styles>
+                  <Style Selector="ListBoxItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="Padding" Value="10,8" />
+                  </Style>
+                </ListBox.Styles>
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="themes:ExtraAsset">
+                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="4,2">
+                      <Border Width="32" Height="32" Background="{DynamicResource PanelBackgroundBrush}" CornerRadius="4" Margin="0,0,12,0">
+                        <lucide:LucideIcon Kind="Sparkles" Size="16" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Border>
+                      <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                        <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding DisplayName}" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <TextBlock FontSize="11" Foreground="{DynamicResource AccentBrush}" Text="{Binding Category}" />
+                          <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding RelativePath}" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                      </StackPanel>
+                      <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Width, StringFormat='{}{0}px'}" />
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Grid>
+          </Border>
+
+          <Border Grid.Column="1" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+            <ScrollViewer>
+              <StackPanel Margin="20" Spacing="14">
+                <TextBlock FontFamily="Georgia, serif" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Element Preview" />
+                <Border Height="240" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                  <Image x:Name="ExtraAssetPreviewImage" Margin="8" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
+                </Border>
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedExtraAsset.DisplayName}" />
+                <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SelectedExtraAsset.RelativePath}" TextWrapping="Wrap" />
+
+                <Grid ColumnDefinitions="*,*" Margin="0,4">
+                  <Button Margin="0,0,4,0" Padding="10,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" IsEnabled="{Binding CanReplaceExtraAsset}" Click="ReplaceExtraAsset_Click" Content="Replace PNG" />
+                  <Button Grid.Column="1" Margin="4,0,0,0" Padding="10,8" HorizontalAlignment="Stretch" IsEnabled="{Binding CanReplaceExtraAsset}" Click="ExportExtraAsset_Click" Content="Export PNG" />
+                </Grid>
+                <Button Padding="10,6" HorizontalAlignment="Stretch" IsEnabled="{Binding CanReplaceExtraAsset}" Click="DeleteExtraAsset_Click" Content="Delete Element" />
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <!-- TAB 4: METADATA & VALIDATION -->
+      <TabItem Header="Theme Details &amp; Validation">
+        <Grid ColumnDefinitions="*,*" Margin="24">
+          <Border Margin="0,0,12,0" Padding="20" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+            <StackPanel Spacing="16">
+              <TextBlock FontFamily="Georgia, serif" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Metadata" />
+              <StackPanel Spacing="6">
+                <TextBlock Foreground="{DynamicResource SecondaryTextBrush}" Text="Theme Name" />
+                <TextBox Height="36" Text="{Binding ThemeName}" />
+              </StackPanel>
+              <StackPanel Spacing="6">
+                <TextBlock Foreground="{DynamicResource SecondaryTextBrush}" Text="Author" />
+                <TextBox Height="36" Text="{Binding Author}" />
+              </StackPanel>
+              <CheckBox IsChecked="{Binding RequiresOverlay}" Content="Requires CRT overlay (needs_overlay)" />
+              <Border Height="1" Background="{DynamicResource BorderBrush}" />
+              <TextBlock Foreground="{DynamicResource SecondaryTextBrush}" Text="Draft working location:" />
+              <TextBlock FontSize="12" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding CurrentDraftPath}" TextWrapping="Wrap" />
+            </StackPanel>
+          </Border>
+
+          <Border Grid.Column="1" Margin="12,0,0,0" Padding="20" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+            <Grid RowDefinitions="Auto,Auto,*">
+              <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,12">
+                <TextBlock VerticalAlignment="Center" FontFamily="Georgia, serif" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Integrity Validation" />
+                <Button Grid.Column="1" Click="RunValidation_Click" Padding="12,6" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Content="Re-validate" />
+              </Grid>
+
+              <Border Grid.Row="1" Margin="0,0,0,12" Padding="12" CornerRadius="4"
+                      Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                <TextBlock FontWeight="SemiBold" Text="{Binding ValidationSummary}" />
+              </Border>
+
+              <ListBox Grid.Row="2" ItemsSource="{Binding ValidationIssues}">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="themes:ThemeValidationIssue">
+                    <Grid ColumnDefinitions="Auto,*" Margin="0,4">
+                      <lucide:LucideIcon Kind="TriangleAlert" Size="16" Foreground="{DynamicResource DialogWarningBrush}" Margin="0,0,8,0" IsVisible="{Binding !IsError}" />
+                      <lucide:LucideIcon Kind="X" Size="16" Foreground="{DynamicResource DialogErrorBrush}" Margin="0,0,8,0" IsVisible="{Binding IsError}" />
+                      <TextBlock Grid.Column="1" Text="{Binding Message}" TextWrapping="Wrap" />
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Grid>
+          </Border>
+        </Grid>
+      </TabItem>
+    </TabControl>
+
+    <!-- Bottom Status Bar -->
+    <Border Grid.Row="2" Grid.Column="1" Background="{DynamicResource HeaderBackgroundBrush}">
+      <TextBlock Margin="14,0" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource HeaderMutedBrush}" Text="{Binding Status}" />
+    </Border>
+  </Grid>
+</Window>

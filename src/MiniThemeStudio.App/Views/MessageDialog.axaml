@@ -1,0 +1,35 @@
+<Window xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:dialogs="using:MiniThemeStudio.App.Dialogs"
+  xmlns:lucide="using:Lucide.Avalonia" x:Class="MiniThemeStudio.App.Views.MessageDialog" x:DataType="dialogs:MessageDialogViewModel" Title="{Binding Title}" Width="480" Height="260" CanResize="False" ShowInTaskbar="False" SystemDecorations="None" TransparencyLevelHint="Transparent" WindowStartupLocation="CenterOwner" Background="Transparent" FontFamily="Segoe UI, Ubuntu, sans-serif">
+
+  <Window.Styles>
+    <Style Selector="Button.dialogAction">
+      <Setter Property="MinWidth" Value="128" />
+      <Setter Property="Padding" Value="16,8" />
+      <Setter Property="CornerRadius" Value="4" />
+    </Style>
+    <Style Selector="Button.destructive">
+      <Setter Property="Background" Value="{DynamicResource DialogErrorBrush}" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+  </Window.Styles>
+
+  <Border Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="26">
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+      <lucide:LucideIcon HorizontalAlignment="Center" Kind="MessageCircle" Size="30" StrokeWidth="2" Foreground="{DynamicResource DialogDefaultBrush}" IsVisible="{Binding IsDefault}" />
+      <lucide:LucideIcon HorizontalAlignment="Center" Kind="Info" Size="30" StrokeWidth="2" Foreground="{DynamicResource DialogInfoBrush}" IsVisible="{Binding IsInfo}" />
+      <lucide:LucideIcon HorizontalAlignment="Center" Kind="CircleCheckBig" Size="30" StrokeWidth="2" Foreground="{DynamicResource DialogSuccessBrush}" IsVisible="{Binding IsSuccess}" />
+      <lucide:LucideIcon HorizontalAlignment="Center" Kind="TriangleAlert" Size="30" StrokeWidth="2" Foreground="{DynamicResource DialogWarningBrush}" IsVisible="{Binding IsWarning}" />
+      <lucide:LucideIcon HorizontalAlignment="Center" Kind="CircleX" Size="30" StrokeWidth="2" Foreground="{DynamicResource DialogErrorBrush}" IsVisible="{Binding IsError}" />
+
+      <TextBlock Grid.Row="1" Margin="0,14,0,0" HorizontalAlignment="Center" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Title}" />
+      <TextBlock Grid.Row="2" Margin="12,10,12,18" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="13" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Message}" TextAlignment="Center" TextWrapping="Wrap" />
+      <StackPanel Grid.Row="3" HorizontalAlignment="Center" Orientation="Horizontal" Spacing="10">
+        <Button Classes="dialogAction" IsVisible="{Binding IsConfirmation}" Click="Cancel_Click" Content="{Binding CancelButtonText}" />
+        <Button Classes="dialogAction" Classes.destructive="{Binding IsDestructive}" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Click="Accept_Click" Content="{Binding AcceptButtonText}" />
+      </StackPanel>
+    </Grid>
+  </Border>
+</Window>

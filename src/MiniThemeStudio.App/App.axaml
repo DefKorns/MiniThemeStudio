@@ -1,0 +1,79 @@
+<Application xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="MiniThemeStudio.App.App"
+  xmlns:local="using:MiniThemeStudio.App" RequestedThemeVariant="Default">
+
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <Color x:Key="SystemAccentColor">#C99A18</Color>
+          <Color x:Key="SystemAccentColorDark1">#B98B12</Color>
+          <Color x:Key="SystemAccentColorDark2">#A67B0E</Color>
+          <Color x:Key="SystemAccentColorDark3">#8E680A</Color>
+          <Color x:Key="SystemAccentColorLight1">#D5A92D</Color>
+          <Color x:Key="SystemAccentColorLight2">#E1BA52</Color>
+          <Color x:Key="SystemAccentColorLight3">#EACB79</Color>
+          <SolidColorBrush x:Key="PageBackgroundBrush">#F5F5F4</SolidColorBrush>
+          <SolidColorBrush x:Key="HeaderBackgroundBrush">#F0F0EE</SolidColorBrush>
+          <SolidColorBrush x:Key="HeaderBorderBrush">#D7D7D4</SolidColorBrush>
+          <SolidColorBrush x:Key="HeaderTextBrush">#202124</SolidColorBrush>
+          <SolidColorBrush x:Key="HeaderMutedBrush">#62656A</SolidColorBrush>
+          <SolidColorBrush x:Key="AccentBrush">#C99A18</SolidColorBrush>
+          <SolidColorBrush x:Key="AccentTextBrush">#171717</SolidColorBrush>
+          <SolidColorBrush x:Key="SidebarBackgroundBrush">#EEEEEC</SolidColorBrush>
+          <SolidColorBrush x:Key="SidebarSelectedBrush">#E3E3E0</SolidColorBrush>
+          <SolidColorBrush x:Key="PanelBackgroundBrush">#F8F8F7</SolidColorBrush>
+          <SolidColorBrush x:Key="SurfaceBackgroundBrush">#FFFFFF</SolidColorBrush>
+          <SolidColorBrush x:Key="BorderBrush">#D7D7D4</SolidColorBrush>
+          <SolidColorBrush x:Key="PrimaryTextBrush">#202124</SolidColorBrush>
+          <SolidColorBrush x:Key="SecondaryTextBrush">#62656A</SolidColorBrush>
+          <SolidColorBrush x:Key="PreviewBackgroundBrush">#D4D4D1</SolidColorBrush>
+          <SolidColorBrush x:Key="ErrorTextBrush">#A23A32</SolidColorBrush>
+          <SolidColorBrush x:Key="DialogDefaultBrush">#68716C</SolidColorBrush>
+          <SolidColorBrush x:Key="DialogInfoBrush">#2B77C0</SolidColorBrush>
+          <SolidColorBrush x:Key="DialogSuccessBrush">#2D7D46</SolidColorBrush>
+          <SolidColorBrush x:Key="DialogWarningBrush">#B7791F</SolidColorBrush>
+          <SolidColorBrush x:Key="DialogErrorBrush">#C73E3A</SolidColorBrush>
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <Color x:Key="SystemAccentColor">#E1B93F</Color>
+          <Color x:Key="SystemAccentColorDark1">#CFA72F</Color>
+          <Color x:Key="SystemAccentColorDark2">#B89121</Color>
+          <Color x:Key="SystemAccentColorDark3">#9D7918</Color>
+          <Color x:Key="SystemAccentColorLight1">#E8C65F</Color>
+          <Color x:Key="SystemAccentColorLight2">#EFD47F</Color>
+          <Color x:Key="SystemAccentColorLight3">#F5E1A5</Color>
+          <SolidColorBrush x:Key="PageBackgroundBrush">#141414</SolidColorBrush>
+          <SolidColorBrush x:Key="HeaderBackgroundBrush">#0E0E0F</SolidColorBrush>
+          <SolidColorBrush x:Key="HeaderBorderBrush">#333438</SolidColorBrush>
+          <SolidColorBrush x:Key="HeaderTextBrush">#F2F2F3</SolidColorBrush>
+          <SolidColorBrush x:Key="HeaderMutedBrush">#A8A8AD</SolidColorBrush>
+          <SolidColorBrush x:Key="AccentBrush">#E1B93F</SolidColorBrush>
+          <SolidColorBrush x:Key="AccentTextBrush">#151515</SolidColorBrush>
+          <SolidColorBrush x:Key="SidebarBackgroundBrush">#19191B</SolidColorBrush>
+          <SolidColorBrush x:Key="SidebarSelectedBrush">#303033</SolidColorBrush>
+          <SolidColorBrush x:Key="PanelBackgroundBrush">#1B1B1D</SolidColorBrush>
+          <SolidColorBrush x:Key="SurfaceBackgroundBrush">#232326</SolidColorBrush>
+          <SolidColorBrush x:Key="BorderBrush">#3B3B40</SolidColorBrush>
+          <SolidColorBrush x:Key="PrimaryTextBrush">#F0F0F2</SolidColorBrush>
+          <SolidColorBrush x:Key="SecondaryTextBrush">#ABABB0</SolidColorBrush>
+          <SolidColorBrush x:Key="PreviewBackgroundBrush">#74767A</SolidColorBrush>
+          <SolidColorBrush x:Key="ErrorTextBrush">#FF8A80</SolidColorBrush>
+          <SolidColorBrush x:Key="DialogDefaultBrush">#ABABB0</SolidColorBrush>
+          <SolidColorBrush x:Key="DialogInfoBrush">#63B3FF</SolidColorBrush>
+          <SolidColorBrush x:Key="DialogSuccessBrush">#5FD28A</SolidColorBrush>
+          <SolidColorBrush x:Key="DialogWarningBrush">#F6C453</SolidColorBrush>
+          <SolidColorBrush x:Key="DialogErrorBrush">#FF756D</SolidColorBrush>
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
+
+  <Application.DataTemplates>
+    <local:ViewLocator/>
+  </Application.DataTemplates>
+
+  <Application.Styles>
+    <FluentTheme />
+  </Application.Styles>
+</Application>

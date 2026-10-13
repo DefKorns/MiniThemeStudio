@@ -1,0 +1,104 @@
+<Window xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  xmlns:lucide="using:Lucide.Avalonia" x:Class="MiniThemeStudio.App.Views.SettingsDialog" Title="Settings" Width="720" Height="760" MinWidth="620" MinHeight="600" CanResize="True" ShowInTaskbar="False" SystemDecorations="None" TransparencyLevelHint="Transparent" WindowStartupLocation="CenterOwner" Background="Transparent" FontFamily="Segoe UI, Ubuntu, sans-serif">
+
+  <Window.Styles>
+    <Style Selector="ToggleButton.connection-segment">
+      <Setter Property="Height" Value="42" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="ToggleButton.connection-segment:checked">
+      <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="TextBox.path-input.invalid-path">
+      <Setter Property="BorderBrush" Value="{DynamicResource ErrorTextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.feedback.error">
+      <Setter Property="Foreground" Value="{DynamicResource ErrorTextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.feedback.success">
+      <Setter Property="Foreground" Value="{DynamicResource DialogSuccessBrush}" />
+    </Style>
+  </Window.Styles>
+
+  <Border Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="28,24,28,20">
+    <Grid RowDefinitions="Auto,*,Auto">
+      <StackPanel Spacing="4">
+        <TextBlock x:Name="TitleText" FontSize="22" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Settings" />
+        <TextBlock x:Name="SubtitleText" Foreground="{DynamicResource SecondaryTextBrush}" Text="Configure the workspace and console connection." />
+      </StackPanel>
+
+      <ScrollViewer Grid.Row="1" Margin="0,24,0,0" VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="0,0,18,24" Spacing="24">
+          <StackPanel Spacing="10">
+            <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Text="Console connection" />
+            <Grid ColumnDefinitions="*,*">
+              <ToggleButton x:Name="UsbConnectionButton" Classes="connection-segment" Margin="0,0,4,0" CornerRadius="4,0,0,4" Click="ConnectionMode_Click" Content="USB" />
+              <ToggleButton x:Name="NetworkConnectionButton" Grid.Column="1" Classes="connection-segment" Margin="4,0,0,0" CornerRadius="0,4,4,0" Click="ConnectionMode_Click" Content="Network" />
+            </Grid>
+            <TextBlock x:Name="ConnectionHintText" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" />
+            <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="IP address" />
+            <TextBox x:Name="ConsoleHostTextBox" Height="40" Watermark="169.254.13.37" TextChanged="ConsoleHostTextBox_TextChanged" />
+          </StackPanel>
+
+          <StackPanel Spacing="10">
+            <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Text="Paths" />
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" RowSpacing="6">
+              <TextBlock Grid.ColumnSpan="2" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Base UI" />
+              <Button x:Name="BrowseBaseUiButton" Grid.Row="1" Height="40" Margin="0,0,4,0" Padding="12,6" HorizontalAlignment="Stretch" Click="BrowseBaseUiRoot_Click" ToolTip.Tip="Copy a local Base UI into the application cache">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+                  <lucide:LucideIcon Kind="FolderOpen" Size="16" />
+                  <TextBlock Text="Import local" />
+                </StackPanel>
+              </Button>
+              <Button x:Name="GetFromConsoleButton" Grid.Row="1" Grid.Column="1" Height="40" Margin="4,0,0,0" Padding="12,6" HorizontalAlignment="Stretch" Click="GetFromConsole_Click" ToolTip.Tip="Copy the Base UI from the connected console">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
+                  <lucide:LucideIcon Kind="Download" Size="16" />
+                  <TextBlock Text="Get from console" />
+                </StackPanel>
+              </Button>
+            </Grid>
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="6">
+              <TextBlock Grid.ColumnSpan="2" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Draft root" />
+              <TextBox x:Name="DraftRootTextBox" Grid.Row="1" Height="40" Classes="path-input" Watermark="Temporary working copies" TextChanged="PathTextBox_TextChanged" />
+              <Button Grid.Row="1" Grid.Column="1" Width="40" Height="40" Margin="8,0,0,0" Padding="0" Click="BrowseDraftRoot_Click" ToolTip.Tip="Select draft root">
+                <lucide:LucideIcon Kind="FolderOpen" Size="18" />
+              </Button>
+            </Grid>
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="6">
+              <TextBlock Grid.ColumnSpan="2" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Default theme destination" />
+              <TextBox x:Name="ThemeDestinationTextBox" Grid.Row="1" Height="40" Classes="path-input" Watermark="Optional" TextChanged="PathTextBox_TextChanged" />
+              <Button Grid.Row="1" Grid.Column="1" Width="40" Height="40" Margin="8,0,0,0" Padding="0" Click="BrowseThemeDestination_Click" ToolTip.Tip="Select default theme destination">
+                <lucide:LucideIcon Kind="FolderOpen" Size="18" />
+              </Button>
+            </Grid>
+          </StackPanel>
+
+          <StackPanel Spacing="10">
+            <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Text="Appearance" />
+            <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Theme" />
+            <ComboBox x:Name="ThemeComboBox" Height="40" HorizontalAlignment="Stretch" SelectionChanged="ThemeComboBox_SelectionChanged" />
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+
+      <Border Grid.Row="2" Margin="0,0,0,0" Padding="0,18,0,0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+        <Grid ColumnDefinitions="*,Auto,Auto">
+          <StackPanel VerticalAlignment="Center" Spacing="2">
+            <TextBlock x:Name="ValidationText" Classes="feedback" TextWrapping="Wrap" />
+            <TextBlock x:Name="UnsavedChangesText" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="Unsaved changes" IsVisible="False" />
+          </StackPanel>
+          <Button x:Name="CancelButton" Grid.Column="1" Height="40" Margin="8,0" Padding="16,8" Click="Cancel_Click" Content="Cancel" />
+          <Button Grid.Column="2" Height="40" Padding="18,8" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Click="Save_Click" Content="Save changes" />
+        </Grid>
+      </Border>
+    </Grid>
+  </Border>
+</Window>

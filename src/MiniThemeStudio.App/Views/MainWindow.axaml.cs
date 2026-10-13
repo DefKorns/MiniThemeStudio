@@ -781,7 +781,6 @@ public sealed partial class MainWindow : Window, IDisposable
     private void ShowSpritePreview(SpriteRegion? sprite)
     {
         SpritePreviewImage.Source = null;
-        _spritePreview?.Dispose();
         _spritePreview = null;
 
         if (_atlasBitmap is null || sprite is null)
@@ -807,7 +806,6 @@ public sealed partial class MainWindow : Window, IDisposable
     {
         SpritePreviewImage.Source = null;
         AtlasCanvas.Source = null;
-        _spritePreview?.Dispose();
         _atlasBitmap?.Dispose();
         _spritePreview = null;
         _atlasBitmap = null;

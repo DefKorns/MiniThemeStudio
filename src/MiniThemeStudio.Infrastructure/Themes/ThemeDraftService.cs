@@ -10,7 +10,7 @@ public sealed class ThemeDraftService(
 {
     public static string DefaultBackupsRootPath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "MiniThemeManager",
+        "MiniThemeStudio",
         "Backups");
 
     private static readonly string DefaultDraftsRootPath = Path.Combine(

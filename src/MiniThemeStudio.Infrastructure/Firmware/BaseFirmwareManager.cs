@@ -28,7 +28,7 @@ public sealed class BaseFirmwareManager : IBaseFirmwareManager
 
     public static string DefaultBasesRootPath { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "MiniThemeManager",
+        "MiniThemeStudio",
         "Bases");
 
     public string BasesRootPath { get; }

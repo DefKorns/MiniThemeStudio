@@ -5,7 +5,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="LTRData.DiscUtils.SquashFs" Version="1.0.90" />
+    <PackageReference Include="SharpCompress" Version="0.50.5" />
     <PackageReference Include="SkiaSharp" Version="2.88.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Firmware\firmwares.json" LogicalName="MiniThemeStudio.Firmware.firmwares.json" />
   </ItemGroup>
 
   <PropertyGroup>

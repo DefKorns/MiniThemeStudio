@@ -38,7 +38,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _textureAtlasEditor = textureAtlasEditor;
         _assetManager = assetManager ?? new ThemeAssetManager();
         _themeValidator = themeValidator ?? new ThemeValidator();
-        _baseFirmwareManager = baseFirmwareManager ?? new BaseFirmwareManager(new FirmwareRegistry());
+        _baseFirmwareManager = baseFirmwareManager ?? new BaseFirmwareManager(FirmwareRegistry.CreateDefault());
     }
 
     [ObservableProperty]

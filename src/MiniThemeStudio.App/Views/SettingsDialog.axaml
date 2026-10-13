@@ -50,21 +50,6 @@
 
           <StackPanel Spacing="10">
             <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Text="Paths" />
-            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" RowSpacing="6">
-              <TextBlock Grid.ColumnSpan="2" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Base UI" />
-              <Button x:Name="BrowseBaseUiButton" Grid.Row="1" Height="40" Margin="0,0,4,0" Padding="12,6" HorizontalAlignment="Stretch" Click="BrowseBaseUiRoot_Click" ToolTip.Tip="Copy a local Base UI into the application cache">
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
-                  <lucide:LucideIcon Kind="FolderOpen" Size="16" />
-                  <TextBlock Text="Import local" />
-                </StackPanel>
-              </Button>
-              <Button x:Name="GetFromConsoleButton" Grid.Row="1" Grid.Column="1" Height="40" Margin="4,0,0,0" Padding="12,6" HorizontalAlignment="Stretch" Click="GetFromConsole_Click" ToolTip.Tip="Copy the Base UI from the connected console">
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
-                  <lucide:LucideIcon Kind="Download" Size="16" />
-                  <TextBlock Text="Get from console" />
-                </StackPanel>
-              </Button>
-            </Grid>
             <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="6">
               <TextBlock Grid.ColumnSpan="2" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Draft root" />
               <TextBox x:Name="DraftRootTextBox" Grid.Row="1" Height="40" Classes="path-input" Watermark="Temporary working copies" TextChanged="PathTextBox_TextChanged" />

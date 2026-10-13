@@ -1,424 +1,375 @@
-using System;
-using System.Collections.Generic;
-using System.Formats.Tar;
-using System.IO;
-using System.IO.Compression;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Text.Json;
+using MiniThemeStudio.Core.Console;
 using MiniThemeStudio.Core.Firmware;
-using MiniThemeStudio.Core.Themes;
-using MiniThemeStudio.Infrastructure.Themes;
 
 namespace MiniThemeStudio.Infrastructure.Firmware;
 
 public sealed class BaseFirmwareManager : IBaseFirmwareManager
 {
-    private readonly IFirmwareRegistry _registry;
-    private readonly IBaseUiValidator _validator;
+    public const string ManifestFileName = ".mts-base.json";
 
-    public string BasesRootPath { get; }
+    private static readonly JsonSerializerOptions ManifestSerializerOptions = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = true,
+    };
+
+    private readonly IFirmwareRegistry _registry;
+    private readonly IConsoleDirectoryClientFactory? _consoleClientFactory;
 
     public BaseFirmwareManager(
         IFirmwareRegistry registry,
-        IBaseUiValidator? validator = null,
+        IConsoleDirectoryClientFactory? consoleClientFactory = null,
         string? basesRootPath = null)
     {
         _registry = registry ?? throw new ArgumentNullException(nameof(registry));
-        _validator = validator ?? new BaseUiValidator();
-
-        if (!string.IsNullOrWhiteSpace(basesRootPath))
-        {
-            BasesRootPath = basesRootPath;
-        }
-        else
-        {
-            // Primary path: %AppData%/MiniThemeManager/Bases/
-            var primary = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "MiniThemeManager",
-                "Bases");
-
-            // Fallback path: %AppData%/MiniThemeStudio/base-ui
-            var fallback = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "MiniThemeStudio",
-                "base-ui");
-
-            BasesRootPath = Directory.Exists(fallback) && !Directory.Exists(primary)
-                ? fallback
-                : primary;
-        }
+        _consoleClientFactory = consoleClientFactory;
+        BasesRootPath = string.IsNullOrWhiteSpace(basesRootPath) ? DefaultBasesRootPath : basesRootPath;
     }
+
+    public static string DefaultBasesRootPath { get; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "MiniThemeManager",
+        "Bases");
+
+    public string BasesRootPath { get; }
 
     public IReadOnlyList<InstalledBaseInfo> GetInstalledBases()
     {
-        var result = new List<InstalledBaseInfo>();
-        foreach (var def in _registry.All)
-        {
-            var targetPath = Path.Combine(BasesRootPath, def.RelativeStoragePath);
-            var legacyPath = Path.Combine(BasesRootPath, def.LegacyFolderName);
-
-            var resolvedPath = Directory.Exists(targetPath)
-                ? targetPath
-                : Directory.Exists(legacyPath)
-                    ? legacyPath
-                    : targetPath;
-
-            if (Directory.Exists(resolvedPath))
-            {
-                var missing = GetMissingBaseFiles(resolvedPath);
-                result.Add(new InstalledBaseInfo(
-                    def,
-                    resolvedPath,
-                    missing.Count == 0 ? BaseInstallStatus.Valid : BaseInstallStatus.Incomplete,
-                    missing));
-            }
-            else
-            {
-                result.Add(new InstalledBaseInfo(
-                    def,
-                    targetPath,
-                    BaseInstallStatus.Missing,
-                    ["Directory not found"]));
-            }
-        }
-
-        return result;
+        return _registry.All.Select(GetInstalledBase).ToList();
     }
 
-    public InstalledBaseInfo? GetInstalledBase(string id)
+    public string? FindCompatibleBaseUiPath(string? themePath = null)
     {
-        return GetInstalledBases().FirstOrDefault(b =>
-            string.Equals(b.Definition.Id, id, StringComparison.OrdinalIgnoreCase));
-    }
-
-    public string? FindCompatibleBaseUiPath(string? hint = null)
-    {
-        var installed = GetInstalledBases().Where(b => b.Status == BaseInstallStatus.Valid).ToList();
+        var installed = GetInstalledBases()
+            .Where(info => info.Status == BaseInstallStatus.Valid)
+            .OrderByDescending(info => Version.TryParse(info.Definition.Version, out var version) ? version : new Version())
+            .ToList();
         if (installed.Count == 0)
         {
             return null;
         }
 
-        if (string.IsNullOrWhiteSpace(hint))
+        if (string.IsNullOrWhiteSpace(themePath))
         {
             return installed[0].LocalPath;
         }
 
-        var lowerHint = hint.ToLowerInvariant().Replace('\\', '/');
-
-        // Look for exact matches in console or region
-        var matched = installed.FirstOrDefault(b =>
-            lowerHint.Contains(b.Definition.Console, StringComparison.OrdinalIgnoreCase) &&
-            lowerHint.Contains(b.Definition.Region, StringComparison.OrdinalIgnoreCase));
-
-        if (matched != null)
+        var (console, region) = DetectThemeTarget(themePath);
+        if (console is null)
         {
-            return matched.LocalPath;
+            return null;
         }
 
-        // Check console match
-        matched = installed.FirstOrDefault(b =>
-            lowerHint.Contains(b.Definition.Console, StringComparison.OrdinalIgnoreCase));
-
-        if (matched != null)
-        {
-            return matched.LocalPath;
-        }
-
-        // Check region match
-        matched = installed.FirstOrDefault(b =>
-            lowerHint.Contains(b.Definition.Region, StringComparison.OrdinalIgnoreCase));
-
-        return matched?.LocalPath ?? installed[0].LocalPath;
+        var sameConsole = installed.Where(info => info.Definition.Console == console).ToList();
+        return (sameConsole.FirstOrDefault(info => info.Definition.Region == region) ?? sameConsole.FirstOrDefault())?.LocalPath;
     }
 
-    public async Task<InstalledBaseInfo> ImportFromDirectoryAsync(
-        string directoryPath,
-        CancellationToken cancellationToken = default)
+    public async Task<InstalledBaseInfo> ImportFromFileAsync(string filePath, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
+        if (!File.Exists(filePath))
+        {
+            throw new FileNotFoundException("Firmware file not found.", filePath);
+        }
+
+        var fileName = Path.GetFileName(filePath);
+        var sha256 = await Task.Run(() => UiTreeHash.ComputeFileSha256(filePath), cancellationToken);
+        var match = _registry.FindBySourceSha256(sha256)
+            ?? throw new InvalidDataException(
+                $"'{fileName}' is not a recognised original firmware file (SHA-256 {sha256}). "
+                + "Only unmodified official images listed in the firmware registry are accepted.");
+        var (definition, source) = match;
+
+        var existing = GetInstalledBase(definition);
+        if (existing.Status == BaseInstallStatus.Valid)
+        {
+            return existing;
+        }
+
+        var format = FirmwareSourceReader.Detect(filePath);
+        if (FirmwareSourceReader.FormatName(format) != source.Format)
+        {
+            throw new InvalidDataException($"'{fileName}' should be a {source.Format} file but its content is {FirmwareSourceReader.FormatName(format)}.");
+        }
+
+        var stagingPath = CreateStagingPath();
+        try
+        {
+            await Task.Run(
+                () => FirmwareSourceReader.ExtractDirectory(filePath, format, definition.UiPath, stagingPath, cancellationToken),
+                cancellationToken);
+            return await VerifyAndPublishAsync(stagingPath, definition, $"file:{fileName}", sha256, cancellationToken);
+        }
+        finally
+        {
+            DeleteDirectory(stagingPath);
+        }
+    }
+
+    public async Task<InstalledBaseInfo> ImportFromDirectoryAsync(string directoryPath, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directoryPath);
         if (!Directory.Exists(directoryPath))
         {
-            throw new DirectoryNotFoundException($"Source directory not found: {directoryPath}");
+            throw new DirectoryNotFoundException($"Folder not found: {directoryPath}");
         }
 
-        _validator.Validate(directoryPath);
+        var fingerprint = await Task.Run(() => UiTreeHash.ComputeForDirectory(directoryPath, cancellationToken), cancellationToken);
+        var definition = _registry.FindByUiTreeSha256(fingerprint.Sha256)
+            ?? throw new InvalidDataException(
+                "This folder does not match any original Base UI. Select the UI folder itself "
+                + "(the one containing init.json) from an unmodified firmware.");
 
-        var definition = _registry.MatchExtractedFolder(directoryPath)
-            ?? new FirmwareDefinition(
-                $"custom-{new DirectoryInfo(directoryPath).Name.ToLowerInvariant()}",
-                "custom",
-                "all",
-                "1.0.0",
-                new DirectoryInfo(directoryPath).Name,
-                "*",
-                "",
-                "",
-                "");
-
-        var destination = Path.Combine(BasesRootPath, definition.RelativeStoragePath);
-
-        // Avoid duplicate copy if already valid
-        if (Directory.Exists(destination) && GetMissingBaseFiles(destination).Count == 0)
+        var existing = GetInstalledBase(definition);
+        if (existing.Status == BaseInstallStatus.Valid)
         {
-            return new InstalledBaseInfo(definition, destination, BaseInstallStatus.Valid, []);
+            return existing;
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-        var staging = Path.Combine(BasesRootPath, $".tmp-stage-{Guid.NewGuid():N}");
+        var stagingPath = CreateStagingPath();
         try
         {
-            await Task.Run(() => CopyDirectory(new DirectoryInfo(directoryPath), Directory.CreateDirectory(staging)), cancellationToken);
-            _validator.Validate(staging);
-
-            if (Directory.Exists(destination))
-            {
-                Directory.Delete(destination, true);
-            }
-
-            Directory.Move(staging, destination);
-            return new InstalledBaseInfo(definition, destination, BaseInstallStatus.Valid, []);
+            await Task.Run(() => CopyDirectory(directoryPath, stagingPath, cancellationToken), cancellationToken);
+            return await VerifyAndPublishAsync(stagingPath, definition, $"folder:{directoryPath}", null, cancellationToken);
         }
         finally
         {
-            if (Directory.Exists(staging))
-            {
-                Directory.Delete(staging, true);
-            }
+            DeleteDirectory(stagingPath);
         }
     }
 
-    public async Task<InstalledBaseInfo> ImportFromArchiveAsync(
-        string archiveFilePath,
-        CancellationToken cancellationToken = default)
+    public async Task<InstalledBaseInfo> ImportFromConsoleAsync(ConsoleConnectionOptions connection, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(archiveFilePath);
-        if (!File.Exists(archiveFilePath))
+        ArgumentNullException.ThrowIfNull(connection);
+        if (_consoleClientFactory is null)
         {
-            throw new FileNotFoundException($"Archive not found: {archiveFilePath}");
+            throw new InvalidOperationException("Console import is not available.");
         }
 
-        if (IsDiscImage(archiveFilePath, out var discReason))
+        await using var client = _consoleClientFactory.Create(connection);
+        await client.ConnectAsync(cancellationToken);
+
+        foreach (var uiPath in _registry.All.Select(definition => definition.UiPath).Distinct())
         {
-            throw new InvalidDataException(discReason);
-        }
-
-        var matchedDefinition = _registry.MatchArchive(archiveFilePath);
-        var staging = Path.Combine(BasesRootPath, $".tmp-tar-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(staging);
-
-        try
-        {
-            await Task.Run(() => ExtractUiFromTar(archiveFilePath, staging), cancellationToken);
-
-            var extractedUiRoot = FindUiRootInDirectory(staging);
-            if (extractedUiRoot == null)
+            var definition = _registry.All.First(candidate => candidate.UiPath == uiPath);
+            var remotePath = await client.DirectoryExistsAsync(definition.OriginalConsoleUiPath, cancellationToken)
+                ? definition.OriginalConsoleUiPath
+                : await client.DirectoryExistsAsync(definition.ConsoleUiPath, cancellationToken)
+                    ? definition.ConsoleUiPath
+                    : null;
+            if (remotePath is null)
             {
-                throw new InvalidDataException("The archive does not contain a valid Base UI structure (missing resources/, init.json, dependencies.json).");
+                continue;
             }
 
-            _validator.Validate(extractedUiRoot);
-
-            var finalDefinition = matchedDefinition ?? _registry.MatchExtractedFolder(extractedUiRoot)
-                ?? new FirmwareDefinition(
-                    Path.GetFileNameWithoutExtension(archiveFilePath).ToLowerInvariant(),
-                    "unknown",
-                    "all",
-                    "1.0.0",
-                    Path.GetFileName(archiveFilePath),
-                    Path.GetFileName(archiveFilePath),
-                    "",
-                    "",
-                    "");
-
-            var destination = Path.Combine(BasesRootPath, finalDefinition.RelativeStoragePath);
-            if (Directory.Exists(destination) && GetMissingBaseFiles(destination).Count == 0)
+            var stagingPath = CreateStagingPath();
+            try
             {
-                return new InstalledBaseInfo(finalDefinition, destination, BaseInstallStatus.Valid, []);
-            }
-
-            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            if (Directory.Exists(destination))
-            {
-                Directory.Delete(destination, true);
-            }
-
-            Directory.Move(extractedUiRoot, destination);
-            return new InstalledBaseInfo(finalDefinition, destination, BaseInstallStatus.Valid, []);
-        }
-        finally
-        {
-            if (Directory.Exists(staging))
-            {
-                try { Directory.Delete(staging, true); } catch { /* best effort */ }
-            }
-        }
-    }
-
-    public bool IsDiscImage(string filePath, out string? reason)
-    {
-        var ext = Path.GetExtension(filePath).ToLowerInvariant();
-        if (ext == ".hsqs" || ext == ".sfs")
-        {
-            reason = "SquashFS image detected (.hsqs). Nintendo stock packages include a companion .tar.gz archive (e.g. dp-*-release-*.tar.gz) with the full uncompressed filesystem. Please select the .tar.gz or .tar file instead.";
-            return true;
-        }
-
-        if (ext == ".img")
-        {
-            reason = "Kernel/disk image detected (.img). MiniThemeManager extracts Base UI from rootfs archives (.tar.gz / .tar) or directly from console.";
-            return true;
-        }
-
-        try
-        {
-            using var stream = File.OpenRead(filePath);
-            var header = new byte[4];
-            if (stream.Read(header, 0, 4) == 4)
-            {
-                // "sqsh" (0x73, 0x71, 0x73, 0x68) or "hsqs" (0x68, 0x73, 0x71, 0x73)
-                if ((header[0] == 0x73 && header[1] == 0x71 && header[2] == 0x73 && header[3] == 0x68) ||
-                    (header[0] == 0x68 && header[1] == 0x73 && header[2] == 0x71 && header[3] == 0x73))
+                await client.DownloadDirectoryAsync(remotePath, stagingPath, cancellationToken);
+                var fingerprint = await Task.Run(() => UiTreeHash.ComputeForDirectory(stagingPath, cancellationToken), cancellationToken);
+                var match = _registry.FindByUiTreeSha256(fingerprint.Sha256);
+                if (match is null || match.UiPath != uiPath)
                 {
-                    reason = "SquashFS disk image detected. Please provide the companion .tar.gz archive or extract it first.";
-                    return true;
+                    throw new InvalidDataException(
+                        $"The Base UI at {remotePath} on the console does not match any original firmware. "
+                        + "It may be modified by an installed theme or mod.");
                 }
+
+                var existing = GetInstalledBase(match);
+                if (existing.Status == BaseInstallStatus.Valid)
+                {
+                    return existing;
+                }
+
+                return await VerifyAndPublishAsync(stagingPath, match, $"console:{connection.Host}{remotePath}", null, cancellationToken);
             }
+            finally
+            {
+                DeleteDirectory(stagingPath);
+            }
+        }
+
+        throw new DirectoryNotFoundException("No supported Base UI was found on the connected console.");
+    }
+
+    private InstalledBaseInfo GetInstalledBase(FirmwareDefinition definition)
+    {
+        var localPath = Path.Combine(BasesRootPath, definition.RelativeStoragePath);
+        if (!Directory.Exists(localPath))
+        {
+            return new InstalledBaseInfo(definition, localPath, BaseInstallStatus.Missing);
+        }
+
+        var manifest = ReadManifest(localPath);
+        if (manifest is null)
+        {
+            return new InstalledBaseInfo(definition, localPath, BaseInstallStatus.Invalid, "Not verified: import manifest missing.");
+        }
+
+        return string.Equals(manifest.UiTreeSha256, definition.UiTreeSha256, StringComparison.OrdinalIgnoreCase)
+            ? new InstalledBaseInfo(definition, localPath, BaseInstallStatus.Valid)
+            : new InstalledBaseInfo(definition, localPath, BaseInstallStatus.Invalid, "Content does not match the registry.");
+    }
+
+    private async Task<InstalledBaseInfo> VerifyAndPublishAsync(
+        string stagingPath,
+        FirmwareDefinition definition,
+        string origin,
+        string? sourceSha256,
+        CancellationToken cancellationToken)
+    {
+        var fingerprint = await Task.Run(() => UiTreeHash.ComputeForDirectory(stagingPath, cancellationToken), cancellationToken);
+        if (!string.Equals(fingerprint.Sha256, definition.UiTreeSha256, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                $"The extracted Base UI does not match {definition.DisplayName} v{definition.Version} "
+                + $"({fingerprint.FileCount} files, expected {definition.UiFileCount}).");
+        }
+
+        var manifest = new BaseManifest(definition.Id, definition.UiTreeSha256, fingerprint.FileCount, origin, sourceSha256, DateTimeOffset.UtcNow);
+        await File.WriteAllTextAsync(
+            Path.Combine(stagingPath, ManifestFileName),
+            JsonSerializer.Serialize(manifest, ManifestSerializerOptions),
+            cancellationToken);
+
+        var destinationPath = Path.Combine(BasesRootPath, definition.RelativeStoragePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+        var backupPath = $"{destinationPath}.mts-backup-{Guid.NewGuid():N}";
+        var destinationMoved = false;
+
+        try
+        {
+            if (Directory.Exists(destinationPath))
+            {
+                Directory.Move(destinationPath, backupPath);
+                destinationMoved = true;
+            }
+
+            Directory.Move(stagingPath, destinationPath);
+            DeleteDirectory(backupPath);
+            return new InstalledBaseInfo(definition, destinationPath, BaseInstallStatus.Valid);
         }
         catch
         {
-            // Ignore file read error here
-        }
+            if (destinationMoved && !Directory.Exists(destinationPath))
+            {
+                Directory.Move(backupPath, destinationPath);
+            }
 
-        reason = null;
-        return false;
+            throw;
+        }
     }
 
-    private static void ExtractUiFromTar(string archiveFilePath, string targetDirectory)
+    private static (string? Console, string? Region) DetectThemeTarget(string themePath)
     {
-        using var fileStream = File.OpenRead(archiveFilePath);
-        Stream tarStream = fileStream;
-
-        var isGzip = archiveFilePath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase) ||
-                     archiveFilePath.EndsWith(".tgz", StringComparison.OrdinalIgnoreCase);
-
-        GZipStream? gzipStream = null;
-        if (isGzip)
+        var initPath = Path.Combine(themePath, "init.json");
+        if (File.Exists(initPath))
         {
-            gzipStream = new GZipStream(fileStream, CompressionMode.Decompress);
-            tarStream = gzipStream;
+            try
+            {
+                using var document = JsonDocument.Parse(File.ReadAllText(initPath));
+                var root = document.RootElement;
+                var engineFormat = root.TryGetProperty("engineFormat", out var format) ? format.GetInt32() : 0;
+                var scripts = root.TryGetProperty("luaScripts", out var scriptList)
+                    ? scriptList.EnumerateArray().Select(script => script.GetString() ?? "").ToArray()
+                    : [];
+
+                if (engineFormat >= 10)
+                {
+                    return ("shonen", "jpn");
+                }
+
+                foreach (var (script, region) in new[] { ("/env_eur.lua", "eur"), ("/env_usa.lua", "usa"), ("/env_jpn.lua", "jpn") })
+                {
+                    if (scripts.Any(candidate => candidate.EndsWith(script, StringComparison.Ordinal)))
+                    {
+                        return ("snes", region);
+                    }
+                }
+
+                if (scripts.Any(candidate => candidate.EndsWith("/colors_nes.lua", StringComparison.Ordinal)))
+                {
+                    return ("nes", "usa-eur");
+                }
+
+                if (scripts.Any(candidate => candidate.EndsWith("/colors_hvc.lua", StringComparison.Ordinal)))
+                {
+                    return ("famicom", "jpn");
+                }
+            }
+            catch (Exception exception) when (exception is JsonException or InvalidOperationException or IOException)
+            {
+            }
+        }
+
+        var segments = themePath.Replace('\\', '/').ToLowerInvariant().Split('/');
+        if (segments.Any(segment => segment.Contains("snes")))
+        {
+            return ("snes", "eur");
+        }
+
+        if (segments.Any(segment => segment.Contains("nes")))
+        {
+            return ("nes", "usa-eur");
+        }
+
+        return (null, null);
+    }
+
+    private static BaseManifest? ReadManifest(string basePath)
+    {
+        var manifestPath = Path.Combine(basePath, ManifestFileName);
+        if (!File.Exists(manifestPath))
+        {
+            return null;
         }
 
         try
         {
-            using var tarReader = new TarReader(tarStream);
-            TarEntry? entry;
-            while ((entry = tarReader.GetNextEntry()) != null)
+            return JsonSerializer.Deserialize<BaseManifest>(File.ReadAllText(manifestPath), ManifestSerializerOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private string CreateStagingPath()
+    {
+        Directory.CreateDirectory(BasesRootPath);
+        return Path.Combine(BasesRootPath, $".mts-stage-{Guid.NewGuid():N}");
+    }
+
+    private static void CopyDirectory(string sourcePath, string destinationPath, CancellationToken cancellationToken)
+    {
+        foreach (var filePath in Directory.EnumerateFiles(sourcePath, "*", SearchOption.AllDirectories))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var relativePath = Path.GetRelativePath(sourcePath, filePath);
+            if (UiTreeHash.IsIgnored(relativePath))
             {
-                var entryName = entry.Name.Replace('\\', '/');
-
-                // Filter only UI relevant paths or extract if under share/ui or clover-ui
-                var isUiCandidate = entryName.Contains("usr/share/ui", StringComparison.OrdinalIgnoreCase) ||
-                                    entryName.Contains("usr/share/clover-ui", StringComparison.OrdinalIgnoreCase) ||
-                                    entryName.Contains("clover-ui", StringComparison.OrdinalIgnoreCase) ||
-                                    entryName.Contains("resources", StringComparison.OrdinalIgnoreCase) ||
-                                    entryName.EndsWith("init.json", StringComparison.OrdinalIgnoreCase) ||
-                                    entryName.EndsWith("dependencies.json", StringComparison.OrdinalIgnoreCase);
-
-                if (!isUiCandidate && !entry.EntryType.HasFlag(TarEntryType.Directory))
-                {
-                    continue;
-                }
-
-                // Protect against path traversal
-                var cleanEntryPath = entryName.TrimStart('/', '.');
-                var destinationPath = Path.Combine(targetDirectory, cleanEntryPath);
-                var fullDest = Path.GetFullPath(destinationPath);
-                var fullTarget = Path.GetFullPath(targetDirectory);
-
-                if (!fullDest.StartsWith(fullTarget, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
-
-                if (entry.EntryType is TarEntryType.Directory or TarEntryType.DirectoryList)
-                {
-                    Directory.CreateDirectory(destinationPath);
-                }
-                else if (entry.EntryType is TarEntryType.RegularFile or TarEntryType.V7RegularFile)
-                {
-                    Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
-                    entry.ExtractToFile(destinationPath, overwrite: true);
-                }
+                continue;
             }
-        }
-        finally
-        {
-            gzipStream?.Dispose();
+
+            var targetPath = Path.Combine(destinationPath, relativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+            File.Copy(filePath, targetPath);
         }
     }
 
-    private static string? FindUiRootInDirectory(string directoryPath)
+    private static void DeleteDirectory(string path)
     {
-        // 1. Direct check
-        if (IsValidBaseUiStructure(directoryPath))
+        if (Directory.Exists(path))
         {
-            return directoryPath;
-        }
-
-        // 2. Search subdirectories
-        foreach (var sub in Directory.EnumerateDirectories(directoryPath, "*", SearchOption.AllDirectories))
-        {
-            if (IsValidBaseUiStructure(sub))
-            {
-                return sub;
-            }
-        }
-
-        return null;
-    }
-
-    private static bool IsValidBaseUiStructure(string path)
-    {
-        return Directory.Exists(Path.Combine(path, "resources")) &&
-               File.Exists(Path.Combine(path, "dependencies.json")) &&
-               File.Exists(Path.Combine(path, "init.json"));
-    }
-
-    private static List<string> GetMissingBaseFiles(string path)
-    {
-        var missing = new List<string>();
-        if (!Directory.Exists(Path.Combine(path, "resources")))
-        {
-            missing.Add("resources/");
-        }
-        if (!File.Exists(Path.Combine(path, "dependencies.json")))
-        {
-            missing.Add("dependencies.json");
-        }
-        if (!File.Exists(Path.Combine(path, "init.json")))
-        {
-            missing.Add("init.json");
-        }
-        return missing;
-    }
-
-    private static void CopyDirectory(DirectoryInfo source, DirectoryInfo destination)
-    {
-        foreach (var dir in source.EnumerateDirectories("*", SearchOption.AllDirectories))
-        {
-            var rel = Path.GetRelativePath(source.FullName, dir.FullName);
-            Directory.CreateDirectory(Path.Combine(destination.FullName, rel));
-        }
-
-        foreach (var file in source.EnumerateFiles("*", SearchOption.AllDirectories))
-        {
-            var rel = Path.GetRelativePath(source.FullName, file.FullName);
-            var destPath = Path.Combine(destination.FullName, rel);
-            Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
-            file.CopyTo(destPath, true);
+            Directory.Delete(path, true);
         }
     }
+
+    private sealed record BaseManifest(
+        string Id,
+        string UiTreeSha256,
+        int FileCount,
+        string Origin,
+        string? SourceSha256,
+        DateTimeOffset ImportedAt);
 }

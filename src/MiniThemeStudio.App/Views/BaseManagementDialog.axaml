@@ -4,8 +4,8 @@
         xmlns:lucide="using:Lucide.Avalonia"
         x:Class="MiniThemeStudio.App.Views.BaseManagementDialog"
         Title="Base Firmware Management"
-        Width="820" Height="620"
-        MinWidth="700" MinHeight="500"
+        Width="860" Height="620"
+        MinWidth="720" MinHeight="500"
         CanResize="True"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner"
@@ -16,7 +16,8 @@
     <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,16">
       <StackPanel Spacing="4">
         <TextBlock Text="Base Firmware Management" FontSize="20" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" />
-        <TextBlock Text="Manage stock console base UI definitions (NES, SNES, Shonen Jump)." Foreground="{DynamicResource SecondaryTextBrush}" />
+        <TextBlock Text="Original Base UIs are verified by SHA-256 before they are installed. Provide your own firmware files; none are bundled."
+                   TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}" />
       </StackPanel>
       <Button Grid.Column="1" Click="Refresh_Click" Background="Transparent" ToolTip.Tip="Refresh installed bases">
         <StackPanel Orientation="Horizontal" Spacing="6">
@@ -37,18 +38,21 @@
         <ListBox.ItemTemplate>
           <DataTemplate x:DataType="firmware:InstalledBaseInfo">
             <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="4,2">
-              <Border Width="36" Height="36" Background="{DynamicResource HeaderBackgroundBrush}" CornerRadius="4" Margin="0,0,12,0">
-                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"
+              <Border Width="64" Height="36" Background="{DynamicResource HeaderBackgroundBrush}" CornerRadius="4" Margin="0,0,12,0">
+                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" FontSize="12"
                            Text="{Binding Definition.Console}" />
               </Border>
 
               <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                 <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Definition.DisplayName}" />
-                <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding LocalPath}" TextTrimming="CharacterEllipsis" />
+                <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextTrimming="CharacterEllipsis"
+                           Text="{Binding Definition.FirmwareVersionsText, StringFormat='Firmware versions: {0}'}" />
+                <TextBlock FontSize="12" Foreground="{DynamicResource ErrorTextBrush}" Text="{Binding Problem}"
+                           IsVisible="{Binding Problem, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
               </StackPanel>
 
               <TextBlock Grid.Column="2" Margin="16,0" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"
-                         Text="{Binding Definition.Version}" Foreground="{DynamicResource SecondaryTextBrush}" />
+                         Text="{Binding Definition.Version, StringFormat='v{0}'}" Foreground="{DynamicResource SecondaryTextBrush}" />
 
               <Border Grid.Column="3" VerticalAlignment="Center" Padding="8,4" CornerRadius="4"
                       Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
@@ -60,24 +64,31 @@
       </ListBox>
     </Border>
 
-    <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,16,0,0">
-      <Button Click="ImportArchive_Click" Margin="0,0,8,0" Padding="14,8" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold">
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <lucide:LucideIcon Kind="Archive" Size="16" />
-          <TextBlock Text="Import Archive (.tar / .tar.gz)" />
-        </StackPanel>
-      </Button>
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" Margin="0,16,0,0">
+      <StackPanel x:Name="ImportButtons" Orientation="Horizontal" Spacing="8">
+        <Button Click="ImportFile_Click" Padding="14,8" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <lucide:LucideIcon Kind="Archive" Size="16" />
+            <TextBlock Text="Import file (.hsqs / .tar.gz)" />
+          </StackPanel>
+        </Button>
+        <Button Click="ImportFolder_Click" Padding="14,8">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <lucide:LucideIcon Kind="FolderOpen" Size="16" />
+            <TextBlock Text="Import folder" />
+          </StackPanel>
+        </Button>
+        <Button Click="ImportConsole_Click" Padding="14,8">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <lucide:LucideIcon Kind="Download" Size="16" />
+            <TextBlock Text="From console" />
+          </StackPanel>
+        </Button>
+      </StackPanel>
 
-      <Button Grid.Column="1" Click="ImportFolder_Click" Margin="0,0,8,0" Padding="14,8">
-        <StackPanel Orientation="Horizontal" Spacing="8">
-          <lucide:LucideIcon Kind="FolderOpen" Size="16" />
-          <TextBlock Text="Import Folder" />
-        </StackPanel>
-      </Button>
+      <TextBlock x:Name="StatusText" Grid.Column="1" VerticalAlignment="Center" Margin="12,0" Foreground="{DynamicResource SecondaryTextBrush}" TextTrimming="CharacterEllipsis" />
 
-      <TextBlock x:Name="StatusText" Grid.Column="2" VerticalAlignment="Center" Margin="12,0" Foreground="{DynamicResource SecondaryTextBrush}" TextTrimming="CharacterEllipsis" />
-
-      <Button Grid.Column="3" Click="Close_Click" Padding="16,8" Content="Close" />
+      <Button Grid.Column="2" Click="Close_Click" Padding="16,8" Content="Close" />
     </Grid>
   </Grid>
 </Window>

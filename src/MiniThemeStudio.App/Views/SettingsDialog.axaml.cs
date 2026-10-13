@@ -1,13 +1,10 @@
 using System;
 using System.IO;
-using System.Linq;
 using System.Net;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
-using MiniThemeStudio.Core.Console;
 using MiniThemeStudio.Core.Settings;
-using MiniThemeStudio.Core.Themes;
 
 namespace MiniThemeStudio.App.Views;
 
@@ -15,39 +12,25 @@ public sealed partial class SettingsDialog : Window
 {
     private const string UsbConsoleHost = "169.254.13.37";
     private readonly AppSettings _settings;
-    private readonly IConsoleBaseUiImporter? _consoleBaseUiImporter;
-    private readonly IBaseUiValidator? _baseUiValidator;
-    private readonly ILocalBaseUiImporter? _localBaseUiImporter;
-    private readonly string _applicationBaseUiRootPath;
     private string _networkConsoleHost;
     private bool _isUpdatingConnectionControls;
     private bool _usesNetwork;
     private bool _isInitialized;
 
     public SettingsDialog()
-        : this(new AppSettings("", "", "", ApplicationThemePreference.System, ""), null, null, null)
+        : this(new AppSettings("", "", ApplicationThemePreference.System, ""))
     {
     }
 
     public SettingsDialog(
         AppSettings settings,
-        IConsoleBaseUiImporter? consoleBaseUiImporter = null,
-        IBaseUiValidator? baseUiValidator = null,
-        ILocalBaseUiImporter? localBaseUiImporter = null,
         bool isInitialSetup = false)
     {
         _settings = settings;
-        _consoleBaseUiImporter = consoleBaseUiImporter;
-        _baseUiValidator = baseUiValidator;
-        _localBaseUiImporter = localBaseUiImporter;
         _networkConsoleHost = settings.ConsoleHost == UsbConsoleHost
             ? ""
             : settings.ConsoleHost;
         _usesNetwork = settings.ConsoleConnectionMode == ConsoleConnectionMode.Wifi;
-        _applicationBaseUiRootPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "MiniThemeStudio",
-            "base-ui");
         InitializeComponent();
 
         ThemeComboBox.ItemsSource = Enum.GetValues<ApplicationThemePreference>();
@@ -55,7 +38,6 @@ public sealed partial class SettingsDialog : Window
         ThemeDestinationTextBox.Text = settings.DefaultThemeDestinationPath;
         ThemeComboBox.SelectedItem = settings.Theme;
         ConsoleHostTextBox.Text = settings.ConsoleHost;
-        BrowseBaseUiButton.IsEnabled = localBaseUiImporter is not null;
         UsbConnectionButton.IsChecked = !_usesNetwork;
         NetworkConnectionButton.IsChecked = _usesNetwork;
         UpdateConnectionControls();
@@ -65,77 +47,8 @@ public sealed partial class SettingsDialog : Window
         if (isInitialSetup)
         {
             TitleText.Text = "Set up Mini Theme Studio";
-            SubtitleText.Text = "Import or select an original Base UI before editing themes.";
+            SubtitleText.Text = "Choose where drafts are kept and how to reach the console.";
             CancelButton.Content = "Exit";
-        }
-    }
-
-    private async void BrowseBaseUiRoot_Click(object? sender, RoutedEventArgs e)
-    {
-        var sourcePath = await PickFolderAsync("Select local Base UI folder");
-        if (sourcePath is null || _localBaseUiImporter is null)
-        {
-            return;
-        }
-
-        try
-        {
-            var importedPath = _localBaseUiImporter.Import(
-                sourcePath,
-                _applicationBaseUiRootPath);
-            SetFeedback($"Imported {Path.GetFileName(importedPath)}.", false);
-        }
-        catch (Exception exception) when (
-            exception is IOException or InvalidDataException or ArgumentException)
-        {
-            SetFeedback(exception.Message, true);
-        }
-    }
-
-    private async void GetFromConsole_Click(object? sender, RoutedEventArgs e)
-    {
-        if (_consoleBaseUiImporter is null
-            || !TryGetConsoleHost(out var consoleHost))
-        {
-            SetFeedback("Enter a valid network IP address first.", true);
-            return;
-        }
-
-        var connection = new ConsoleConnectionOptions(consoleHost);
-        using var progressDialog = new ConsoleConnectionDialog(cancellationToken =>
-            _consoleBaseUiImporter.ImportAvailableAsync(
-                _applicationBaseUiRootPath,
-                connection,
-                cancellationToken));
-        await progressDialog.ShowDialog<bool>(this);
-
-        if (progressDialog.Result is { } result)
-        {
-            SetFeedback($"Imported {result.Definition.DisplayName}.", false);
-            return;
-        }
-
-        if (progressDialog.Error is null)
-        {
-            return;
-        }
-
-        SetFeedback("Console unavailable. Select a local Base UI folder.", true);
-        var localPath = await PickFolderAsync("Select local Base UI folder");
-        if (localPath is not null && _localBaseUiImporter is not null)
-        {
-            try
-            {
-                var importedPath = _localBaseUiImporter.Import(
-                    localPath,
-                    _applicationBaseUiRootPath);
-                SetFeedback($"Imported {Path.GetFileName(importedPath)}.", false);
-            }
-            catch (Exception exception) when (
-                exception is IOException or InvalidDataException or ArgumentException)
-            {
-                SetFeedback(exception.Message, true);
-            }
         }
     }
 
@@ -157,14 +70,7 @@ public sealed partial class SettingsDialog : Window
             _networkConsoleHost = ConsoleHostTextBox.Text?.Trim() ?? "";
         }
 
-        UpdateGetFromConsoleButton();
         MarkUnsaved();
-    }
-
-    private void UpdateGetFromConsoleButton()
-    {
-        GetFromConsoleButton.IsEnabled = _consoleBaseUiImporter is not null
-            && TryGetConsoleHost(out _);
     }
 
     private void UpdateConnectionControls()
@@ -187,7 +93,6 @@ public sealed partial class SettingsDialog : Window
             ConnectionHintText.Text = _usesNetwork
                 ? "Network SSH uses root on port 22 without a password."
                 : $"USB uses {UsbConsoleHost} with root on port 22.";
-            UpdateGetFromConsoleButton();
         }
         finally
         {
@@ -285,16 +190,8 @@ public sealed partial class SettingsDialog : Window
             return;
         }
 
-        var baseUiRootPath = _applicationBaseUiRootPath;
-        if (_baseUiValidator is not null && !ContainsValidBaseUi(baseUiRootPath))
-        {
-            SetFeedback("Import or select a valid Base UI before saving.", true);
-            return;
-        }
-
         Close(_settings with
         {
-            BaseUiRootPath = baseUiRootPath,
             DraftRootPath = Path.GetFullPath(DraftRootTextBox.Text.Trim()),
             DefaultThemeDestinationPath = string.IsNullOrWhiteSpace(ThemeDestinationTextBox.Text)
                 ? ""
@@ -313,38 +210,5 @@ public sealed partial class SettingsDialog : Window
     private void Cancel_Click(object? sender, RoutedEventArgs e)
     {
         Close(null);
-    }
-
-    private bool ContainsValidBaseUi(string rootPath)
-    {
-        if (IsValidBaseUi(rootPath))
-        {
-            return true;
-        }
-
-        foreach (var definition in BaseUiCatalog.All)
-        {
-            if (IsValidBaseUi(Path.Combine(rootPath, definition.LocalFolderName)))
-            {
-                return true;
-            }
-        }
-
-        return Directory.Exists(rootPath)
-            && Directory.EnumerateDirectories(rootPath).Any(IsValidBaseUi);
-    }
-
-    private bool IsValidBaseUi(string path)
-    {
-        try
-        {
-            _baseUiValidator!.Validate(path);
-            return true;
-        }
-        catch (Exception exception) when (
-            exception is IOException or InvalidDataException or ArgumentException)
-        {
-            return false;
-        }
     }
 }

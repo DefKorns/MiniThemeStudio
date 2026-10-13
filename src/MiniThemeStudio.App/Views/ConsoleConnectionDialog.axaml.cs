@@ -3,30 +3,30 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
-using MiniThemeStudio.Core.Console;
+using MiniThemeStudio.Core.Firmware;
 
 namespace MiniThemeStudio.App.Views;
 
 public sealed partial class ConsoleConnectionDialog : Window, IDisposable
 {
     private readonly CancellationTokenSource _cancellationTokenSource = new();
-    private readonly Func<CancellationToken, Task<BaseUiImportResult>> _operation;
+    private readonly Func<CancellationToken, Task<InstalledBaseInfo>> _operation;
 
     public ConsoleConnectionDialog()
-        : this(_ => Task.FromException<BaseUiImportResult>(
+        : this(_ => Task.FromException<InstalledBaseInfo>(
             new InvalidOperationException("No console operation was configured.")))
     {
     }
 
     public ConsoleConnectionDialog(
-        Func<CancellationToken, Task<BaseUiImportResult>> operation)
+        Func<CancellationToken, Task<InstalledBaseInfo>> operation)
     {
         _operation = operation;
         InitializeComponent();
         Opened += Dialog_Opened;
     }
 
-    public BaseUiImportResult? Result { get; private set; }
+    public InstalledBaseInfo? Result { get; private set; }
 
     public Exception? Error { get; private set; }
 

@@ -1,0 +1,376 @@
+{
+  "schemaVersion": 1,
+  "bases": [
+    {
+      "id": "famicom-jpn-1.0.5",
+      "console": "famicom",
+      "region": "jpn",
+      "version": "1.0.5",
+      "displayName": "Famicom Classic Mini (Japan)",
+      "uiPath": "usr/share/clover-ui",
+      "engineFormat": 8,
+      "uiTreeSha256": "8d708e9e28c478046d08fea5cd3b2992c177bc09d3504d91aca372ad3e84ce3e",
+      "uiFileCount": 154,
+      "firmwareVersions": [
+        "1.0.5"
+      ],
+      "sources": [
+        {
+          "fileName": "dp-hvc-release-v1.0.5-0-g2f04d11.hsqs",
+          "format": "squashfs",
+          "size": 19746816,
+          "sha256": "82a619cfa825c5386fe7c72c1bce02438afb2dffec79aa23c9a28e83b5a59eb1",
+          "firmwareVersion": "1.0.5"
+        },
+        {
+          "fileName": "dp-hvc-release-v1.0.5-0-g2f04d11.tar.gz",
+          "format": "tar.gz",
+          "size": 19858746,
+          "sha256": "51a1f56cdde92b023495d80f6ecfb03d4a303f9df594f16d102d22b80ab59aae",
+          "firmwareVersion": "1.0.5"
+        },
+        {
+          "fileName": "dp-hvc-release-v1.0.5-0-g2f04d11_trimmed.hsqs",
+          "format": "squashfs",
+          "size": 19746816,
+          "sha256": "82a619cfa825c5386fe7c72c1bce02438afb2dffec79aa23c9a28e83b5a59eb1",
+          "firmwareVersion": "1.0.5"
+        }
+      ]
+    },
+    {
+      "id": "nes-usa-eur-1.0.2",
+      "console": "nes",
+      "region": "usa-eur",
+      "version": "1.0.2",
+      "displayName": "NES Classic Mini",
+      "uiPath": "usr/share/clover-ui",
+      "engineFormat": 8,
+      "uiTreeSha256": "83d6a44bd4086ccb2f11236840f2e49035e54f43deefdca2aa7ff36cd73e6aca",
+      "uiFileCount": 161,
+      "firmwareVersions": [
+        "1.0.2",
+        "1.0.3",
+        "1.0.7"
+      ],
+      "sources": [
+        {
+          "fileName": "dp-nes-release-v1.0.2-0-g99e37e1.hsqs",
+          "format": "squashfs",
+          "size": 19079168,
+          "sha256": "6859252d02b3429220e82b4e75b58a8609851283faf5512ad372292dc1fca8a4",
+          "firmwareVersion": "1.0.2"
+        },
+        {
+          "fileName": "dp-nes-release-v1.0.2-0-g99e37e1.tar.gz",
+          "format": "tar.gz",
+          "size": 19141638,
+          "sha256": "809f2e0ab70b98e4611d94ee38bebb9d0981b4e9e2eaa2ad487f2ca486ae3da8",
+          "firmwareVersion": "1.0.2"
+        },
+        {
+          "fileName": "dp-nes-release-v1.0.2-0-g99e37e1_trimmed.hsqs",
+          "format": "squashfs",
+          "size": 19079168,
+          "sha256": "6859252d02b3429220e82b4e75b58a8609851283faf5512ad372292dc1fca8a4",
+          "firmwareVersion": "1.0.2"
+        },
+        {
+          "fileName": "dp-nes-release-v1.0.3-0-gc4c703b.hsqs",
+          "format": "squashfs",
+          "size": 19922944,
+          "sha256": "bb309610bbe40c075073c8d9c68dafb6aad549182f56350a982bef070ab81efb",
+          "firmwareVersion": "1.0.3"
+        },
+        {
+          "fileName": "dp-nes-release-v1.0.3-0-gc4c703b.tar.gz",
+          "format": "tar.gz",
+          "size": 18950602,
+          "sha256": "f298ab520fc69578ab7dc313ed984e5d09c1f9287cf096bd151a831d4ca80642",
+          "firmwareVersion": "1.0.3"
+        },
+        {
+          "fileName": "dp-nes-release-v1.0.3-0-gc4c703b_trimmed.hsqs",
+          "format": "squashfs",
+          "size": 19075072,
+          "sha256": "e1e5d56aad728672810bc166a66c941dc75f0249a8c052ec73c4054f3c094d49",
+          "firmwareVersion": "1.0.3"
+        },
+        {
+          "fileName": "dp-nes-release-v1.0.7-0-g4ea4041.hsqs",
+          "format": "squashfs",
+          "size": 15458304,
+          "sha256": "42f6afb378b2a925c072912ceb8dff87aa8d7ef397e6ccc94e07acebece99364",
+          "firmwareVersion": "1.0.7"
+        }
+      ]
+    },
+    {
+      "id": "shonen-jpn-3.0.1",
+      "console": "shonen",
+      "region": "jpn",
+      "version": "3.0.1",
+      "displayName": "Famicom Mini Shonen Jump 50th (Japan)",
+      "uiPath": "usr/share/ui/hvc",
+      "engineFormat": 10,
+      "uiTreeSha256": "1e92dd9028a6c41faa161e88706fe16f6b471041396dfc555ba886cc8510d934",
+      "uiFileCount": 227,
+      "firmwareVersions": [
+        "3.0.1"
+      ],
+      "sources": [
+        {
+          "fileName": "dp_hvcj_release_v3.0.1_0_gad315e1_trimmed.hsqs",
+          "format": "squashfs",
+          "size": 35168256,
+          "sha256": "3be15703197d44caa6bf02efaab231ada2bec70048c0ceed6f913cc3959f5c99",
+          "firmwareVersion": "3.0.1"
+        }
+      ]
+    },
+    {
+      "id": "snes-eur-2.0.7",
+      "console": "snes",
+      "region": "eur",
+      "version": "2.0.7",
+      "displayName": "SNES Classic Mini (Europe)",
+      "uiPath": "usr/share/ui/snes-eur",
+      "engineFormat": 9,
+      "uiTreeSha256": "01bd0d3c51ad6287895c2d5d7b98df0cca3ffd6c40ef531e62ebe61e30fb5d4d",
+      "uiFileCount": 284,
+      "firmwareVersions": [
+        "2.0.7"
+      ],
+      "sources": [
+        {
+          "fileName": "dp-sneseur-release-v2.0.7-0-geb2b275.hsqs",
+          "format": "squashfs",
+          "size": 67108864,
+          "sha256": "f9a709d577e13369ca48866706dbf2f0059c3faf708c87c66d7020ec9ac7a758",
+          "firmwareVersion": "2.0.7"
+        },
+        {
+          "fileName": "dp-sneseur-release-v2.0.7-0-geb2b275.tar.gz",
+          "format": "tar.gz",
+          "size": 66333176,
+          "sha256": "c548b5a069b7fba6617b24d996413aa26189d83f953ec1b0512a1013d6518e06",
+          "firmwareVersion": "2.0.7"
+        },
+        {
+          "fileName": "dp-sneseur-release-v2.0.7-0-geb2b275_trimmed.hsqs",
+          "format": "squashfs",
+          "size": 66695168,
+          "sha256": "70af5bffa08218853781bf25666ebe6e7f78571d2eb5c1d04d12f5ddecf9bb02",
+          "firmwareVersion": "2.0.7"
+        }
+      ]
+    },
+    {
+      "id": "snes-eur-2.0.13",
+      "console": "snes",
+      "region": "eur",
+      "version": "2.0.13",
+      "displayName": "SNES Classic Mini (Europe)",
+      "uiPath": "usr/share/ui/snes-eur",
+      "engineFormat": 9,
+      "uiTreeSha256": "00e0628fb53ac6cfb0b9601d1358e8d32a1fbfed95624f865522f9da0ede2ce2",
+      "uiFileCount": 284,
+      "firmwareVersions": [
+        "2.0.13",
+        "2.0.14"
+      ],
+      "sources": [
+        {
+          "fileName": "dp-sneseur-release-v2.0.13-0-g9dca6c5.tar.gz",
+          "format": "tar.gz",
+          "size": 66721468,
+          "sha256": "18af3c2d74bc5051088866040a94918170b693681c793b480cf9795fcc6ed771",
+          "firmwareVersion": "2.0.13"
+        },
+        {
+          "fileName": "dp-sneseur-release-v2.0.13-0-g9dca6c5_trimmed.hsqs",
+          "format": "squashfs",
+          "size": 66674688,
+          "sha256": "0f5123439d94330861bc89ee57d5b688560aa4399b0f39f19c9265a24450af50",
+          "firmwareVersion": "2.0.13"
+        },
+        {
+          "fileName": "dp-sneseur-release-v2.0.14-0-gd8b65c6.hsqs",
+          "format": "squashfs",
+          "size": 67108864,
+          "sha256": "1519a85cbaa0984c97f6237e8d2659ef694e5dfad0ceefa54af9fbc999f72fed",
+          "firmwareVersion": "2.0.14"
+        },
+        {
+          "fileName": "dp-sneseur-release-v2.0.14-0-gd8b65c6.tar.gz",
+          "format": "tar.gz",
+          "size": 66721402,
+          "sha256": "500613e8cbda359dae2bebf618d7812efb8368070f646e0614d3625ba75e4de1",
+          "firmwareVersion": "2.0.14"
+        },
+        {
+          "fileName": "dp-sneseur-release-v2.0.14-0-gd8b65c6_trimmed.hsqs",
+          "format": "squashfs",
+          "size": 66674688,
+          "sha256": "39d12c00955c48c24bfab18b87e1e9f46762ec44ce2467463fd21f919c345730",
+          "firmwareVersion": "2.0.14"
+        }
+      ]
+    },
+    {
+      "id": "snes-jpn-2.0.12",
+      "console": "snes",
+      "region": "jpn",
+      "version": "2.0.12",
+      "displayName": "Super Famicom Classic Mini (Japan)",
+      "uiPath": "usr/share/ui/shvc",
+      "engineFormat": 9,
+      "uiTreeSha256": "f9add9891ac2e35be12568be665268f8a23990f0f0e7466eb19fc0386bc85738",
+      "uiFileCount": 284,
+      "firmwareVersions": [
+        "2.0.12",
+        "2.0.14"
+      ],
+      "sources": [
+        {
+          "fileName": "dp-shvc-release-v2.0.12-0-gbff4fb3.hsqs",
+          "format": "squashfs",
+          "size": 66060288,
+          "sha256": "93d1fccfcf97d3f0b307f8d0ee4d4fb96682db408a6d156d90b07e607f874933",
+          "firmwareVersion": "2.0.12"
+        },
+        {
+          "fileName": "dp-shvc-release-v2.0.12-0-gbff4fb3.tar.gz",
+          "format": "tar.gz",
+          "size": 65871097,
+          "sha256": "46c342f1da18aa191a373d9eec54944c69425f9c0984d82e77a99c0b310dea26",
+          "firmwareVersion": "2.0.12"
+        },
+        {
+          "fileName": "dp-shvc-release-v2.0.12-0-gbff4fb3_trimmed.hsqs",
+          "format": "squashfs",
+          "size": 65802240,
+          "sha256": "89cab94c3850db4d49c8b9ae052e9dd163b5b6f887a12a4864f16c61ef412c71",
+          "firmwareVersion": "2.0.12"
+        },
+        {
+          "fileName": "dp-shvc-release-v2.0.14-0-gd8b65c6.hsqs",
+          "format": "squashfs",
+          "size": 66060288,
+          "sha256": "0d7a277cf82e6ddd57c4b5fb4a23f9d46973d15548b47628b726bc96297b247f",
+          "firmwareVersion": "2.0.14"
+        },
+        {
+          "fileName": "dp-shvc-release-v2.0.14-0-gd8b65c6.tar.gz",
+          "format": "tar.gz",
+          "size": 65856412,
+          "sha256": "bc5d535114941f1235fa4ba89575f4093dff991d2120f77da0279ec4176c1978",
+          "firmwareVersion": "2.0.14"
+        },
+        {
+          "fileName": "dp-shvc-release-v2.0.14-0-gd8b65c6_trimmed.hsqs",
+          "format": "squashfs",
+          "size": 65785856,
+          "sha256": "24a1b8787ae6e233bb0303f2dd940303f9c96ad5e0f529cac25ae52ecdea7c39",
+          "firmwareVersion": "2.0.14"
+        }
+      ]
+    },
+    {
+      "id": "snes-usa-2.0.7",
+      "console": "snes",
+      "region": "usa",
+      "version": "2.0.7",
+      "displayName": "SNES Classic Edition (USA)",
+      "uiPath": "usr/share/ui/snes-usa",
+      "engineFormat": 9,
+      "uiTreeSha256": "087471933d4f10f8635ff0e3cd245caf70c2de87416167ed8a0fcba6eb286d9a",
+      "uiFileCount": 284,
+      "firmwareVersions": [
+        "2.0.7"
+      ],
+      "sources": [
+        {
+          "fileName": "dp-snesusa-release-v2.0.7-0-geb2b275.hsqs",
+          "format": "squashfs",
+          "size": 67108864,
+          "sha256": "c8a36744c116db438736d906c482b57a65aadece7380e0c71bc96cae31ce3577",
+          "firmwareVersion": "2.0.7"
+        },
+        {
+          "fileName": "dp-snesusa-release-v2.0.7-0-geb2b275.tar.gz",
+          "format": "tar.gz",
+          "size": 66328697,
+          "sha256": "4f7cf46e29e7fe5b4731db150a825766347c6e4fecb10ffe9a570ebf369b00f1",
+          "firmwareVersion": "2.0.7"
+        },
+        {
+          "fileName": "dp-snesusa-release-v2.0.7-0-geb2b275_trimmed.hsqs",
+          "format": "squashfs",
+          "size": 66691072,
+          "sha256": "53a9ff6c748ae148e43575c62778dc0439e0403b2b1b553077a671856235aec6",
+          "firmwareVersion": "2.0.7"
+        }
+      ]
+    },
+    {
+      "id": "snes-usa-2.0.13",
+      "console": "snes",
+      "region": "usa",
+      "version": "2.0.13",
+      "displayName": "SNES Classic Edition (USA)",
+      "uiPath": "usr/share/ui/snes-usa",
+      "engineFormat": 9,
+      "uiTreeSha256": "67d5f6fae83f03566cde4071875fea688f751206250105bd6f5fd5ce461e9c8e",
+      "uiFileCount": 284,
+      "firmwareVersions": [
+        "2.0.13",
+        "2.0.14"
+      ],
+      "sources": [
+        {
+          "fileName": "dp-snesusa-release-v2.0.13-0-g9dca6c5.hsqs",
+          "format": "squashfs",
+          "size": 67108864,
+          "sha256": "803ee8f310240f1375b61ee3767720c1272e5c77dbf7a5f455e88865e88e9d3b",
+          "firmwareVersion": "2.0.13"
+        },
+        {
+          "fileName": "dp-snesusa-release-v2.0.13-0-g9dca6c5.tar.gz",
+          "format": "tar.gz",
+          "size": 66721732,
+          "sha256": "121d6ba7140a5c4a2cdca065af2a6b9c203017dcfce60e55ba24a5ac4ee05e7b",
+          "firmwareVersion": "2.0.13"
+        },
+        {
+          "fileName": "dp-snesusa-release-v2.0.13-0-g9dca6c5_trimmed.hsqs",
+          "format": "squashfs",
+          "size": 66674688,
+          "sha256": "39d436b4ff3c45aa50cb8132715dcbea09c9833f36c5d49a1e9d89c780ccfab0",
+          "firmwareVersion": "2.0.13"
+        },
+        {
+          "fileName": "dp-snesusa-release-v2.0.14-0-gd8b65c6.hsqs",
+          "format": "squashfs",
+          "size": 67108864,
+          "sha256": "295daa2854c03b7e8168de0ab9872853d4ef00c41b3da0ca3b3874b14baa08b3",
+          "firmwareVersion": "2.0.14"
+        },
+        {
+          "fileName": "dp-snesusa-release-v2.0.14-0-gd8b65c6.tar.gz",
+          "format": "tar.gz",
+          "size": 66721429,
+          "sha256": "88cc2705d4b4ea019ddb7d7a551c21b3ea40883b2f2a0dce29339dbf818f1413",
+          "firmwareVersion": "2.0.14"
+        },
+        {
+          "fileName": "dp-snesusa-release-v2.0.14-0-gd8b65c6_trimmed.hsqs",
+          "format": "squashfs",
+          "size": 66674688,
+          "sha256": "3866b27727ea09b171446d67f29b6ae24ac64c6afac6136db14e2b94a073b059",
+          "firmwareVersion": "2.0.14"
+        }
+      ]
+    }
+  ]
+}

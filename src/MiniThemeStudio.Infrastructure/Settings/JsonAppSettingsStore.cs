@@ -85,12 +85,7 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
 
     private static AppSettings CreateDefaults()
     {
-        var applicationDataPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "MiniThemeStudio");
-
         return new AppSettings(
-            Path.Combine(applicationDataPath, "base-ui"),
             Path.Combine(Path.GetTempPath(), "MiniThemeStudio", "drafts"),
             "",
             ApplicationThemePreference.System,
@@ -100,7 +95,6 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
     private static void Validate(AppSettings? settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        ArgumentException.ThrowIfNullOrWhiteSpace(settings.BaseUiRootPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(settings.DraftRootPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(settings.ConsoleHost);
     }

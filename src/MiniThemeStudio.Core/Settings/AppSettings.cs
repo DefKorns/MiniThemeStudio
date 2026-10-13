@@ -1,7 +1,6 @@
 namespace MiniThemeStudio.Core.Settings;
 
 public sealed record AppSettings(
-    string BaseUiRootPath,
     string DraftRootPath,
     string DefaultThemeDestinationPath,
     ApplicationThemePreference Theme,

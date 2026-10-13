@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
+using System.IO;
 using System.Linq;
 using Avalonia.Markup.Xaml;
 using MiniThemeStudio.App.ViewModels;
@@ -35,20 +36,17 @@ public partial class App : Application
             };
 
             var projectCreator = new ThemeProjectCreator();
-            var firmwareRegistry = new FirmwareRegistry();
+            var firmwareRegistry = FirmwareRegistry.CreateDefault(Path.Combine(
+                Path.GetDirectoryName(BaseFirmwareManager.DefaultBasesRootPath)!,
+                "firmwares.json"));
             var baseFirmwareManager = new BaseFirmwareManager(
                 firmwareRegistry,
-                new BaseUiValidator(),
-                settingsStore.Current.BaseUiRootPath);
+                new ConsoleDirectoryClientFactory());
             var themeAssetManager = new ThemeAssetManager();
             var themeValidator = new ThemeValidator();
 
             desktop.MainWindow = new MainWindow(
                 settingsStore,
-                new ConsoleBaseUiImporter(
-                    new BaseUiValidator(),
-                    new ConsoleDirectoryClientFactory()),
-                new BaseUiValidator(),
                 baseFirmwareManager,
                 themeAssetManager,
                 themeValidator)

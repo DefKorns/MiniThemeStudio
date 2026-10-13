@@ -28,13 +28,10 @@ public sealed partial class MainWindow : Window, IDisposable
 {
     private readonly DialogService _dialogService;
     private readonly ErrorHandlingService _errorHandlingService;
-    private readonly IConsoleBaseUiImporter _consoleBaseUiImporter;
     private readonly IAppSettingsStore _settingsStore;
-    private readonly IBaseUiValidator _baseUiValidator;
     private readonly IBaseFirmwareManager _baseFirmwareManager;
     private readonly IThemeAssetManager _themeAssetManager;
     private readonly IThemeValidator _themeValidator;
-    private readonly LocalBaseUiImporter _localBaseUiImporter;
 
     private string _atlasImagePath = "";
     private bool _isCloseConfirmed;
@@ -47,23 +44,18 @@ public sealed partial class MainWindow : Window, IDisposable
     public MainWindow()
         : this(
             new JsonAppSettingsStore(),
-            new ConsoleBaseUiImporter(new BaseUiValidator(), new ConsoleDirectoryClientFactory()))
+            new BaseFirmwareManager(FirmwareRegistry.CreateDefault(), new ConsoleDirectoryClientFactory()))
     {
     }
 
     public MainWindow(
         IAppSettingsStore settingsStore,
-        IConsoleBaseUiImporter consoleBaseUiImporter,
-        IBaseUiValidator? baseUiValidator = null,
-        IBaseFirmwareManager? baseFirmwareManager = null,
+        IBaseFirmwareManager baseFirmwareManager,
         IThemeAssetManager? themeAssetManager = null,
         IThemeValidator? themeValidator = null)
     {
         _settingsStore = settingsStore;
-        _consoleBaseUiImporter = consoleBaseUiImporter;
-        _baseUiValidator = baseUiValidator ?? new BaseUiValidator();
-        _localBaseUiImporter = new LocalBaseUiImporter(_baseUiValidator);
-        _baseFirmwareManager = baseFirmwareManager ?? new BaseFirmwareManager(new FirmwareRegistry(), _baseUiValidator, _settingsStore.Current.BaseUiRootPath);
+        _baseFirmwareManager = baseFirmwareManager;
         _themeAssetManager = themeAssetManager ?? new ThemeAssetManager();
         _themeValidator = themeValidator ?? new ThemeValidator();
 
@@ -84,23 +76,28 @@ public sealed partial class MainWindow : Window, IDisposable
         await ShowSettingsAsync(false);
     }
 
-    private void ManageBases_Click(object? sender, RoutedEventArgs e)
+    private async void ManageBases_Click(object? sender, RoutedEventArgs e)
     {
-        new BaseManagementDialog(_baseFirmwareManager).ShowDialog(this);
+        await ShowBaseManagementAsync();
+    }
+
+    private Task ShowBaseManagementAsync()
+    {
+        return new BaseManagementDialog(_baseFirmwareManager, _settingsStore.Current).ShowDialog(this);
     }
 
     private async void MainWindow_Opened(object? sender, EventArgs e)
     {
         Opened -= MainWindow_Opened;
-        var settings = _settingsStore.Current;
-        if (settings.InitialSetupCompleted && ContainsValidBaseUi(settings.BaseUiRootPath))
+        if (!_settingsStore.Current.InitialSetupCompleted && !await ShowSettingsAsync(true))
         {
+            Close();
             return;
         }
 
-        if (!await ShowSettingsAsync(true))
+        if (_baseFirmwareManager.FindCompatibleBaseUiPath() is null)
         {
-            Close();
+            await ShowBaseManagementAsync();
         }
     }
 
@@ -108,9 +105,6 @@ public sealed partial class MainWindow : Window, IDisposable
     {
         var settings = await new SettingsDialog(
             _settingsStore.Current,
-            _consoleBaseUiImporter,
-            _baseUiValidator,
-            _localBaseUiImporter,
             isInitialSetup).ShowDialog<AppSettings?>(this);
         if (settings is null)
         {
@@ -154,10 +148,10 @@ public sealed partial class MainWindow : Window, IDisposable
         var path = await PickFolderAsync("Edit existing theme");
         if (path is not null && DataContext is MainWindowViewModel viewModel)
         {
-            var atlasDefinitionRootPath = FindCachedBaseUiPath(path);
+            var atlasDefinitionRootPath = _baseFirmwareManager.FindCompatibleBaseUiPath(path);
             if (!HasAtlasDefinition(path) && atlasDefinitionRootPath is null)
             {
-                atlasDefinitionRootPath = await GetBaseUiPathAsync();
+                atlasDefinitionRootPath = await GetBaseUiPathAsync(path);
                 if (atlasDefinitionRootPath is null)
                 {
                     return;
@@ -271,15 +265,11 @@ public sealed partial class MainWindow : Window, IDisposable
             return;
         }
 
-        var details = await new CreateThemeDialog().ShowDialog<NewThemeDetails?>(this);
+        var installedBases = _baseFirmwareManager.GetInstalledBases()
+            .Where(info => info.Status == BaseInstallStatus.Valid)
+            .ToList();
+        var details = await new CreateThemeDialog(installedBases).ShowDialog<NewThemeDetails?>(this);
         if (details is null)
-        {
-            return;
-        }
-
-        var baseThemePath = FindAvailableBaseUiPath(_settingsStore.Current.BaseUiRootPath)
-            ?? await GetBaseUiPathAsync();
-        if (baseThemePath is null)
         {
             return;
         }
@@ -295,7 +285,7 @@ public sealed partial class MainWindow : Window, IDisposable
             ThemeDirectoryName.FromDisplayName(details.Name));
 
         var request = new NewThemeRequest(
-            baseThemePath,
+            details.BaseUiPath,
             destinationPath,
             details.Name,
             details.Author);
@@ -560,137 +550,10 @@ public sealed partial class MainWindow : Window, IDisposable
         }
     }
 
-    private async Task<string?> GetBaseUiPathAsync()
+    private async Task<string?> GetBaseUiPathAsync(string themePath)
     {
-        var settings = _settingsStore.Current;
-        var consoleHost = settings.ConsoleConnectionMode == ConsoleConnectionMode.Usb
-            ? "169.254.13.37"
-            : settings.ConsoleHost;
-        var connection = new ConsoleConnectionOptions(consoleHost);
-        using var progressDialog = new ConsoleConnectionDialog(cancellationToken =>
-            _consoleBaseUiImporter.ImportAvailableAsync(
-                settings.BaseUiRootPath,
-                connection,
-                cancellationToken));
-        await progressDialog.ShowDialog<bool>(this);
-
-        if (progressDialog.Result is { } result)
-        {
-            return result.LocalPath;
-        }
-
-        if (progressDialog.Error is null)
-        {
-            return null;
-        }
-
-        await _dialogService.ShowInformationAsync(
-            this,
-            "Console unavailable",
-            $"A Base UI could not be retrieved from the console. Select a local Base UI folder instead.\n\n{progressDialog.Error.Message}",
-            DialogVariant.Warning);
-
-        var sourcePath = await PickFolderAsync("Select local Base UI folder");
-        if (sourcePath is null)
-        {
-            return null;
-        }
-
-        try
-        {
-            return _localBaseUiImporter.Import(sourcePath, settings.BaseUiRootPath);
-        }
-        catch (Exception exception) when (
-            exception is IOException or InvalidDataException or ArgumentException)
-        {
-            await _errorHandlingService.ShowErrorAsync(
-                this,
-                "Cannot import Base UI",
-                exception.Message);
-            return null;
-        }
-    }
-
-    private string? FindCachedBaseUiPath(string themePath)
-    {
-        var baseUiRootPath = _settingsStore.Current.BaseUiRootPath;
-        if (HasAtlasDefinition(baseUiRootPath))
-        {
-            return baseUiRootPath;
-        }
-
-        var normalizedThemePath = themePath.Replace('\\', '/');
-        var preferredFolderNames = normalizedThemePath.Contains("shonen", StringComparison.OrdinalIgnoreCase)
-            ? new[] { "shonen", "shonen/jpn/3.0.1" }
-            : normalizedThemePath.Contains("snes", StringComparison.OrdinalIgnoreCase)
-                ? new[] { "snes-eur", "snes-usa", "snes-jpn", "snes/eur/2.0.14", "snes/usa/2.0.14", "snes/jpn/2.0.12" }
-                : new[] { "nes", "famicom", "nes/usa/1.0.2", "famicom/jpn/1.0.5" };
-
-        foreach (var folderName in preferredFolderNames)
-        {
-            var candidatePath = Path.Combine(baseUiRootPath, folderName);
-            if (HasAtlasDefinition(candidatePath))
-            {
-                return candidatePath;
-            }
-        }
-
-        return FindAvailableBaseUiPath(baseUiRootPath, HasAtlasDefinition);
-    }
-
-    private string? FindAvailableBaseUiPath(string rootPath)
-    {
-        return FindAvailableBaseUiPath(rootPath, IsValidBaseUi);
-    }
-
-    private static string? FindAvailableBaseUiPath(
-        string rootPath,
-        Func<string, bool> isAvailable)
-    {
-        if (isAvailable(rootPath))
-        {
-            return rootPath;
-        }
-
-        if (!Directory.Exists(rootPath))
-        {
-            return null;
-        }
-
-        return Directory.EnumerateDirectories(rootPath, "*", SearchOption.AllDirectories).FirstOrDefault(isAvailable);
-    }
-
-    private bool ContainsValidBaseUi(string rootPath)
-    {
-        if (IsValidBaseUi(rootPath))
-        {
-            return true;
-        }
-
-        foreach (var definition in BaseUiCatalog.All)
-        {
-            if (IsValidBaseUi(Path.Combine(rootPath, definition.LocalFolderName)))
-            {
-                return true;
-            }
-        }
-
-        return Directory.Exists(rootPath)
-            && Directory.EnumerateDirectories(rootPath, "*", SearchOption.AllDirectories).Any(IsValidBaseUi);
-    }
-
-    private bool IsValidBaseUi(string path)
-    {
-        try
-        {
-            _baseUiValidator.Validate(path);
-            return true;
-        }
-        catch (Exception exception) when (
-            exception is IOException or InvalidDataException or ArgumentException)
-        {
-            return false;
-        }
+        await ShowBaseManagementAsync();
+        return _baseFirmwareManager.FindCompatibleBaseUiPath(themePath);
     }
 
     private static bool HasAtlasDefinition(string rootPath)

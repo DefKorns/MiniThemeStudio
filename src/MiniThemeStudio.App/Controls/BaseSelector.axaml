@@ -1,0 +1,23 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="using:MiniThemeStudio.App.Models"
+             x:Class="MiniThemeStudio.App.Controls.BaseSelector">
+  <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="8">
+    <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Console" />
+    <ComboBox x:Name="FamilyComboBox" Grid.Column="1" HorizontalAlignment="Stretch" SelectionChanged="FamilyComboBox_SelectionChanged">
+      <ComboBox.ItemTemplate>
+        <DataTemplate x:DataType="models:FamilyChoice">
+          <TextBlock Text="{Binding Label}" />
+        </DataTemplate>
+      </ComboBox.ItemTemplate>
+    </ComboBox>
+    <TextBlock Grid.Row="1" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Base" />
+    <ComboBox x:Name="BaseComboBox" Grid.Row="1" Grid.Column="1" HorizontalAlignment="Stretch">
+      <ComboBox.ItemTemplate>
+        <DataTemplate x:DataType="models:BaseChoice">
+          <TextBlock Text="{Binding Label}" />
+        </DataTemplate>
+      </ComboBox.ItemTemplate>
+    </ComboBox>
+  </Grid>
+</UserControl>

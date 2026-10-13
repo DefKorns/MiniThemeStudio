@@ -58,6 +58,12 @@
           <Border Padding="6,2" Background="{DynamicResource SidebarSelectedBrush}" CornerRadius="4">
             <TextBlock FontSize="11" Foreground="{DynamicResource HeaderMutedBrush}" Text="{Binding Author, StringFormat='by {0}'}" />
           </Border>
+          <Button Padding="8,2" Background="{DynamicResource SidebarSelectedBrush}" CornerRadius="4" Click="ChangeBase_Click" ToolTip.Tip="Console and Base used to edit this theme">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <lucide:LucideIcon Kind="Gamepad2" Size="14" Foreground="{DynamicResource HeaderMutedBrush}" />
+              <TextBlock FontSize="11" Foreground="{DynamicResource HeaderMutedBrush}" Text="{Binding CurrentBaseLabel}" />
+            </StackPanel>
+          </Button>
           <Border Padding="6,2" Background="{DynamicResource DialogWarningBrush}" CornerRadius="4" IsVisible="{Binding HasUnsavedChanges}">
             <TextBlock FontSize="11" FontWeight="Bold" Foreground="#151515" Text="Unsaved changes" />
           </Border>
@@ -67,6 +73,12 @@
             <StackPanel Orientation="Horizontal" Spacing="6">
               <lucide:LucideIcon Kind="Check" Size="16" />
               <TextBlock Text="Validate" />
+            </StackPanel>
+          </Button>
+          <Button Padding="12,6" Background="Transparent" Click="ExportTheme_Click" ToolTip.Tip="Validate and export the theme as a .zip">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <lucide:LucideIcon Kind="Package" Size="16" />
+              <TextBlock Text="Export .zip" />
             </StackPanel>
           </Button>
           <Button Padding="16,6" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" IsEnabled="{Binding HasUnsavedChanges}" Click="SaveTheme_Click" Content="Save" />

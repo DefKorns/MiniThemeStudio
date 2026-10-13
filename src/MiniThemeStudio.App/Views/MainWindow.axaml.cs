@@ -148,17 +148,19 @@ public sealed partial class MainWindow : Window, IDisposable
         var path = await PickFolderAsync("Edit existing theme");
         if (path is not null && DataContext is MainWindowViewModel viewModel)
         {
-            var atlasDefinitionRootPath = _baseFirmwareManager.FindCompatibleBaseUiPath(path);
-            if (!HasAtlasDefinition(path) && atlasDefinitionRootPath is null)
+            var baseUiPath = _baseFirmwareManager.FindCompatibleBaseUiPath(path);
+            if (baseUiPath is null)
             {
-                atlasDefinitionRootPath = await GetBaseUiPathAsync(path);
-                if (atlasDefinitionRootPath is null)
+                baseUiPath = await AskForBaseAsync(
+                    path,
+                    "The console of this theme could not be detected. Choose the Base it was made for.");
+                if (baseUiPath is null && !HasAtlasDefinition(path))
                 {
                     return;
                 }
             }
 
-            if (viewModel.OpenTheme(path, atlasDefinitionRootPath))
+            if (viewModel.OpenTheme(path, baseUiPath))
             {
                 LoadAtlasImage(viewModel.AtlasImagePath);
                 ShowSpritePreview(viewModel.SelectedSprite);
@@ -250,6 +252,28 @@ public sealed partial class MainWindow : Window, IDisposable
         }
     }
 
+    private async void ExportTheme_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel { CurrentDraftPath: not null } viewModel)
+        {
+            return;
+        }
+
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export theme",
+            DefaultExtension = "zip",
+            SuggestedFileName = $"{Path.GetFileName(Path.TrimEndingDirectorySeparator(viewModel.ThemePath))}.zip",
+            FileTypeChoices = [new FilePickerFileType("Zip archive") { Patterns = ["*.zip"] }],
+        });
+
+        var zipPath = file?.TryGetLocalPath();
+        if (zipPath is not null && !viewModel.ExportTheme(zipPath))
+        {
+            await _errorHandlingService.ShowErrorAsync(this, "Cannot export theme", viewModel.Status);
+        }
+    }
+
     private void RunValidation_Click(object? sender, RoutedEventArgs e)
     {
         if (DataContext is MainWindowViewModel viewModel)
@@ -268,7 +292,7 @@ public sealed partial class MainWindow : Window, IDisposable
         var installedBases = _baseFirmwareManager.GetInstalledBases()
             .Where(info => info.Status == BaseInstallStatus.Valid)
             .ToList();
-        var details = await new CreateThemeDialog(installedBases).ShowDialog<NewThemeDetails?>(this);
+        var details = await new CreateThemeDialog(installedBases, new AtlasLayoutMatcher()).ShowDialog<NewThemeDetails?>(this);
         if (details is null)
         {
             return;
@@ -288,7 +312,8 @@ public sealed partial class MainWindow : Window, IDisposable
             details.BaseUiPath,
             destinationPath,
             details.Name,
-            details.Author);
+            details.Author,
+            details.AtlasImagePath);
 
         if (viewModel.CreateTheme(request))
         {
@@ -571,10 +596,48 @@ public sealed partial class MainWindow : Window, IDisposable
         }
     }
 
-    private async Task<string?> GetBaseUiPathAsync(string themePath)
+    private async Task<string?> AskForBaseAsync(string themePath, string message, string? currentBaseUiPath = null)
     {
-        await ShowBaseManagementAsync();
-        return _baseFirmwareManager.FindCompatibleBaseUiPath(themePath);
+        var installedBases = GetValidBases();
+        if (installedBases.Count == 0)
+        {
+            await ShowBaseManagementAsync();
+            installedBases = GetValidBases();
+            if (installedBases.Count == 0)
+            {
+                return null;
+            }
+        }
+
+        var preferredPath = currentBaseUiPath ?? _baseFirmwareManager.FindCompatibleBaseUiPath(themePath);
+        var preferred = installedBases.FirstOrDefault(info => info.LocalPath == preferredPath);
+        var selected = await new SelectBaseDialog(installedBases, preferred, message).ShowDialog<InstalledBaseInfo?>(this);
+        return selected?.LocalPath;
+    }
+
+    private System.Collections.Generic.List<InstalledBaseInfo> GetValidBases()
+    {
+        return _baseFirmwareManager.GetInstalledBases()
+            .Where(info => info.Status == BaseInstallStatus.Valid)
+            .ToList();
+    }
+
+    private async void ChangeBase_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel { CurrentDraftPath: not null } viewModel)
+        {
+            return;
+        }
+
+        var baseUiPath = await AskForBaseAsync(
+            viewModel.ThemePath,
+            "Choose the Base this theme is edited against. Changes in the draft are kept.",
+            viewModel.CurrentBaseUiPath);
+        if (baseUiPath is not null && viewModel.ChangeBase(baseUiPath))
+        {
+            LoadAtlasImage(viewModel.AtlasImagePath);
+            ShowSpritePreview(viewModel.SelectedSprite);
+        }
     }
 
     private static bool HasAtlasDefinition(string rootPath)

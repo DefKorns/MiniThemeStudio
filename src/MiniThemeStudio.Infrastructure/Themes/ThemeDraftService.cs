@@ -4,8 +4,15 @@ namespace MiniThemeStudio.Infrastructure.Themes;
 
 public sealed class ThemeDraftService(
     IThemeProjectCreator themeProjectCreator,
-    Func<string?>? draftsRootPathProvider = null) : IThemeDraftService
+    Func<string?>? draftsRootPathProvider = null,
+    string? backupsRootPath = null,
+    int backupsToKeep = 5) : IThemeDraftService
 {
+    public static string DefaultBackupsRootPath { get; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        "MiniThemeManager",
+        "Backups");
+
     private static readonly string DefaultDraftsRootPath = Path.Combine(
         Path.GetTempPath(),
         "MiniThemeStudio",
@@ -75,6 +82,7 @@ public sealed class ThemeDraftService(
             parentPath,
             $".{destination.Name}.mts-backup-{Guid.NewGuid():N}");
         var destinationMoved = false;
+        var lastBackupPath = destination.Exists ? KeepBackup(destination) : null;
 
         try
         {
@@ -89,7 +97,7 @@ public sealed class ThemeDraftService(
 
             Directory.Move(stagingPath, destination.FullName);
             DeleteDirectory(backupPath);
-            return draft with { RequiresEmptySavePath = false };
+            return draft with { RequiresEmptySavePath = false, LastBackupPath = lastBackupPath };
         }
         catch
         {
@@ -108,6 +116,23 @@ public sealed class ThemeDraftService(
     {
         ArgumentNullException.ThrowIfNull(draft);
         DeleteDirectory(draft.DraftPath);
+    }
+
+    private string KeepBackup(DirectoryInfo destination)
+    {
+        var themeBackupsPath = Path.Combine(backupsRootPath ?? DefaultBackupsRootPath, destination.Name);
+        var backupPath = Path.Combine(themeBackupsPath, DateTime.Now.ToString("yyyyMMdd-HHmmss-fff", System.Globalization.CultureInfo.InvariantCulture));
+        Directory.CreateDirectory(backupPath);
+        CopyDirectory(destination.FullName, backupPath);
+
+        foreach (var expired in new DirectoryInfo(themeBackupsPath).EnumerateDirectories()
+            .OrderByDescending(directory => directory.Name, StringComparer.Ordinal)
+            .Skip(Math.Max(1, backupsToKeep)))
+        {
+            expired.Delete(true);
+        }
+
+        return backupPath;
     }
 
     private string CreateDraftDirectory()

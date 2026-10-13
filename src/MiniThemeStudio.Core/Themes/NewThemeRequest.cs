@@ -4,4 +4,5 @@ public sealed record NewThemeRequest(
     string BaseThemePath,
     string DestinationPath,
     string Name,
-    string Author);
+    string Author,
+    string? AtlasImagePath = null);

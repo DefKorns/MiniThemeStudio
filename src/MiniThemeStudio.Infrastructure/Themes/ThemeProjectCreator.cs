@@ -1,5 +1,7 @@
 using System.Text;
 using MiniThemeStudio.Core.Themes;
+using MiniThemeStudio.Infrastructure.Firmware;
+using SkiaSharp;
 
 namespace MiniThemeStudio.Infrastructure.Themes;
 
@@ -26,6 +28,7 @@ public sealed class ThemeProjectCreator : IThemeProjectCreator
         _baseUiValidator.Validate(request.BaseThemePath);
 
         var source = new DirectoryInfo(request.BaseThemePath);
+        var baseAtlas = request.AtlasImagePath is null ? null : ReadReplacementAtlas(request);
 
         var destination = new DirectoryInfo(request.DestinationPath);
         if (!destination.Exists)
@@ -40,6 +43,11 @@ public sealed class ThemeProjectCreator : IThemeProjectCreator
         }
 
         CopyDirectory(source, destination);
+        if (baseAtlas is not null)
+        {
+            File.Copy(request.AtlasImagePath!, Path.Combine(destination.FullName, baseAtlas.RelativeImagePath), true);
+        }
+
         var encoding = new UTF8Encoding(false);
         File.WriteAllText(
             Path.Combine(destination.FullName, "title.txt"),
@@ -49,6 +57,21 @@ public sealed class ThemeProjectCreator : IThemeProjectCreator
             Path.Combine(destination.FullName, "author.txt"),
             request.Author.Trim(),
             encoding);
+    }
+
+    private static TextureAtlas ReadReplacementAtlas(NewThemeRequest request)
+    {
+        var atlas = new TextureAtlasReader().Read(request.BaseThemePath)
+            ?? throw new InvalidDataException("The selected Base has no sprite atlas to replace.");
+        using var bitmap = SKBitmap.Decode(request.AtlasImagePath)
+            ?? throw new InvalidDataException("The atlas source is not a valid PNG image.");
+        if (bitmap.Width != atlas.Size.Width || bitmap.Height != atlas.Size.Height)
+        {
+            throw new InvalidDataException(
+                $"The atlas source is {bitmap.Width} x {bitmap.Height} but {atlas.Name}.png of this Base is {atlas.Size.Width} x {atlas.Size.Height}.");
+        }
+
+        return atlas;
     }
 
     private static void CopyDirectory(DirectoryInfo source, DirectoryInfo destination)
@@ -62,6 +85,11 @@ public sealed class ThemeProjectCreator : IThemeProjectCreator
         foreach (var file in source.EnumerateFiles("*", SearchOption.AllDirectories))
         {
             var relativePath = Path.GetRelativePath(source.FullName, file.FullName);
+            if (UiTreeHash.IsIgnored(relativePath))
+            {
+                continue;
+            }
+
             var destinationPath = Path.Combine(destination.FullName, relativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
             file.CopyTo(destinationPath);

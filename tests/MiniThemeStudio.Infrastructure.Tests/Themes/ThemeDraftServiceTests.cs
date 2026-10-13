@@ -105,7 +105,8 @@ public sealed class ThemeDraftServiceTests
         Directory.CreateDirectory(themePath);
         var service = new ThemeDraftService(
             new ThemeProjectCreator(),
-            () => draftsPath);
+            () => draftsPath,
+            TestBackupsRootPath);
         var draft = service.OpenExisting(themePath);
 
         try
@@ -123,6 +124,41 @@ public sealed class ThemeDraftServiceTests
 
     private static ThemeDraftService CreateService()
     {
-        return new ThemeDraftService(new ThemeProjectCreator());
+        return new ThemeDraftService(new ThemeProjectCreator(), backupsRootPath: TestBackupsRootPath);
+    }
+
+    private static readonly string TestBackupsRootPath = Path.Combine(Path.GetTempPath(), "MiniThemeStudio.Tests", "backups");
+
+    [Fact]
+    public void SaveKeepsLatestBackupsOfPreviousVersions()
+    {
+        var rootPath = Directory.CreateTempSubdirectory().FullName;
+        var themePath = Path.Combine(rootPath, "theme");
+        var backupsPath = Path.Combine(rootPath, "backups");
+        Directory.CreateDirectory(themePath);
+        File.WriteAllText(Path.Combine(themePath, "asset.txt"), "v0");
+        var service = new ThemeDraftService(new ThemeProjectCreator(), backupsRootPath: backupsPath, backupsToKeep: 2);
+        var draft = service.OpenExisting(themePath);
+
+        try
+        {
+            for (var version = 1; version <= 3; version++)
+            {
+                File.WriteAllText(Path.Combine(draft.DraftPath, "asset.txt"), $"v{version}");
+                draft = service.Save(draft);
+                Thread.Sleep(5);
+            }
+
+            var backups = Directory.GetDirectories(Path.Combine(backupsPath, "theme")).Order(StringComparer.Ordinal).ToList();
+            Assert.Equal(2, backups.Count);
+            Assert.Equal(["v1", "v2"], backups.Select(backup => File.ReadAllText(Path.Combine(backup, "asset.txt"))));
+            Assert.Equal(backups[^1], draft.LastBackupPath);
+            Assert.Equal("v3", File.ReadAllText(Path.Combine(themePath, "asset.txt")));
+        }
+        finally
+        {
+            service.Discard(draft);
+            Directory.Delete(rootPath, true);
+        }
     }
 }

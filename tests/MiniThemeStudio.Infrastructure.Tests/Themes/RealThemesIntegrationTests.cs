@@ -153,5 +153,33 @@ public sealed class RealThemesIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task OldPackedPngFitsSnesLayoutBestIfPresent()
+    {
+        var packedPath = @"E:\Documents\_projects\hmods\om_themes\wip\packed.png";
+        var nesImage = @"Z:\_organize\minis\nes\dp-nes-release-v1.0.7-0-g4ea4041.hsqs";
+        if (!File.Exists(packedPath) || !File.Exists(SnesEuropeImage) || !File.Exists(nesImage))
+        {
+            return;
+        }
+
+        var tempBases = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            var manager = new BaseFirmwareManager(FirmwareRegistry.CreateDefault(), basesRootPath: tempBases);
+            var bases = new[] { await manager.ImportFromFileAsync(nesImage), await manager.ImportFromFileAsync(SnesEuropeImage) };
+
+            var matches = new AtlasLayoutMatcher().Rank(packedPath, bases);
+
+            Assert.Equal("snes-eur-2.0.13", matches[0].Base.Definition.Id);
+            Assert.True(matches[0].CoveragePercent > 95);
+            Assert.True(matches[0].CoveragePercent > matches[1].CoveragePercent + 5);
+        }
+        finally
+        {
+            Directory.Delete(tempBases, true);
+        }
+    }
+
     private const string SnesEuropeImage = @"Z:\_organize\minis\snes\dp-sneseur-release-v2.0.14-0-gd8b65c6.hsqs";
 }

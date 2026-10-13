@@ -20,6 +20,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly IThemeValidator _themeValidator;
     private readonly IBaseFirmwareManager _baseFirmwareManager;
     private readonly IThemeResourceIndexer _resourceIndexer;
+    private readonly IThemeExporter _themeExporter;
 
     private ThemeDraft? _draft;
     private string? _currentBaseUiPath;
@@ -32,7 +33,8 @@ public partial class MainWindowViewModel : ViewModelBase
         IThemeAssetManager? assetManager = null,
         IThemeValidator? themeValidator = null,
         IBaseFirmwareManager? baseFirmwareManager = null,
-        IThemeResourceIndexer? resourceIndexer = null)
+        IThemeResourceIndexer? resourceIndexer = null,
+        IThemeExporter? themeExporter = null)
     {
         _metadataReader = metadataReader;
         _textureAtlasReader = textureAtlasReader;
@@ -42,6 +44,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _themeValidator = themeValidator ?? new ThemeValidator();
         _baseFirmwareManager = baseFirmwareManager ?? new BaseFirmwareManager(FirmwareRegistry.CreateDefault());
         _resourceIndexer = resourceIndexer ?? new ThemeResourceIndexer();
+        _themeExporter = themeExporter ?? new ThemeExporter();
     }
 
     [ObservableProperty]
@@ -64,6 +67,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private string status = "Ready";
+
+    [ObservableProperty]
+    private string currentBaseLabel = "No Base";
 
     [ObservableProperty]
     private string atlasSummary = "No packed atlas";
@@ -143,19 +149,39 @@ public partial class MainWindowViewModel : ViewModelBase
     public string? CurrentDraftPath => _draft?.DraftPath;
     public string? CurrentBaseUiPath => _currentBaseUiPath;
 
-    public bool OpenTheme(string rootPath, string? atlasDefinitionRootPath = null)
+    public bool OpenTheme(string rootPath, string? baseUiPath = null)
     {
-        _currentBaseUiPath = atlasDefinitionRootPath ?? _baseFirmwareManager.FindCompatibleBaseUiPath(rootPath);
-        return OpenDraft(
-            () => _themeDraftService.OpenExisting(rootPath),
-            false,
-            _currentBaseUiPath);
+        _currentBaseUiPath = baseUiPath ?? _baseFirmwareManager.FindCompatibleBaseUiPath(rootPath);
+        return OpenDraft(() => _themeDraftService.OpenExisting(rootPath), false);
+    }
+
+    public bool ChangeBase(string baseUiPath)
+    {
+        if (_draft is null)
+        {
+            return false;
+        }
+
+        var hadUnsavedChanges = HasUnsavedChanges;
+        _currentBaseUiPath = baseUiPath;
+        LoadDraft(_draft);
+        HasUnsavedChanges = hadUnsavedChanges;
+        Status = $"Using {CurrentBaseLabel} - {Sprites.Count} sprites, {Wallpapers.Count} wallpapers.";
+        return true;
+    }
+
+    private static bool PathsEqual(string first, string? second)
+    {
+        return second is not null && string.Equals(
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(first)),
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(second)),
+            StringComparison.OrdinalIgnoreCase);
     }
 
     public bool CreateTheme(NewThemeRequest request)
     {
         _currentBaseUiPath = request.BaseThemePath;
-        return OpenDraft(() => _themeDraftService.CreateNew(request), true, null);
+        return OpenDraft(() => _themeDraftService.CreateNew(request), true);
     }
 
     public bool SaveTheme()
@@ -165,14 +191,8 @@ public partial class MainWindowViewModel : ViewModelBase
             return false;
         }
 
-        // Validate before save
-        var validation = _themeValidator.Validate(_draft.DraftPath, _currentBaseUiPath);
-        ValidationIssues = validation.Issues;
-        IsThemeValid = validation.IsValid;
-
-        if (validation.HasErrors)
+        if (!ValidateBeforeOutput("saving"))
         {
-            Status = "Validation failed: Fix errors before saving.";
             return false;
         }
 
@@ -180,7 +200,9 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             _draft = _themeDraftService.Save(_draft);
             HasUnsavedChanges = false;
-            Status = $"Saved to {_draft.SavePath}";
+            Status = _draft.LastBackupPath is null
+                ? $"Saved to {_draft.SavePath}"
+                : $"Saved to {_draft.SavePath} (previous version backed up to {_draft.LastBackupPath})";
             return true;
         }
         catch (Exception exception) when (
@@ -396,6 +418,42 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    public bool ExportTheme(string zipPath)
+    {
+        if (_draft is null || !ValidateBeforeOutput("exporting"))
+        {
+            return false;
+        }
+
+        try
+        {
+            var count = _themeExporter.ExportZip(_draft.DraftPath, zipPath, Path.GetFileName(Path.TrimEndingDirectorySeparator(_draft.SavePath)));
+            Status = $"Exported {count} files to {zipPath}";
+            return true;
+        }
+        catch (Exception exception) when (
+            exception is IOException or UnauthorizedAccessException or ArgumentException or InvalidDataException)
+        {
+            Status = exception.Message;
+            return false;
+        }
+    }
+
+    private bool ValidateBeforeOutput(string action)
+    {
+        var validation = _themeValidator.Validate(_draft!.DraftPath, _currentBaseUiPath);
+        ValidationIssues = validation.Issues;
+        IsThemeValid = validation.IsValid;
+        if (!validation.HasErrors)
+        {
+            return true;
+        }
+
+        var errors = validation.Issues.Where(issue => issue.IsError).ToList();
+        Status = $"Fix {errors.Count} validation error(s) before {action}: {errors[0].Message}";
+        return false;
+    }
+
     public void RunValidation()
     {
         if (_draft is null)
@@ -431,17 +489,14 @@ public partial class MainWindowViewModel : ViewModelBase
         HasUnsavedChanges = false;
     }
 
-    private bool OpenDraft(
-        Func<ThemeDraft> createDraft,
-        bool isNewTheme,
-        string? atlasDefinitionRootPath)
+    private bool OpenDraft(Func<ThemeDraft> createDraft, bool isNewTheme)
     {
         DiscardTheme();
 
         try
         {
             _draft = createDraft();
-            LoadDraft(_draft, atlasDefinitionRootPath);
+            LoadDraft(_draft);
             HasUnsavedChanges = isNewTheme;
             return true;
         }
@@ -458,7 +513,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    private void LoadDraft(ThemeDraft draft, string? atlasDefinitionRootPath)
+    private void LoadDraft(ThemeDraft draft)
     {
         var metadata = _metadataReader.Read(draft.DraftPath, Path.GetFileName(draft.SavePath));
         ThemeName = metadata.Name;
@@ -466,7 +521,11 @@ public partial class MainWindowViewModel : ViewModelBase
         ThemePath = draft.SavePath;
         RequiresOverlay = metadata.RequiresOverlay;
 
-        Atlases = _textureAtlasReader.ReadAll(draft.DraftPath, atlasDefinitionRootPath);
+        CurrentBaseLabel = _baseFirmwareManager.GetInstalledBases()
+            .FirstOrDefault(info => info.Status == BaseInstallStatus.Valid && PathsEqual(info.LocalPath, _currentBaseUiPath)) is { } currentBase
+            ? ConsoleFamilies.ShortLabel(currentBase.Definition)
+            : "No Base";
+        Atlases = _textureAtlasReader.ReadAll(draft.DraftPath, _currentBaseUiPath);
         SelectedAtlas = Atlases.Count > 0 ? Atlases[0] : null;
         if (SelectedAtlas is null)
         {

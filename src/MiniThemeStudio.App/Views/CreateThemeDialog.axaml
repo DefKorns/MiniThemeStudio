@@ -1,9 +1,9 @@
 <Window xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-  xmlns:firmware="using:MiniThemeStudio.Core.Firmware" x:Class="MiniThemeStudio.App.Views.CreateThemeDialog" Title="Create new theme" Width="460" Height="420" CanResize="False" ShowInTaskbar="False" SystemDecorations="None" TransparencyLevelHint="Transparent" WindowStartupLocation="CenterOwner" Background="Transparent" FontFamily="Segoe UI, Ubuntu, sans-serif">
+  xmlns:controls="using:MiniThemeStudio.App.Controls" x:Class="MiniThemeStudio.App.Views.CreateThemeDialog" Title="Create new theme" Width="520" Height="540" CanResize="False" ShowInTaskbar="False" SystemDecorations="None" TransparencyLevelHint="Transparent" WindowStartupLocation="CenterOwner" Background="Transparent" FontFamily="Segoe UI, Ubuntu, sans-serif">
 
   <Border Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="28">
-    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto">
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto">
       <TextBlock FontFamily="Georgia, serif" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="New theme" />
       <StackPanel Grid.Row="1" Margin="0,24,0,0" Spacing="6">
         <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Name" />
@@ -14,24 +14,23 @@
         <TextBox x:Name="AuthorTextBox" Watermark="Author name" />
       </StackPanel>
       <StackPanel Grid.Row="3" Margin="0,16,0,0" Spacing="6">
-        <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Base firmware" />
-        <ComboBox x:Name="BaseComboBox" HorizontalAlignment="Stretch">
-          <ComboBox.ItemTemplate>
-            <DataTemplate x:DataType="firmware:InstalledBaseInfo">
-              <TextBlock>
-                <Run Text="{Binding Definition.DisplayName}" />
-                <Run Text="{Binding Definition.Version, StringFormat=' v{0}'}" />
-              </TextBlock>
-            </DataTemplate>
-          </ComboBox.ItemTemplate>
-        </ComboBox>
+        <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Start from an existing atlas (optional)" />
+        <Grid ColumnDefinitions="*,Auto,Auto">
+          <TextBlock x:Name="AtlasPathText" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" TextTrimming="CharacterEllipsis" Text="Use the Base atlas" />
+          <Button x:Name="ClearAtlasButton" Grid.Column="1" Margin="8,0,0,0" Padding="10,4" Click="ClearAtlas_Click" Content="Clear" IsVisible="False" />
+          <Button x:Name="BrowseAtlasButton" Grid.Column="2" Margin="8,0,0,0" Padding="10,4" Click="BrowseAtlas_Click" Content="Choose packed.png..." />
+        </Grid>
       </StackPanel>
-      <StackPanel Grid.Row="4" Margin="0,14,0,0" Orientation="Horizontal" Spacing="6">
+      <StackPanel Grid.Row="4" Margin="0,16,0,0" Spacing="6">
+        <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Base firmware" />
+        <controls:BaseSelector x:Name="BaseSelector" />
+      </StackPanel>
+      <StackPanel Grid.Row="5" Margin="0,14,0,0" Orientation="Horizontal" Spacing="6">
         <TextBlock Foreground="{DynamicResource SecondaryTextBrush}" Text="Folder:" />
         <TextBlock x:Name="DirectoryNameText" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" />
       </StackPanel>
-      <TextBlock x:Name="ValidationText" Grid.Row="5" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="{DynamicResource ErrorTextBrush}" />
-      <StackPanel Grid.Row="6" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="10">
+      <TextBlock x:Name="ValidationText" Grid.Row="6" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="{DynamicResource ErrorTextBrush}" />
+      <StackPanel Grid.Row="7" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="10">
         <Button Padding="16,8" Click="Cancel_Click" Content="Cancel" />
         <Button Padding="16,8" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Click="Continue_Click" Content="Continue" />
       </StackPanel>

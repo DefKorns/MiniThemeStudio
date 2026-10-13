@@ -4,4 +4,5 @@ public enum DialogResult
 {
     Cancelled,
     Accepted,
+    Alternate,
 }

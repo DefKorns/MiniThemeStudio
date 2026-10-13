@@ -21,4 +21,13 @@ public interface IDialogService
         string acceptButtonText = "Continue",
         string cancelButtonText = "Go back",
         bool isDestructive = false);
+
+    Task<DialogResult> ShowChoiceAsync(
+        Window owner,
+        string title,
+        string message,
+        string acceptButtonText,
+        string alternateButtonText,
+        string cancelButtonText,
+        DialogVariant variant = DialogVariant.Warning);
 }

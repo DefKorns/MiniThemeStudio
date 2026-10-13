@@ -44,4 +44,26 @@ public sealed class DialogService : IDialogService
 
         return result == DialogResult.Accepted;
     }
+
+    public Task<DialogResult> ShowChoiceAsync(
+        Window owner,
+        string title,
+        string message,
+        string acceptButtonText,
+        string alternateButtonText,
+        string cancelButtonText,
+        DialogVariant variant = DialogVariant.Warning)
+    {
+        return ShowAsync(
+            owner,
+            new DialogRequest(
+                title,
+                message,
+                variant,
+                DialogCategory.Confirmation,
+                acceptButtonText,
+                cancelButtonText,
+                false,
+                alternateButtonText));
+    }
 }

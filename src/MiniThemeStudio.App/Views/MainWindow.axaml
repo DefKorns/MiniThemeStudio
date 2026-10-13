@@ -28,6 +28,9 @@
           <Button Width="40" Height="40" Padding="0" Background="Transparent" Click="OpenTheme_Click" ToolTip.Tip="Edit existing theme">
             <lucide:LucideIcon Kind="FolderOpen" Size="20" Foreground="{DynamicResource HeaderMutedBrush}" />
           </Button>
+          <Button Width="40" Height="40" Padding="0" Background="Transparent" Click="ShowSavedDrafts_Click" ToolTip.Tip="Saved drafts">
+            <lucide:LucideIcon Kind="FolderClock" Size="20" Foreground="{DynamicResource HeaderMutedBrush}" />
+          </Button>
           <Button Width="40" Height="40" Padding="0" Background="Transparent" Click="ManageBases_Click" ToolTip.Tip="Manage Base Firmwares">
             <lucide:LucideIcon Kind="Database" Size="20" Foreground="{DynamicResource HeaderMutedBrush}" />
           </Button>
@@ -87,6 +90,12 @@
               </MenuFlyout>
             </Button.Flyout>
           </Button>
+          <Button Padding="12,6" Background="Transparent" Click="SaveDraft_Click" ToolTip.Tip="Keep this work in progress and resume it later">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <lucide:LucideIcon Kind="Bookmark" Size="16" />
+              <TextBlock Text="Save draft" />
+            </StackPanel>
+          </Button>
           <Button Padding="16,6" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" IsEnabled="{Binding HasUnsavedChanges}" Click="SaveTheme_Click" Content="Save" />
         </StackPanel>
       </Grid>
@@ -98,6 +107,7 @@
         <StackPanel Grid.ColumnSpan="3" Margin="0,0,0,32" Spacing="6">
           <TextBlock FontFamily="Georgia, serif" FontSize="32" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Mini Theme Studio" />
           <TextBlock Foreground="{DynamicResource SecondaryTextBrush}" Text="Choose an action to start building or editing retro themes." />
+          <Button Margin="0,6,0,0" Padding="0" Background="Transparent" Foreground="{DynamicResource AccentBrush}" Click="ShowSavedDrafts_Click" Content="Resume a saved draft..." />
         </StackPanel>
 
         <Button Grid.Row="1" Margin="0,0,8,0" Padding="20" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Click="CreateTheme_Click">

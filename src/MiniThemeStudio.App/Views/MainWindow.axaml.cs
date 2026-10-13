@@ -103,6 +103,59 @@ public sealed partial class MainWindow : Window, IDisposable
         {
             await ShowBaseManagementAsync();
         }
+
+        if (DataContext is MainWindowViewModel { IsThemeOpen: false } viewModel
+            && viewModel.ListSavedDrafts() is { Count: > 0 } drafts
+            && await _dialogService.ShowConfirmationAsync(
+                this,
+                "Resume your work?",
+                $"'{drafts[0].Name}' was saved as a draft at {drafts[0].SavedAt:g}.",
+                DialogVariant.Info,
+                "Resume draft",
+                "Not now"))
+        {
+            await OpenSavedDraftAsync(drafts[0]);
+        }
+    }
+
+    private async void SaveDraft_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel viewModel && !viewModel.SaveDraft())
+        {
+            await _errorHandlingService.ShowErrorAsync(this, "Cannot save draft", viewModel.Status);
+        }
+    }
+
+    private async void ShowSavedDrafts_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        var draft = await new SavedDraftsDialog(viewModel).ShowDialog<SavedDraft?>(this);
+        if (draft is not null)
+        {
+            await OpenSavedDraftAsync(draft);
+        }
+    }
+
+    private async Task OpenSavedDraftAsync(SavedDraft draft)
+    {
+        if (DataContext is not MainWindowViewModel viewModel || !await ConfirmDiscardDraftAsync())
+        {
+            return;
+        }
+
+        if (viewModel.RestoreDraft(draft))
+        {
+            LoadAtlasImage(viewModel.AtlasImagePath);
+            ShowSpritePreview(viewModel.SelectedSprite);
+        }
+        else
+        {
+            await _errorHandlingService.ShowErrorAsync(this, "Cannot open draft", viewModel.Status);
+        }
     }
 
     private async Task<bool> ShowSettingsAsync(bool isInitialSetup)
@@ -943,7 +996,7 @@ public sealed partial class MainWindow : Window, IDisposable
     protected override async void OnClosing(WindowClosingEventArgs e)
     {
         if (_isCloseConfirmed
-            || DataContext is not MainWindowViewModel { IsThemeOpen: true })
+            || DataContext is not MainWindowViewModel { IsThemeOpen: true, HasUnsavedChanges: true } viewModel)
         {
             base.OnClosing(e);
             return;
@@ -960,19 +1013,27 @@ public sealed partial class MainWindow : Window, IDisposable
         _isCloseConfirmationOpen = true;
         try
         {
-            _isCloseConfirmed = await _dialogService.ShowConfirmationAsync(
+            var choice = await _dialogService.ShowChoiceAsync(
                 this,
-                "Discard open draft?",
-                "A theme draft is open. Closing Mini Theme Studio will discard it.",
-                DialogVariant.Warning,
-                "Discard draft and close",
-                "Keep app open",
-                true);
-
-            if (_isCloseConfirmed)
+                "Save draft before exiting?",
+                "The open theme has unsaved changes. Save them as a draft to resume next time, or exit and discard them.",
+                "Save draft and exit",
+                "Exit without saving",
+                "Cancel",
+                DialogVariant.Info);
+            if (choice == DialogResult.Cancelled)
             {
-                Close();
+                return;
             }
+
+            if (choice == DialogResult.Accepted && !viewModel.SaveDraft())
+            {
+                await _errorHandlingService.ShowErrorAsync(this, "Cannot save draft", viewModel.Status);
+                return;
+            }
+
+            _isCloseConfirmed = true;
+            Close();
         }
         finally
         {

@@ -60,7 +60,8 @@ public partial class App : Application
                     new TextureAtlasEditor(),
                     themeAssetManager,
                     themeValidator,
-                    baseFirmwareManager),
+                    baseFirmwareManager,
+                    savedDraftStore: new SavedDraftStore(null, () => settingsStore.Current.DraftRootPath)),
             };
         }
 

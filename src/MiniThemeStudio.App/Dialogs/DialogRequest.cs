@@ -7,4 +7,5 @@ public sealed record DialogRequest(
     DialogCategory Category = DialogCategory.Information,
     string AcceptButtonText = "OK",
     string CancelButtonText = "Go back",
-    bool IsDestructive = false);
+    bool IsDestructive = false,
+    string? AlternateButtonText = null);

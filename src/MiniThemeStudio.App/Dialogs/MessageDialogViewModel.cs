@@ -12,6 +12,10 @@ public sealed class MessageDialogViewModel(DialogRequest request)
 
     public bool IsDestructive => request.IsDestructive;
 
+    public string AlternateButtonText => request.AlternateButtonText ?? "";
+
+    public bool HasAlternate => request.AlternateButtonText is not null;
+
     public bool IsConfirmation => request.Category == DialogCategory.Confirmation;
 
     public bool IsDefault => request.Variant == DialogVariant.Default;

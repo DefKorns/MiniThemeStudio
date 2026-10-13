@@ -22,6 +22,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly IThemeResourceIndexer _resourceIndexer;
     private readonly IThemeExporter _themeExporter;
     private readonly ICharacterAnimationEditor _characterEditor;
+    private readonly ISavedDraftStore _savedDraftStore;
 
     private ThemeDraft? _draft;
     private string? _currentBaseUiPath;
@@ -37,7 +38,8 @@ public partial class MainWindowViewModel : ViewModelBase
         IBaseFirmwareManager? baseFirmwareManager = null,
         IThemeResourceIndexer? resourceIndexer = null,
         IThemeExporter? themeExporter = null,
-        ICharacterAnimationEditor? characterEditor = null)
+        ICharacterAnimationEditor? characterEditor = null,
+        ISavedDraftStore? savedDraftStore = null)
     {
         _metadataReader = metadataReader;
         _textureAtlasReader = textureAtlasReader;
@@ -49,6 +51,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _resourceIndexer = resourceIndexer ?? new ThemeResourceIndexer();
         _themeExporter = themeExporter ?? new ThemeExporter();
         _characterEditor = characterEditor ?? new CharacterAnimationEditor();
+        _savedDraftStore = savedDraftStore ?? new SavedDraftStore();
     }
 
     [ObservableProperty]
@@ -207,6 +210,7 @@ public partial class MainWindowViewModel : ViewModelBase
             Status = _draft.LastBackupPath is null
                 ? $"Saved to {_draft.SavePath}"
                 : $"Saved to {_draft.SavePath} (previous version backed up to {_draft.LastBackupPath})";
+            ForgetSavedDraftAfterSave();
             return true;
         }
         catch (Exception exception) when (

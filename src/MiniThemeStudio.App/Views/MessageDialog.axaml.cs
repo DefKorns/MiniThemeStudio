@@ -21,6 +21,11 @@ public sealed partial class MessageDialog : Window
         Close(DialogResult.Accepted);
     }
 
+    private void Alternate_Click(object? sender, RoutedEventArgs e)
+    {
+        Close(DialogResult.Alternate);
+    }
+
     private void Cancel_Click(object? sender, RoutedEventArgs e)
     {
         Close(DialogResult.Cancelled);

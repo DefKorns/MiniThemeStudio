@@ -1,0 +1,42 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:themes="using:MiniThemeStudio.Core.Themes"
+        x:Class="MiniThemeStudio.App.Views.SavedDraftsDialog"
+        Title="Saved drafts"
+        Width="720" Height="480" MinWidth="560" MinHeight="360"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource PageBackgroundBrush}"
+        FontFamily="Segoe UI, Ubuntu, sans-serif">
+  <Grid RowDefinitions="Auto,*,Auto" Margin="24">
+    <StackPanel Spacing="4">
+      <TextBlock FontSize="20" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Saved drafts" />
+      <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
+                 Text="Work in progress kept between sessions. Opening a draft makes a working copy; the saved draft only changes when you save the draft again." />
+    </StackPanel>
+
+    <Border Grid.Row="1" Margin="0,16" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+      <ListBox x:Name="DraftsListBox" Margin="8" SelectionMode="Single" DoubleTapped="DraftsListBox_DoubleTapped">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="themes:SavedDraft">
+            <Grid ColumnDefinitions="*,Auto" Margin="4,2">
+              <StackPanel Spacing="2">
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Name}" />
+                <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextTrimming="CharacterEllipsis" Text="{Binding SavePath, StringFormat='Saves to {0}'}" />
+              </StackPanel>
+              <TextBlock Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}"
+                         Text="{Binding SavedAt, StringFormat='{}{0:g}'}" />
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Border>
+
+    <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto,Auto">
+      <Button x:Name="DeleteButton" Padding="14,8" Click="Delete_Click" Content="Delete draft" IsEnabled="False" />
+      <TextBlock x:Name="StatusText" Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" TextTrimming="CharacterEllipsis" />
+      <Button Grid.Column="2" Margin="0,0,8,0" Padding="16,8" Click="Close_Click" Content="Close" />
+      <Button x:Name="OpenButton" Grid.Column="3" Padding="16,8" Click="Open_Click" IsEnabled="False"
+              Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Content="Open draft" />
+    </Grid>
+  </Grid>
+</Window>

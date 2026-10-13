@@ -178,7 +178,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public bool ReplaceSelectedSprite(string replacementImagePath)
     {
-        if (SelectedSprite is null || AtlasImagePath.Length == 0)
+        if (SelectedSprite is null || AtlasImagePath.Length == 0 || _draft is null)
         {
             Status = "Select a packed sprite first.";
             return false;
@@ -186,6 +186,10 @@ public partial class MainWindowViewModel : ViewModelBase
 
         try
         {
+            AtlasImagePath = _assetManager.EnsureDraftCopy(
+                _draft.DraftPath,
+                Path.Combine("resources", "sprites", "packed.png"),
+                AtlasImagePath);
             _textureAtlasEditor.ReplaceSprite(new SpriteReplacementRequest(
                 AtlasImagePath,
                 SelectedSprite,
@@ -245,7 +249,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 "wallpaper",
                 $"{SelectedWallpaper.Name}.png");
 
-            _assetManager.ReplaceWallpaper(targetPng, replacementImagePath);
+            _assetManager.ReplaceWallpaper(targetPng, replacementImagePath, SelectedWallpaper.JsonPath);
             ReloadAssets();
             HasUnsavedChanges = true;
             Status = $"Replaced wallpaper {SelectedWallpaper.DisplayName}.";
@@ -310,7 +314,7 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var targetPng = Path.Combine(_draft.DraftPath, "resources", SelectedExtraAsset.RelativePath);
-            _assetManager.ReplaceExtraAsset(targetPng, replacementImagePath);
+            _assetManager.ReplaceExtraAsset(targetPng, replacementImagePath, SelectedExtraAsset.JsonPath);
             ReloadAssets();
             HasUnsavedChanges = true;
             Status = $"Replaced element {SelectedExtraAsset.DisplayName}.";

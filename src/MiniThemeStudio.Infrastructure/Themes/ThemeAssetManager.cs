@@ -13,6 +13,34 @@ public sealed class ThemeAssetManager : IThemeAssetManager
 {
     private static readonly string[] CoreWallpaperNames = ["wall", "wall_near", "wall_far"];
 
+    public string EnsureDraftCopy(string themeDraftPath, string relativePath, string sourcePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
+
+        var draftRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(themeDraftPath));
+        var targetPath = Path.GetFullPath(Path.Combine(draftRoot, relativePath));
+        if (!targetPath.StartsWith(draftRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException($"The path must stay inside the theme draft: {relativePath}", nameof(relativePath));
+        }
+
+        if (File.Exists(targetPath))
+        {
+            return targetPath;
+        }
+
+        if (!File.Exists(sourcePath))
+        {
+            throw new FileNotFoundException("Source file not found.", sourcePath);
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+        File.Copy(sourcePath, targetPath);
+        return targetPath;
+    }
+
     public IReadOnlyList<WallpaperAsset> GetWallpapers(string themeDraftPath, string? baseUiPath = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
@@ -105,7 +133,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         _ => 4
     };
 
-    public void ReplaceWallpaper(string targetImagePath, string replacementImagePath, string? jsonPath = null)
+    public void ReplaceWallpaper(string targetImagePath, string replacementImagePath, string? templateJsonPath = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(targetImagePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(replacementImagePath);
@@ -118,14 +146,13 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         using var replacementBmp = SKBitmap.Decode(replacementImagePath)
             ?? throw new InvalidDataException("Replacement file is not a valid PNG image.");
 
-        var dir = Path.GetDirectoryName(targetImagePath)!;
-        Directory.CreateDirectory(dir);
+        var targetJsonPath = Path.ChangeExtension(targetImagePath, ".json");
+        var textureJson = LoadTextureJson(targetJsonPath, templateJsonPath);
+        ResizeTextureJson(textureJson, replacementBmp.Width, replacementBmp.Height, Path.GetFileName(targetImagePath));
 
+        Directory.CreateDirectory(Path.GetDirectoryName(targetImagePath)!);
         SaveBitmapToPng(replacementBmp, targetImagePath);
-
-        // Update or generate JSON
-        var targetJsonPath = jsonPath ?? Path.ChangeExtension(targetImagePath, ".json");
-        UpdateOrGenerateTextureJson(targetJsonPath, replacementBmp.Width, replacementBmp.Height);
+        WriteTextureJson(targetJsonPath, textureJson);
     }
 
     public void ExportWallpaper(WallpaperAsset wallpaper, string destinationPath)
@@ -266,13 +293,15 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         }
         else
         {
-            UpdateOrGenerateTextureJson(destJsonPath, bmp.Width, bmp.Height);
+            var textureJson = LoadTextureJson(destJsonPath, null);
+            ResizeTextureJson(textureJson, bmp.Width, bmp.Height, Path.GetFileName(fullDestinationPath));
+            WriteTextureJson(destJsonPath, textureJson);
         }
     }
 
-    public void ReplaceExtraAsset(string targetImagePath, string replacementImagePath, string? jsonPath = null)
+    public void ReplaceExtraAsset(string targetImagePath, string replacementImagePath, string? templateJsonPath = null)
     {
-        ReplaceWallpaper(targetImagePath, replacementImagePath, jsonPath);
+        ReplaceWallpaper(targetImagePath, replacementImagePath, templateJsonPath);
     }
 
     public void DeleteExtraAsset(string imagePath, string? jsonPath = null)
@@ -355,42 +384,94 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         File.Move(temp, outputPath, true);
     }
 
-    private static void UpdateOrGenerateTextureJson(string jsonPath, int width, int height)
+    private static JsonObject LoadTextureJson(string targetJsonPath, string? templateJsonPath)
     {
-        JsonObject root;
-        if (File.Exists(jsonPath))
+        var sourcePath = File.Exists(targetJsonPath)
+            ? targetJsonPath
+            : templateJsonPath != null && File.Exists(templateJsonPath)
+                ? templateJsonPath
+                : null;
+
+        if (sourcePath is null)
         {
-            try
+            return new JsonObject
             {
-                var content = File.ReadAllText(jsonPath);
-                root = JsonNode.Parse(content)?.AsObject() ?? [];
-            }
-            catch
-            {
-                root = [];
-            }
-        }
-        else
-        {
-            root = [];
+                ["texture"] = new JsonObject { ["id"] = Guid.NewGuid().ToString() },
+                ["sprites"] = new JsonObject(),
+            };
         }
 
-        var texture = root["texture"]?.AsObject() ?? [];
+        try
+        {
+            return JsonNode.Parse(File.ReadAllText(sourcePath)) as JsonObject
+                ?? throw new InvalidDataException($"Texture definition is not a JSON object: {sourcePath}");
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidDataException($"Invalid texture definition: {sourcePath}", exception);
+        }
+    }
+
+    private static void ResizeTextureJson(JsonObject root, int width, int height, string imageName)
+    {
+        var texture = root["texture"] as JsonObject ?? [];
+        root["texture"] = texture;
         if (!texture.ContainsKey("id"))
         {
             texture["id"] = Guid.NewGuid().ToString();
         }
+
+        var oldWidth = texture["width"]?.GetValue<int>() ?? 0;
+        var oldHeight = texture["height"]?.GetValue<int>() ?? 0;
         texture["width"] = width;
         texture["height"] = height;
-        root["texture"] = texture;
 
-        if (!root.ContainsKey("sprites"))
+        if (root["sprites"] is not JsonObject sprites)
         {
             root["sprites"] = new JsonObject();
+            return;
         }
 
+        if ((oldWidth == width && oldHeight == height) || oldWidth == 0 || oldHeight == 0)
+        {
+            return;
+        }
+
+        foreach (var (_, node) in sprites)
+        {
+            var frame = (node?["textureFrame"] as JsonArray)?.Select(value => value?.GetValue<int>() ?? -1).ToArray();
+            if (frame is not [0, 0, var frameWidth, var frameHeight] || frameWidth != oldWidth || frameHeight != oldHeight)
+            {
+                throw new InvalidDataException(
+                    $"{imageName} contains sub-sprites, so the replacement must keep {oldWidth} x {oldHeight} pixels "
+                    + $"(got {width} x {height}).");
+            }
+        }
+
+        foreach (var (_, node) in sprites)
+        {
+            var sprite = (JsonObject)node!;
+            sprite["textureFrame"] = new JsonArray(0, 0, width, height);
+            sprite["sourceSize"] = new JsonArray(width, height);
+            if (sprite["pivot"] is JsonArray { Count: 2 } pivot)
+            {
+                sprite["pivot"] = new JsonArray(
+                    ScaleCoordinate(pivot[0], width, oldWidth),
+                    ScaleCoordinate(pivot[1], height, oldHeight));
+            }
+        }
+    }
+
+    private static JsonValue ScaleCoordinate(JsonNode? value, int newSize, int oldSize)
+    {
+        var scaled = (value?.GetValue<double>() ?? 0) * newSize / oldSize;
+        return scaled == Math.Floor(scaled) ? JsonValue.Create((int)scaled) : JsonValue.Create(scaled);
+    }
+
+    private static void WriteTextureJson(string jsonPath, JsonObject root)
+    {
         var tempJson = $"{jsonPath}.{Guid.NewGuid():N}.tmp";
-        File.WriteAllText(tempJson, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(tempJson, root.ToJsonString());
         File.Move(tempJson, jsonPath, true);
     }
 }

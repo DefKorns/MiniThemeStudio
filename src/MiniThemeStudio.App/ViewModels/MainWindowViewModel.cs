@@ -72,6 +72,12 @@ public partial class MainWindowViewModel : ViewModelBase
     private string atlasImagePath = "";
 
     [ObservableProperty]
+    private IReadOnlyList<TextureAtlas> atlases = [];
+
+    [ObservableProperty]
+    private TextureAtlas? selectedAtlas;
+
+    [ObservableProperty]
     private IReadOnlyList<SpriteRegion> sprites = [];
 
     [ObservableProperty]
@@ -178,7 +184,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public bool ReplaceSelectedSprite(string replacementImagePath)
     {
-        if (SelectedSprite is null || AtlasImagePath.Length == 0 || _draft is null)
+        if (SelectedSprite is not { } sprite || SelectedAtlas is not { } atlas || _draft is null)
         {
             Status = "Select a packed sprite first.";
             return false;
@@ -186,16 +192,24 @@ public partial class MainWindowViewModel : ViewModelBase
 
         try
         {
-            AtlasImagePath = _assetManager.EnsureDraftCopy(
+            var draftImagePath = _assetManager.EnsureDraftCopy(
                 _draft.DraftPath,
-                Path.Combine("resources", "sprites", "packed.png"),
-                AtlasImagePath);
+                atlas.RelativeImagePath,
+                atlas.ImagePath);
+            if (draftImagePath != atlas.ImagePath)
+            {
+                var draftAtlas = atlas with { ImagePath = draftImagePath };
+                Atlases = Atlases.Select(candidate => candidate == atlas ? draftAtlas : candidate).ToList();
+                SelectedAtlas = draftAtlas;
+                SelectedSprite = sprite;
+            }
+
             _textureAtlasEditor.ReplaceSprite(new SpriteReplacementRequest(
-                AtlasImagePath,
-                SelectedSprite,
+                draftImagePath,
+                sprite,
                 replacementImagePath));
             HasUnsavedChanges = true;
-            Status = $"Replaced {SelectedSprite.Name} in draft.";
+            Status = $"Replaced {sprite.Name} in draft.";
             return true;
         }
         catch (Exception exception) when (
@@ -440,24 +454,11 @@ public partial class MainWindowViewModel : ViewModelBase
         ThemePath = draft.SavePath;
         RequiresOverlay = metadata.RequiresOverlay;
 
-        var atlas = _textureAtlasReader.Read(draft.DraftPath, atlasDefinitionRootPath);
-        if (atlas is null)
+        Atlases = _textureAtlasReader.ReadAll(draft.DraftPath, atlasDefinitionRootPath);
+        SelectedAtlas = Atlases.Count > 0 ? Atlases[0] : null;
+        if (SelectedAtlas is null)
         {
-            AtlasSummary = "No packed atlas";
-            AtlasImageStatus = "Not available";
-            AtlasImagePath = "";
-            Sprites = [];
-            FilteredSprites = [];
-            SelectedSprite = null;
-        }
-        else
-        {
-            AtlasSummary = $"{atlas.Size.Width} x {atlas.Size.Height}";
-            AtlasImageStatus = File.Exists(atlas.ImagePath) ? "Image found" : "Image missing";
-            AtlasImagePath = atlas.ImagePath;
-            Sprites = atlas.Sprites;
-            ApplySpriteFilter();
-            SelectedSprite = atlas.Sprites.Count > 0 ? atlas.Sprites[0] : null;
+            OnSelectedAtlasChanged(null);
         }
 
         ReloadAssets();
@@ -507,6 +508,29 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnSpriteSearchTextChanged(string value)
     {
         ApplySpriteFilter();
+    }
+
+    partial void OnSelectedAtlasChanged(TextureAtlas? value)
+    {
+        if (value is null)
+        {
+            AtlasSummary = "No sprite atlas";
+            AtlasImageStatus = "Not available";
+            AtlasImagePath = "";
+            Sprites = [];
+            FilteredSprites = [];
+            SelectedSprite = null;
+            return;
+        }
+
+        var previousName = SelectedSprite?.Name;
+        AtlasSummary = $"{value.Size.Width} x {value.Size.Height}";
+        AtlasImageStatus = File.Exists(value.ImagePath) ? "Image found" : "Image missing";
+        AtlasImagePath = value.ImagePath;
+        Sprites = value.Sprites;
+        ApplySpriteFilter();
+        SelectedSprite = value.Sprites.FirstOrDefault(sprite => sprite.Name == previousName)
+            ?? (value.Sprites.Count > 0 ? value.Sprites[0] : null);
     }
 
     partial void OnSelectedSpriteChanged(SpriteRegion? value)

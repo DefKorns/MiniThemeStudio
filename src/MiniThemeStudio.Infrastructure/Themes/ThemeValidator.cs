@@ -20,42 +20,38 @@ public sealed class ThemeValidator : IThemeValidator
             return new ThemeValidationResult(false, issues);
         }
 
-        var packedPngPath = Path.Combine(themeDraftPath, "resources", "sprites", "packed.png");
-        var packedJsonPath = Path.Combine(themeDraftPath, "resources", "sprites", "packed.json");
-
-        if (!File.Exists(packedJsonPath) && baseUiPath != null)
+        IReadOnlyList<TextureAtlas> atlases;
+        try
         {
-            var fallbackJson = Path.Combine(baseUiPath, "resources", "sprites", "packed.json");
-            if (File.Exists(fallbackJson))
+            atlases = new TextureAtlasReader().ReadAll(themeDraftPath, baseUiPath);
+        }
+        catch (InvalidDataException exception)
+        {
+            atlases = [];
+            issues.Add(new ThemeValidationIssue(exception.Message, true));
+        }
+
+        if (atlases.Count == 0)
+        {
+            issues.Add(new ThemeValidationIssue("No sprite atlas found (resources/sprites/packed.json, nes.json or hvc.json).", true));
+        }
+
+        var themeSpritesPath = Path.GetFullPath(Path.Combine(themeDraftPath, "resources", "sprites"));
+        foreach (var atlas in atlases)
+        {
+            if (!Path.GetFullPath(atlas.DefinitionPath).StartsWith(themeSpritesPath, StringComparison.OrdinalIgnoreCase))
             {
-                packedJsonPath = fallbackJson;
-                issues.Add(new ThemeValidationIssue("packed.json missing in theme: resolving from Base UI.", false));
+                issues.Add(new ThemeValidationIssue($"{atlas.Name}.json missing in theme: resolving from Base UI.", false));
             }
-        }
 
-        if (!File.Exists(packedPngPath) && baseUiPath != null)
-        {
-            var fallbackPng = Path.Combine(baseUiPath, "resources", "sprites", "packed.png");
-            if (File.Exists(fallbackPng))
+            if (File.Exists(atlas.ImagePath))
             {
-                packedPngPath = fallbackPng;
-                issues.Add(new ThemeValidationIssue("packed.png missing in theme: resolving from Base UI.", false));
+                ValidateAtlas(atlas, issues);
             }
-        }
-
-        if (!File.Exists(packedPngPath))
-        {
-            issues.Add(new ThemeValidationIssue("Missing required packed atlas image: resources/sprites/packed.png", true));
-        }
-
-        if (!File.Exists(packedJsonPath))
-        {
-            issues.Add(new ThemeValidationIssue("Missing atlas coordinates definition: resources/sprites/packed.json", true));
-        }
-
-        if (File.Exists(packedPngPath) && File.Exists(packedJsonPath))
-        {
-            ValidateAtlasAndSprites(packedPngPath, packedJsonPath, issues);
+            else
+            {
+                issues.Add(new ThemeValidationIssue($"Missing atlas image: resources/sprites/{atlas.Name}.png", true));
+            }
         }
 
         // Validate wallpapers if present
@@ -77,79 +73,31 @@ public sealed class ThemeValidator : IThemeValidator
         return new ThemeValidationResult(isValid, issues);
     }
 
-    private static void ValidateAtlasAndSprites(
-        string packedPngPath,
-        string packedJsonPath,
-        List<ThemeValidationIssue> issues)
+    private static void ValidateAtlas(TextureAtlas atlas, List<ThemeValidationIssue> issues)
     {
-        SKBitmap? bmp = null;
-        try
+        using var bmp = SKBitmap.Decode(atlas.ImagePath);
+        if (bmp == null)
         {
-            bmp = SKBitmap.Decode(packedPngPath);
-            if (bmp == null)
-            {
-                issues.Add(new ThemeValidationIssue("packed.png is corrupt or not a valid image.", true));
-                return;
-            }
+            issues.Add(new ThemeValidationIssue($"{atlas.Name}.png is corrupt or not a valid image.", true));
+            return;
+        }
 
-            using var doc = JsonDocument.Parse(File.ReadAllText(packedJsonPath));
-            var root = doc.RootElement;
-            if (!root.TryGetProperty("texture", out var texture))
-            {
-                issues.Add(new ThemeValidationIssue("packed.json is missing 'texture' element.", true));
-                return;
-            }
+        if (atlas.Size.Width != bmp.Width || atlas.Size.Height != bmp.Height)
+        {
+            issues.Add(new ThemeValidationIssue(
+                $"{atlas.Name}.png dimensions ({bmp.Width}x{bmp.Height}) do not match {atlas.Name}.json ({atlas.Size.Width}x{atlas.Size.Height}).",
+                true));
+        }
 
-            var jsonWidth = texture.GetProperty("width").GetInt32();
-            var jsonHeight = texture.GetProperty("height").GetInt32();
-
-            if (jsonWidth != bmp.Width || jsonHeight != bmp.Height)
+        foreach (var sprite in atlas.Sprites)
+        {
+            var frame = sprite.Frame;
+            if (frame.X < 0 || frame.Y < 0 || frame.X + frame.Width > bmp.Width || frame.Y + frame.Height > bmp.Height)
             {
                 issues.Add(new ThemeValidationIssue(
-                    $"packed.png dimensions ({bmp.Width}x{bmp.Height}) do not match packed.json ({jsonWidth}x{jsonHeight}).",
+                    $"Sprite '{sprite.Name}' in {atlas.Name} frame [{frame.X},{frame.Y},{frame.Width},{frame.Height}] exceeds atlas dimensions ({bmp.Width}x{bmp.Height}).",
                     true));
             }
-
-            if (root.TryGetProperty("sprites", out var sprites))
-            {
-                var spriteCount = 0;
-                foreach (var prop in sprites.EnumerateObject())
-                {
-                    spriteCount++;
-                    var sprite = prop.Value;
-                    if (sprite.TryGetProperty("textureFrame", out var tf))
-                    {
-                        var frame = tf.EnumerateArray().Select(v => v.GetInt32()).ToArray();
-                        if (frame.Length == 4)
-                        {
-                            var x = frame[0];
-                            var y = frame[1];
-                            var w = frame[2];
-                            var h = frame[3];
-
-                            if (x < 0 || y < 0 || x + w > bmp.Width || y + h > bmp.Height)
-                            {
-                                issues.Add(new ThemeValidationIssue(
-                                    $"Sprite '{prop.Name}' frame [{x},{y},{w},{h}] exceeds atlas dimensions ({bmp.Width}x{bmp.Height}).",
-                                    true));
-                            }
-                        }
-                    }
-                }
-
-                if (spriteCount == 0)
-                {
-                    issues.Add(new ThemeValidationIssue("packed.json contains 0 sprites.", false));
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            issues.Add(new ThemeValidationIssue($"Failed to validate texture atlas: {ex.Message}", true));
-        }
-        finally
-        {
-            bmp?.Dispose();
         }
     }
 

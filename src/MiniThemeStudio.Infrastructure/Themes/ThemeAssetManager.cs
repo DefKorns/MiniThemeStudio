@@ -190,6 +190,11 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             ScanDirectoryForExtraAssets(draftResDir, map, false);
         }
 
+        foreach (var atlasPath in map.Keys.Where(relPath => IsAtlasImage(relPath, draftResDir, baseResDir)).ToList())
+        {
+            map.Remove(atlasPath);
+        }
+
         var result = new List<ExtraAsset>();
         foreach (var (relPath, info) in map)
         {
@@ -231,9 +236,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         {
             var rel = Path.GetRelativePath(resourcesDir, file).Replace('\\', '/');
 
-            // Skip packed.png and wallpapers
-            if (rel.Equals("sprites/packed.png", StringComparison.OrdinalIgnoreCase) ||
-                rel.StartsWith("layout/asset/sprite/wallpaper/", StringComparison.OrdinalIgnoreCase))
+            if (rel.StartsWith("layout/asset/sprite/wallpaper/", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -243,6 +246,22 @@ public sealed class ThemeAssetManager : IThemeAssetManager
 
             map[rel] = (file, jsonPath, isBase);
         }
+    }
+
+    private static bool IsAtlasImage(string relativePath, string draftResourcesPath, string? baseResourcesPath)
+    {
+        if (!relativePath.StartsWith("sprites/", StringComparison.OrdinalIgnoreCase)
+            || relativePath.IndexOf('/', "sprites/".Length) >= 0)
+        {
+            return false;
+        }
+
+        var jsonRelativePath = Path.ChangeExtension(relativePath, ".json");
+        return TextureAtlasReader.IsPrimaryAtlasName(Path.GetFileNameWithoutExtension(relativePath))
+            || new[] { draftResourcesPath, baseResourcesPath }
+                .Where(root => root != null)
+                .Select(root => Path.Combine(root!, jsonRelativePath))
+                .Any(jsonPath => File.Exists(jsonPath) && TextureAtlasReader.IsAtlasDefinition(jsonPath));
     }
 
     private static string CategorizeExtraAsset(string relativePath)

@@ -1,3 +1,4 @@
+using MiniThemeStudio.Core.Themes;
 using MiniThemeStudio.Infrastructure.Themes;
 
 namespace MiniThemeStudio.Infrastructure.Tests.Themes;
@@ -61,6 +62,72 @@ public sealed class TextureAtlasReaderTests
         {
             Directory.Delete(rootPath, true);
         }
+    }
+
+    [Fact]
+    public void ReadAllFindsNesAtlasesFromBaseAndPrefersThemeImages()
+    {
+        var themeRootPath = Directory.CreateTempSubdirectory().FullName;
+        var baseRootPath = Directory.CreateTempSubdirectory().FullName;
+        var themeSpritesPath = Path.Combine(themeRootPath, "resources", "sprites");
+        var baseSpritesPath = Path.Combine(baseRootPath, "resources", "sprites");
+        Directory.CreateDirectory(themeSpritesPath);
+        Directory.CreateDirectory(baseSpritesPath);
+        File.WriteAllText(Path.Combine(baseSpritesPath, "nes.json"), AtlasJson("nes", 2));
+        File.WriteAllText(Path.Combine(baseSpritesPath, "dot_num.json"), AtlasJson("dots", 11));
+        File.WriteAllText(Path.Combine(baseSpritesPath, "dummy.json"), AtlasJson("dummy", 1));
+        File.WriteAllText(Path.Combine(baseSpritesPath, "broken.json"), """{"sprites":{"a":{},"b":{}}}""");
+        var themeImagePath = Path.Combine(themeSpritesPath, "nes.png");
+        File.WriteAllBytes(themeImagePath, [1]);
+
+        try
+        {
+            var atlases = new TextureAtlasReader().ReadAll(themeRootPath, baseRootPath);
+
+            Assert.Equal(["nes", "dot_num"], atlases.Select(atlas => atlas.Name));
+            Assert.Equal(themeImagePath, atlases[0].ImagePath);
+            Assert.Equal(Path.Combine(baseSpritesPath, "dot_num.png"), atlases[1].ImagePath);
+            Assert.Equal(11, atlases[1].Sprites.Count);
+            Assert.Equal(Path.Combine("resources", "sprites", "nes.png"), atlases[0].RelativeImagePath);
+        }
+        finally
+        {
+            Directory.Delete(themeRootPath, true);
+            Directory.Delete(baseRootPath, true);
+        }
+    }
+
+    [Fact]
+    public void ReadDefaultsMissingSpriteMetrics()
+    {
+        var rootPath = Directory.CreateTempSubdirectory().FullName;
+        var spritesPath = Path.Combine(rootPath, "resources", "sprites");
+        Directory.CreateDirectory(spritesPath);
+        File.WriteAllText(
+            Path.Combine(spritesPath, "packed.json"),
+            """{"texture":{"id":"t","width":64,"height":64},"sprites":{"icon":{"textureFrame":[4,8,20,10]}}}""");
+
+        try
+        {
+            var sprite = Assert.Single(new TextureAtlasReader().Read(rootPath)!.Sprites);
+
+            Assert.Equal(new AtlasPoint(10, 5), sprite.Pivot);
+            Assert.Equal(new AtlasSize(20, 10), sprite.SourceSize);
+            Assert.Equal(new AtlasPoint(0, 0), sprite.SourceOffset);
+        }
+        finally
+        {
+            Directory.Delete(rootPath, true);
+        }
+    }
+
+    private static string AtlasJson(string id, int spriteCount)
+    {
+        var sprites = string.Join(",", Enumerable.Range(0, spriteCount).Select(index =>
+            $$"""
+            "s{{index}}":{"textureFrame":[{{index * 2}},0,2,2],"pivot":[1,1],"sourceSize":[2,2],"sourceOffset":[0,0]}
+            """));
+        return $$"""{"texture":{"id":"{{id}}","width":32,"height":32},"sprites":{""" + sprites + "}}";
     }
 
     [Fact]

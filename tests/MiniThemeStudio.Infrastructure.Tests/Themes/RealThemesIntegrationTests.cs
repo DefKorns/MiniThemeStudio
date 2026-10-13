@@ -42,6 +42,36 @@ public sealed class RealThemesIntegrationTests
     }
 
     [Fact]
+    public async Task ReadsRealNesAtlasesIfPresent()
+    {
+        var firmwarePath = @"Z:\_organize\minis\nes\dp-nes-release-v1.0.7-0-g4ea4041.hsqs";
+        if (!File.Exists(firmwarePath))
+        {
+            return;
+        }
+
+        var tempBases = Directory.CreateTempSubdirectory().FullName;
+        var emptyTheme = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            var manager = new BaseFirmwareManager(FirmwareRegistry.CreateDefault(), basesRootPath: tempBases);
+            var nesBase = await manager.ImportFromFileAsync(firmwarePath);
+
+            var atlases = new TextureAtlasReader().ReadAll(emptyTheme, nesBase.LocalPath);
+
+            Assert.Equal("nes", atlases[0].Name);
+            Assert.Equal(170, atlases[0].Sprites.Count);
+            Assert.Contains(atlases, atlas => atlas.Name == "dot_num");
+            Assert.True(new ThemeValidator().Validate(nesBase.LocalPath).IsValid);
+        }
+        finally
+        {
+            Directory.Delete(tempBases, true);
+            Directory.Delete(emptyTheme, true);
+        }
+    }
+
+    [Fact]
     public async Task RejectsNesDataTarIfPresent()
     {
         var dataTar = @"Z:\_organize\minis\nes\dp-nes-release-v1.0.7-0-g4ea4041.tar";

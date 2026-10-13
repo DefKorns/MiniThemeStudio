@@ -36,7 +36,7 @@ public sealed partial class MainWindow : Window, IDisposable
     private string _atlasImagePath = "";
     private bool _isCloseConfirmed;
     private bool _isCloseConfirmationOpen;
-    private Bitmap? _previewBitmap;
+    private Bitmap? _atlasBitmap;
     private CroppedBitmap? _spritePreview;
     private Bitmap? _wallpaperBitmap;
     private Bitmap? _extraAssetBitmap;
@@ -644,19 +644,63 @@ public sealed partial class MainWindow : Window, IDisposable
 
     private void LoadAtlasImage(string path)
     {
-        DisposePreview();
+        DisposeAtlasPreview();
         _atlasImagePath = File.Exists(path) ? path : "";
+        if (_atlasImagePath.Length == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            using var stream = File.OpenRead(_atlasImagePath);
+            _atlasBitmap = new Bitmap(stream);
+            AtlasCanvas.Source = _atlasBitmap;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            _atlasBitmap = null;
+        }
     }
+
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+        if (DataContext is MainWindowViewModel viewModel)
+        {
+            viewModel.PropertyChanged += ViewModel_PropertyChanged;
+        }
+    }
+
+    private void ViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (sender is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        if (e.PropertyName == nameof(MainWindowViewModel.AtlasImagePath) && viewModel.AtlasImagePath != _atlasImagePath)
+        {
+            LoadAtlasImage(viewModel.AtlasImagePath);
+            ShowSpritePreview(viewModel.SelectedSprite);
+        }
+        else if (e.PropertyName == nameof(MainWindowViewModel.SelectedSprite))
+        {
+            ShowSpritePreview(viewModel.SelectedSprite);
+        }
+    }
+
+    private void AtlasZoom1x_Click(object? sender, RoutedEventArgs e) => AtlasCanvas.Zoom = 1;
+    private void AtlasZoom2x_Click(object? sender, RoutedEventArgs e) => AtlasCanvas.Zoom = 2;
+    private void AtlasZoom3x_Click(object? sender, RoutedEventArgs e) => AtlasCanvas.Zoom = 3;
 
     private void ShowSpritePreview(SpriteRegion? sprite)
     {
         SpritePreviewImage.Source = null;
         _spritePreview?.Dispose();
-        _previewBitmap?.Dispose();
         _spritePreview = null;
-        _previewBitmap = null;
 
-        if (_atlasImagePath.Length == 0 || sprite is null)
+        if (_atlasBitmap is null || sprite is null)
         {
             return;
         }
@@ -664,9 +708,8 @@ public sealed partial class MainWindow : Window, IDisposable
         var frame = sprite.Frame;
         try
         {
-            _previewBitmap = new Bitmap(_atlasImagePath);
             _spritePreview = new CroppedBitmap(
-                _previewBitmap,
+                _atlasBitmap,
                 new PixelRect(frame.X, frame.Y, frame.Width, frame.Height));
             SpritePreviewImage.Source = _spritePreview;
         }
@@ -676,13 +719,19 @@ public sealed partial class MainWindow : Window, IDisposable
         }
     }
 
-    private void DisposePreview()
+    private void DisposeAtlasPreview()
     {
         SpritePreviewImage.Source = null;
+        AtlasCanvas.Source = null;
         _spritePreview?.Dispose();
-        _previewBitmap?.Dispose();
+        _atlasBitmap?.Dispose();
         _spritePreview = null;
-        _previewBitmap = null;
+        _atlasBitmap = null;
+    }
+
+    private void DisposePreview()
+    {
+        DisposeAtlasPreview();
 
         WallpaperPreviewImage.Source = null;
         _wallpaperBitmap?.Dispose();

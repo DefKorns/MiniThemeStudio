@@ -70,6 +70,48 @@ public sealed class ThemeValidatorTests
         }
     }
 
+    [Fact]
+    public void AcceptsNesThemeWithoutPackedAtlas()
+    {
+        var tempDir = Directory.CreateTempSubdirectory().FullName;
+        var spritesDir = Path.Combine(tempDir, "resources", "sprites");
+        Directory.CreateDirectory(spritesDir);
+        SaveSolidPng(Path.Combine(spritesDir, "nes.png"), 64, 64, SKColors.Red);
+        File.WriteAllText(
+            Path.Combine(spritesDir, "nes.json"),
+            """{"texture":{"id":"nes","width":64,"height":64},"sprites":{"a":{"textureFrame":[0,0,8,8]},"b":{"textureFrame":[8,0,8,8]}}}""");
+
+        try
+        {
+            var result = new ThemeValidator().Validate(tempDir);
+
+            Assert.True(result.IsValid);
+            Assert.DoesNotContain(result.Issues, issue => issue.Message.Contains("packed"));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void ReportsThemeWithoutAnyAtlas()
+    {
+        var tempDir = Directory.CreateTempSubdirectory().FullName;
+
+        try
+        {
+            var result = new ThemeValidator().Validate(tempDir);
+
+            Assert.False(result.IsValid);
+            Assert.Contains(result.Issues, issue => issue.IsError && issue.Message.StartsWith("No sprite atlas found", StringComparison.Ordinal));
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
     private static void SaveSolidPng(string path, int width, int height, SKColor color)
     {
         using var bitmap = new SKBitmap(width, height);

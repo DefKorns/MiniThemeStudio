@@ -223,6 +223,38 @@ public sealed class ThemeAssetManagerTests
         }
     }
 
+    [Fact]
+    public void ExtraAssetsExcludeSpriteAtlases()
+    {
+        var themeDir = Directory.CreateTempSubdirectory().FullName;
+        var baseDir = Directory.CreateTempSubdirectory().FullName;
+        var themeSprites = Path.Combine(themeDir, "resources", "sprites");
+        var baseSprites = Path.Combine(baseDir, "resources", "sprites");
+        Directory.CreateDirectory(Path.Combine(themeSprites, "sampleasset"));
+        Directory.CreateDirectory(baseSprites);
+        SaveSolidPng(Path.Combine(themeSprites, "nes.png"), 4, 4, SKColors.Red);
+        SaveSolidPng(Path.Combine(baseSprites, "dot_num.png"), 4, 4, SKColors.Red);
+        File.WriteAllText(
+            Path.Combine(baseSprites, "dot_num.json"),
+            """{"texture":{"id":"d","width":4,"height":4},"sprites":{"a":{"textureFrame":[0,0,2,2]},"b":{"textureFrame":[2,0,2,2]}}}""");
+        SaveSolidPng(Path.Combine(themeSprites, "logo.png"), 4, 4, SKColors.Red);
+        SaveSolidPng(Path.Combine(themeSprites, "sampleasset", "goku.png"), 4, 4, SKColors.Red);
+
+        try
+        {
+            var assets = new ThemeAssetManager().GetExtraAssets(themeDir, baseDir);
+
+            Assert.Equal(
+                ["sprites/logo.png", "sprites/sampleasset/goku.png"],
+                assets.Select(asset => asset.RelativePath).Order(StringComparer.Ordinal));
+        }
+        finally
+        {
+            Directory.Delete(themeDir, true);
+            Directory.Delete(baseDir, true);
+        }
+    }
+
     private static JsonNode ReadJson(string path) => JsonNode.Parse(File.ReadAllText(path))!;
 
     private static void SaveSolidPng(string path, int width, int height, SKColor color)

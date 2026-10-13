@@ -5,40 +5,88 @@ namespace MiniThemeStudio.Infrastructure.Themes;
 
 public sealed class TextureAtlasReader : ITextureAtlasReader
 {
-    private static readonly string[] DefinitionPathSegments =
-    [
-        "resources",
-        "sprites",
-        "packed.json",
-    ];
-
-    private static readonly string[] ImagePathSegments =
-    [
-        "resources",
-        "sprites",
-        "packed.png",
-    ];
+    private static readonly string[] PrimaryAtlasNames = ["packed", "nes", "hvc"];
 
     public TextureAtlas? Read(string themeRootPath, string? definitionRootPath = null)
     {
+        var atlases = ReadAll(themeRootPath, definitionRootPath);
+        return atlases.Count > 0 ? atlases[0] : null;
+    }
+
+    public IReadOnlyList<TextureAtlas> ReadAll(string themeRootPath, string? definitionRootPath = null)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(themeRootPath);
 
-        var themeDefinitionPath = Path.Combine([themeRootPath, .. DefinitionPathSegments]);
-        var definitionPath = File.Exists(themeDefinitionPath)
-            ? themeDefinitionPath
-            : definitionRootPath is null
-                ? themeDefinitionPath
-                : Path.Combine([definitionRootPath, .. DefinitionPathSegments]);
-        if (!File.Exists(definitionPath))
+        var themeSpritesPath = Path.Combine(themeRootPath, "resources", "sprites");
+        var baseSpritesPath = definitionRootPath is null ? null : Path.Combine(definitionRootPath, "resources", "sprites");
+        var names = new[] { themeSpritesPath, baseSpritesPath }
+            .Where(Directory.Exists)
+            .SelectMany(directory => Directory.EnumerateFiles(directory!, "*.json"))
+            .Select(Path.GetFileNameWithoutExtension)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+
+        var atlases = new List<TextureAtlas>();
+        foreach (var name in names)
         {
-            return null;
+            var themeDefinitionPath = Path.Combine(themeSpritesPath, $"{name}.json");
+            var definitionPath = File.Exists(themeDefinitionPath)
+                ? themeDefinitionPath
+                : Path.Combine(baseSpritesPath!, $"{name}.json");
+            var themeImagePath = Path.Combine(themeSpritesPath, $"{name}.png");
+            var imagePath = File.Exists(themeImagePath)
+                ? themeImagePath
+                : Path.ChangeExtension(definitionPath, ".png");
+
+            if (IsPrimaryAtlasName(name!))
+            {
+                atlases.Add(ReadDefinition(definitionPath, imagePath));
+            }
+            else if (IsAtlasDefinition(definitionPath))
+            {
+                try
+                {
+                    atlases.Add(ReadDefinition(definitionPath, imagePath));
+                }
+                catch (InvalidDataException)
+                {
+                }
+            }
         }
 
-        var themeImagePath = Path.Combine([themeRootPath, .. ImagePathSegments]);
-        var imagePath = File.Exists(themeImagePath)
-            ? themeImagePath
-            : Path.ChangeExtension(definitionPath, ".png");
+        return atlases
+            .OrderBy(atlas => IsPrimaryAtlasName(atlas.Name) ? 0 : 1)
+            .ThenBy(atlas => atlas.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
 
+    public static bool IsAtlasDefinition(string definitionPath)
+    {
+        if (IsPrimaryAtlasName(Path.GetFileNameWithoutExtension(definitionPath)))
+        {
+            return true;
+        }
+
+        try
+        {
+            using var stream = File.OpenRead(definitionPath);
+            using var document = JsonDocument.Parse(stream);
+            return document.RootElement.TryGetProperty("sprites", out var sprites)
+                && sprites.ValueKind == JsonValueKind.Object
+                && sprites.EnumerateObject().Skip(1).Any();
+        }
+        catch (Exception exception) when (exception is JsonException or IOException)
+        {
+            return false;
+        }
+    }
+
+    public static bool IsPrimaryAtlasName(string name)
+    {
+        return PrimaryAtlasNames.Contains(name, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static TextureAtlas ReadDefinition(string definitionPath, string imagePath)
+    {
         try
         {
             using var stream = File.OpenRead(definitionPath);
@@ -75,9 +123,15 @@ public sealed class TextureAtlasReader : ITextureAtlasReader
         {
             var sprite = spriteProperty.Value;
             var frame = ReadIntegerVector(sprite, "textureFrame", 4);
-            var pivot = ReadNumberVector(sprite, "pivot", 2);
-            var sourceSize = ReadIntegerVector(sprite, "sourceSize", 2);
-            var sourceOffset = ReadNumberVector(sprite, "sourceOffset", 2);
+            var pivot = sprite.TryGetProperty("pivot", out _)
+                ? ReadNumberVector(sprite, "pivot", 2)
+                : [frame[2] / 2.0, frame[3] / 2.0];
+            var sourceSize = sprite.TryGetProperty("sourceSize", out _)
+                ? ReadIntegerVector(sprite, "sourceSize", 2)
+                : [frame[2], frame[3]];
+            var sourceOffset = sprite.TryGetProperty("sourceOffset", out _)
+                ? ReadNumberVector(sprite, "sourceOffset", 2)
+                : [0.0, 0.0];
 
             sprites.Add(new SpriteRegion(
                 spriteProperty.Name,

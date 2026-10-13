@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using Avalonia.Styling;
@@ -859,6 +861,43 @@ public sealed partial class MainWindow : Window, IDisposable
         }
     }
 
+    private void MirrorPreview_IsCheckedChanged(object? sender, RoutedEventArgs e)
+    {
+        AnimationPreviewImage.RenderTransform = MirrorPreviewCheckBox.IsChecked == true ? new ScaleTransform(-1, 1) : null;
+    }
+
+    private async void MirrorSelectedFrames_Click(object? sender, RoutedEventArgs e)
+    {
+        var textureIds = AnimationFramesList.SelectedItems?.OfType<AnimationFrameView>().Select(frame => frame.TextureId).ToList() ?? [];
+        await MirrorFramesAsync(textureIds);
+    }
+
+    private async void MirrorAllFrames_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel { SelectedAnimation: { } animation })
+        {
+            await MirrorFramesAsync(animation.Tracks.SelectMany(track => track.Keys).Select(key => key.TextureId).ToList());
+        }
+    }
+
+    private async Task MirrorFramesAsync(IReadOnlyCollection<string> textureIds)
+    {
+        if (DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        AnimationPreviewImage.Source = null;
+        if (viewModel.MirrorFrames(textureIds))
+        {
+            MirrorPreviewCheckBox.IsChecked = false;
+        }
+        else
+        {
+            await _errorHandlingService.ShowErrorAsync(this, "Cannot flip frames", viewModel.Status);
+        }
+    }
+
     private async void ReplaceAnimationFrames_Click(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel { SelectedAnimation: { } animation, SelectedCharacter: { } character } viewModel)
@@ -869,7 +908,8 @@ public sealed partial class MainWindow : Window, IDisposable
         var result = await new SpriteSheetDialog(
             new SpriteSheetImporter(),
             $"Frames for {character} {animation.Name}",
-            viewModel.CurrentCharacterFrameSize).ShowDialog<SpriteSheetResult?>(this);
+            viewModel.CurrentCharacterFrameSize,
+            viewModel.AnimationFrames.FirstOrDefault(frame => frame.IsLoopFrame)?.Thumbnail).ShowDialog<SpriteSheetResult?>(this);
         if (result is null)
         {
             return;

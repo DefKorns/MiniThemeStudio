@@ -9,7 +9,7 @@ using MiniThemeStudio.Core.Themes;
 
 namespace MiniThemeStudio.App.ViewModels;
 
-public sealed record AnimationFrameView(double Time, string Name, Bitmap? Thumbnail, bool IsLoopFrame)
+public sealed record AnimationFrameView(double Time, string TextureId, string Name, Bitmap? Thumbnail, bool IsLoopFrame)
 {
     public string TimeText => Time.ToString("0.000 's'", CultureInfo.InvariantCulture);
 
@@ -90,6 +90,46 @@ public partial class MainWindowViewModel
             SelectedAnimation = CharacterAnimations.FirstOrDefault(candidate => candidate.Name == animationName);
             RunValidation();
             Status = $"{character} {animationName}: {frameIds.Count} frames at {FrameTimeMilliseconds} ms. Other animations of {character} still use their own frames.";
+            return true;
+        }
+        catch (Exception exception) when (
+            exception is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException)
+        {
+            Status = exception.Message;
+            return false;
+        }
+    }
+
+    public bool MirrorFrames(IReadOnlyCollection<string> textureIds)
+    {
+        if (_draft is null || SelectedCharacter is not { } character || SelectedAnimation is not { } animation)
+        {
+            Status = "Select a character animation first.";
+            return false;
+        }
+
+        if (textureIds.Count == 0)
+        {
+            Status = "Select the frames to flip.";
+            return false;
+        }
+
+        try
+        {
+            var distinct = textureIds.ToHashSet(StringComparer.Ordinal);
+            _characterEditor.MirrorTextures(_draft.DraftPath, _currentBaseUiPath, distinct);
+            var shared = CharacterAnimations
+                .Where(candidate => candidate.Name != animation.Name
+                    && candidate.Tracks.Any(track => track.Keys.Any(key => distinct.Contains(key.TextureId))))
+                .Select(candidate => candidate.Name)
+                .ToList();
+
+            var animationName = animation.Name;
+            HasUnsavedChanges = true;
+            ReloadAssets();
+            SelectedAnimation = CharacterAnimations.FirstOrDefault(candidate => candidate.Name == animationName);
+            Status = $"{character} {animationName}: flipped {distinct.Count} frame{(distinct.Count == 1 ? "" : "s")} horizontally."
+                + (shared.Count > 0 ? $" Also used by {string.Join(", ", shared)}." : "");
             return true;
         }
         catch (Exception exception) when (
@@ -188,8 +228,8 @@ public partial class MainWindowViewModel
 
         AnimationFrames = track.Keys
             .Select(key => _characterTextures.TryGetValue(key.TextureId, out var texture)
-                ? new AnimationFrameView(key.Time, texture.Name, Thumbnail(texture), key.Time < value.Duration)
-                : new AnimationFrameView(key.Time, key.TextureId, null, key.Time < value.Duration))
+                ? new AnimationFrameView(key.Time, key.TextureId, texture.Name, Thumbnail(texture), key.Time < value.Duration)
+                : new AnimationFrameView(key.Time, key.TextureId, key.TextureId, null, key.Time < value.Duration))
             .ToList();
         var loopFrames = track.Keys.Count(key => key.Time < value.Duration);
         if (loopFrames > 0 && value.Duration > 0)

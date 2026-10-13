@@ -65,6 +65,26 @@ public sealed class SpriteSheetImporterTests : IDisposable
     }
 
     [Fact]
+    public void ExportsMirroredFramesWithTheSameAlignment()
+    {
+        var importer = new SpriteSheetImporter();
+        var keying = new SheetKeying([(uint)SheetBlue, (uint)CellBlue]);
+        var frames = importer.DetectFrames(_sheetPath, keying).Take(2).ToList();
+
+        var paths = importer.ExportFrames(_sheetPath, frames, keying, FrameAnchor.BottomCenter, null, Path.Combine(_rootPath, "out"), mirror: true);
+
+        using var tall = SKBitmap.Decode(paths[0]);
+        using var small = SKBitmap.Decode(paths[1]);
+        Assert.Equal((6, 10), (tall.Width, tall.Height));
+        Assert.Equal(SKColors.Red, tall.GetPixel(5, 9));
+        Assert.Equal(0, tall.GetPixel(0, 9).Alpha);
+        Assert.Equal(SKColors.Red, tall.GetPixel(0, 0));
+        Assert.Equal(0, tall.GetPixel(1, 5).Alpha);
+        Assert.Equal(SKColors.Yellow, small.GetPixel(0, 9));
+        Assert.Equal(0, small.GetPixel(0, 3).Alpha);
+    }
+
+    [Fact]
     public void SuggestsSheetAndCellBackgrounds()
     {
         var importer = new SpriteSheetImporter();

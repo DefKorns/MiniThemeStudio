@@ -87,6 +87,33 @@ public sealed class CharacterAnimationEditorTests : IDisposable
     }
 
     [Fact]
+    public void MirrorTexturesFlipsEachTextureOnceIntoTheDraft()
+    {
+        var editor = new CharacterAnimationEditor();
+        var basePng = Path.Combine(_basePath, "resources", "layout", "asset", "sprite", "hero", "hero_run01.png");
+        using (var bitmap = new SKBitmap(new SKImageInfo(24, 32, SKColorType.Rgba8888, SKAlphaType.Unpremul)))
+        {
+            bitmap.Erase(SKColors.Transparent);
+            bitmap.SetPixel(0, 31, SKColors.Red);
+            bitmap.SetPixel(1, 0, new SKColor(0, 0, 255, 128));
+            AtlasLayoutMatcherTests.SavePng(bitmap, basePng);
+        }
+
+        var baseBytes = File.ReadAllBytes(basePng);
+
+        editor.MirrorTextures(_draftPath, _basePath, ["t1", "t1"]);
+
+        using var mirrored = SKBitmap.Decode(Path.Combine(_draftPath, "resources", "layout", "asset", "sprite", "hero", "hero_run01.png"));
+        Assert.Equal((24, 32), (mirrored.Width, mirrored.Height));
+        Assert.Equal(SKColors.Red, mirrored.GetPixel(23, 31));
+        Assert.Equal(0, mirrored.GetPixel(0, 31).Alpha);
+        Assert.Equal(new SKColor(0, 0, 255, 128), mirrored.GetPixel(22, 0));
+        Assert.Equal(baseBytes, File.ReadAllBytes(basePng));
+        Assert.False(File.Exists(Path.Combine(_draftPath, "resources", "layout", "asset", "sprite", "hero", "hero_run02.png")));
+        Assert.Throws<InvalidDataException>(() => editor.MirrorTextures(_draftPath, _basePath, ["missing"]));
+    }
+
+    [Fact]
     public void SetTrackKeysRewritesKeysDurationAndReferenceCounts()
     {
         var editor = new CharacterAnimationEditor();

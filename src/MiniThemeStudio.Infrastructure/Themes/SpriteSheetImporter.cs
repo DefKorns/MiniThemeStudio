@@ -151,7 +151,8 @@ public sealed class SpriteSheetImporter : ISpriteSheetImporter
         SheetKeying keying,
         FrameAnchor anchor,
         AtlasSize? canvasSize,
-        string outputDirectory)
+        string outputDirectory,
+        bool mirror = false)
     {
         ArgumentNullException.ThrowIfNull(frames);
         ArgumentNullException.ThrowIfNull(keying);
@@ -188,7 +189,8 @@ public sealed class SpriteSheetImporter : ISpriteSheetImporter
                 for (var x = 0; x < frame.Width; x++)
                 {
                     var color = sheet.GetPixel(frame.X + x, frame.Y + y);
-                    output.SetPixel(offsetX + x, offsetY + y, IsTransparent(color, keying) ? SKColors.Transparent : color);
+                    var targetX = offsetX + (mirror ? frame.Width - 1 - x : x);
+                    output.SetPixel(targetX, offsetY + y, IsTransparent(color, keying) ? SKColors.Transparent : color);
                 }
             }
 

@@ -20,6 +20,8 @@ public interface ICharacterAnimationEditor
 
     IReadOnlyDictionary<string, CharacterTexture> GetTextures(string themePath, string? baseUiPath);
 
+    void MirrorTextures(string themeDraftPath, string? baseUiPath, IReadOnlyCollection<string> textureIds);
+
     string AddTexture(string themeDraftPath, string? baseUiPath, string relativeImagePath, string sourceImagePath);
 
     void SetTrackKeys(string themeDraftPath, string? baseUiPath, string animationResourcePath, string nodeName, IReadOnlyList<AnimationKey> keys, double duration);

@@ -31,11 +31,41 @@
       </StackPanel>
     </WrapPanel>
 
-    <Border Grid.Row="2" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
-      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-        <controls:AtlasView x:Name="SheetCanvas" Margin="12" HorizontalAlignment="Left" VerticalAlignment="Top" />
-      </ScrollViewer>
-    </Border>
+    <Grid Grid.Row="2" ColumnDefinitions="*,240">
+      <Border Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+          <controls:AtlasView x:Name="SheetCanvas" Margin="12" HorizontalAlignment="Left" VerticalAlignment="Top" />
+        </ScrollViewer>
+      </Border>
+
+      <StackPanel Grid.Column="1" Margin="12,0,0,0" Spacing="8">
+        <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Running direction" />
+        <ComboBox x:Name="DirectionComboBox" HorizontalAlignment="Stretch" SelectedIndex="0">
+          <ComboBoxItem Content="Sheet runs right → left" />
+          <ComboBoxItem Content="Sheet runs left → right" />
+        </ComboBox>
+        <TextBlock FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
+                   Text="Frames run right → left like the current frame; the console flips the character itself when it turns. Left → right sheets are flipped on import." />
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+          <StackPanel Spacing="4">
+            <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="Current" />
+            <Border Height="150" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+              <Image x:Name="ReferenceImage" Margin="6" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
+            </Border>
+          </StackPanel>
+          <StackPanel Grid.Column="1" Spacing="4">
+            <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="Imported" />
+            <Border Height="150" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+              <Viewbox Margin="6" StretchDirection="DownOnly">
+                <Grid x:Name="ImportPreviewCanvas">
+                  <Image x:Name="ImportPreviewImage" HorizontalAlignment="Center" Stretch="Fill" RenderOptions.BitmapInterpolationMode="None" />
+                </Grid>
+              </Viewbox>
+            </Border>
+          </StackPanel>
+        </Grid>
+      </StackPanel>
+    </Grid>
 
     <Grid Grid.Row="3" Margin="0,14,0,0" ColumnDefinitions="*,Auto,Auto,Auto">
       <TextBlock x:Name="SelectionText" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}" Text="No sheet open." />

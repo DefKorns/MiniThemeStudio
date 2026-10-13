@@ -54,23 +54,24 @@
 
     <!-- Header Bar -->
     <Border Grid.Row="0" Grid.Column="1" Background="{DynamicResource HeaderBackgroundBrush}" BorderBrush="{DynamicResource HeaderBorderBrush}" BorderThickness="0,0,0,1">
-      <Grid ColumnDefinitions="240,*,Auto" Margin="20,0">
+      <Grid ColumnDefinitions="Auto,*,Auto" Margin="20,0">
         <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource HeaderTextBrush}" FontFamily="Georgia, serif" FontSize="18" FontWeight="SemiBold" Text="Mini Theme Studio" />
-        <StackPanel Grid.Column="1" Margin="24,0" VerticalAlignment="Center" Orientation="Horizontal" Spacing="12" IsVisible="{Binding IsThemeOpen}">
-          <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource HeaderTextBrush}" Text="{Binding ThemeName}" TextTrimming="CharacterEllipsis" />
-          <Border Padding="6,2" Background="{DynamicResource SidebarSelectedBrush}" CornerRadius="4">
+        <Grid Grid.Column="1" Margin="24,0,16,0" HorizontalAlignment="Left" VerticalAlignment="Center" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="12" ClipToBounds="True" IsVisible="{Binding IsThemeOpen}">
+          <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource HeaderTextBrush}" Text="{Binding ThemeName}" TextTrimming="CharacterEllipsis"
+                     ToolTip.Tip="{Binding ThemeName}" />
+          <Border Grid.Column="1" Padding="6,2" Background="{DynamicResource SidebarSelectedBrush}" CornerRadius="4">
             <TextBlock FontSize="11" Foreground="{DynamicResource HeaderMutedBrush}" Text="{Binding Author, StringFormat='by {0}'}" />
           </Border>
-          <Button Padding="8,2" Background="{DynamicResource SidebarSelectedBrush}" CornerRadius="4" Click="ChangeBase_Click" ToolTip.Tip="Console and Base used to edit this theme">
+          <Button Grid.Column="2" Padding="8,2" Background="{DynamicResource SidebarSelectedBrush}" CornerRadius="4" Click="ChangeBase_Click" ToolTip.Tip="Console and Base used to edit this theme">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <lucide:LucideIcon Kind="Gamepad2" Size="14" Foreground="{DynamicResource HeaderMutedBrush}" />
               <TextBlock FontSize="11" Foreground="{DynamicResource HeaderMutedBrush}" Text="{Binding CurrentBaseLabel}" />
             </StackPanel>
           </Button>
-          <Border Padding="6,2" Background="{DynamicResource DialogWarningBrush}" CornerRadius="4" IsVisible="{Binding HasUnsavedChanges}">
+          <Border Grid.Column="3" Padding="6,2" Background="{DynamicResource DialogWarningBrush}" CornerRadius="4" IsVisible="{Binding HasUnsavedChanges}">
             <TextBlock FontSize="11" FontWeight="Bold" Foreground="#151515" Text="Unsaved changes" />
           </Border>
-        </StackPanel>
+        </Grid>
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" IsVisible="{Binding IsThemeOpen}">
           <Button Padding="12,6" Background="Transparent" Click="RunValidation_Click" ToolTip.Tip="Validate theme integrity">
             <StackPanel Orientation="Horizontal" Spacing="6">
@@ -415,15 +416,15 @@
 
           <Border Grid.Column="1" Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid RowDefinitions="Auto,*" Margin="12">
-              <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Frames (faded frames run after the loop)" />
+              <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Frames (faded frames run after the loop, click to select)" />
               <ScrollViewer Grid.Row="1" Margin="0,10,0,0">
-                <ItemsControl ItemsSource="{Binding AnimationFrames}">
-                  <ItemsControl.ItemsPanel>
+                <ListBox x:Name="AnimationFramesList" ItemsSource="{Binding AnimationFrames}" SelectionMode="Multiple,Toggle" Background="Transparent">
+                  <ListBox.ItemsPanel>
                     <ItemsPanelTemplate>
                       <WrapPanel ItemSpacing="8" LineSpacing="8" />
                     </ItemsPanelTemplate>
-                  </ItemsControl.ItemsPanel>
-                  <ItemsControl.ItemTemplate>
+                  </ListBox.ItemsPanel>
+                  <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:AnimationFrameView">
                       <Border Width="96" Padding="6" CornerRadius="4" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Opacity="{Binding Opacity}">
                         <StackPanel Spacing="4">
@@ -433,8 +434,8 @@
                         </StackPanel>
                       </Border>
                     </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                  </ListBox.ItemTemplate>
+                </ListBox>
               </ScrollViewer>
             </Grid>
           </Border>
@@ -446,6 +447,14 @@
                 <Border Height="220" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
                   <Image x:Name="AnimationPreviewImage" Margin="12" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
                 </Border>
+                <CheckBox x:Name="MirrorPreviewCheckBox" Content="Preview flipped" IsCheckedChanged="MirrorPreview_IsCheckedChanged"
+                          ToolTip.Tip="Show the animation flipped horizontally without changing any frame" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button Padding="12,8" Click="MirrorSelectedFrames_Click" Content="Flip selected"
+                          ToolTip.Tip="Flip the pixels of the selected frames horizontally" />
+                  <Button Padding="12,8" Click="MirrorAllFrames_Click" Content="Flip all frames"
+                          ToolTip.Tip="Flip every frame of this animation horizontally, each texture once" />
+                </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="8">
                   <TextBlock VerticalAlignment="Center" Text="Frame time (ms)" />
                   <NumericUpDown Width="130" Minimum="10" Maximum="1000" Increment="5" FormatString="0.#" Value="{Binding FrameTimeMilliseconds}" />

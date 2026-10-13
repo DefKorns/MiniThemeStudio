@@ -22,5 +22,6 @@ public interface ISpriteSheetImporter
         SheetKeying keying,
         FrameAnchor anchor,
         AtlasSize? canvasSize,
-        string outputDirectory);
+        string outputDirectory,
+        bool mirror = false);
 }

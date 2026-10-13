@@ -8,6 +8,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using MiniThemeStudio.Core.Themes;
 
 namespace MiniThemeStudio.App.Views;
@@ -20,20 +21,27 @@ public sealed partial class SpriteSheetDialog : Window
     private readonly AtlasSize? _currentFrameSize;
     private readonly List<uint> _colours = [];
     private readonly List<SpriteRegion> _marked = [];
+    private readonly List<CroppedBitmap> _previewFrames = [];
+    private readonly DispatcherTimer _previewTimer = new() { Interval = TimeSpan.FromMilliseconds(100) };
+    private int _previewIndex;
     private string? _sheetPath;
     private Bitmap? _sheetBitmap;
 
     public SpriteSheetDialog()
-        : this(null!, "Import frames from a sprite sheet", null)
+        : this(null!, "Import frames from a sprite sheet", null, null)
     {
     }
 
-    public SpriteSheetDialog(ISpriteSheetImporter importer, string title, AtlasSize? currentFrameSize)
+    public SpriteSheetDialog(ISpriteSheetImporter importer, string title, AtlasSize? currentFrameSize, Bitmap? referenceFrame)
     {
         _importer = importer;
         _currentFrameSize = currentFrameSize;
         InitializeComponent();
         TitleText.Text = title;
+        ReferenceImage.Source = referenceFrame;
+        DirectionComboBox.SelectionChanged += Direction_SelectionChanged;
+        _previewTimer.Tick += PreviewTimer_Tick;
+        _previewTimer.Start();
         SheetCanvas.AtlasPointerPressed += SheetCanvas_AtlasPointerPressed;
         SheetCanvas.PropertyChanged += SheetCanvas_PropertyChanged;
         PickColourButton.IsCheckedChanged += (_, _) => SheetCanvas.IsSelectionEnabled = PickColourButton.IsChecked != true;
@@ -57,6 +65,8 @@ public sealed partial class SpriteSheetDialog : Window
         {
             using var stream = File.OpenRead(path);
             var bitmap = new Bitmap(stream);
+            _marked.Clear();
+            RefreshPreview();
             SheetCanvas.Source = null;
             _sheetBitmap?.Dispose();
             _sheetBitmap = bitmap;
@@ -152,9 +162,51 @@ public sealed partial class SpriteSheetDialog : Window
         }
     }
 
+    private bool Mirror => DirectionComboBox.SelectedIndex == 1;
+
+    private void Direction_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        ImportPreviewImage.RenderTransform = Mirror ? new ScaleTransform(-1, 1) : null;
+    }
+
+    private void RefreshPreview()
+    {
+        ImportPreviewImage.Source = null;
+        _previewFrames.Clear();
+        _previewIndex = 0;
+        if (_sheetBitmap is null || _marked.Count == 0)
+        {
+            return;
+        }
+
+        _previewFrames.AddRange(_marked.Select(region => new CroppedBitmap(
+            _sheetBitmap,
+            new PixelRect(region.Frame.X, region.Frame.Y, region.Frame.Width, region.Frame.Height))));
+        ImportPreviewCanvas.Width = _marked.Max(region => region.Frame.Width);
+        ImportPreviewCanvas.Height = _marked.Max(region => region.Frame.Height);
+        PreviewTimer_Tick(null, EventArgs.Empty);
+    }
+
+    private void PreviewTimer_Tick(object? sender, EventArgs e)
+    {
+        if (_previewFrames.Count == 0)
+        {
+            return;
+        }
+
+        _previewIndex %= _previewFrames.Count;
+        var frame = _marked[_previewIndex].Frame;
+        ImportPreviewImage.Width = frame.Width;
+        ImportPreviewImage.Height = frame.Height;
+        ImportPreviewImage.VerticalAlignment = AnchorComboBox.SelectedIndex == 1 ? Avalonia.Layout.VerticalAlignment.Center : Avalonia.Layout.VerticalAlignment.Bottom;
+        ImportPreviewImage.Source = _previewFrames[_previewIndex];
+        _previewIndex++;
+    }
+
     private void UpdateSelection()
     {
         SheetCanvas.MarkedSprites = _marked.ToList();
+        RefreshPreview();
         UseFramesButton.IsEnabled = _marked.Count > 0;
         var detected = SheetCanvas.Sprites?.Count ?? 0;
         if (_marked.Count == 0)
@@ -209,7 +261,7 @@ public sealed partial class SpriteSheetDialog : Window
             var outputDirectory = Path.Combine(Path.GetTempPath(), "MiniThemeStudio", "frames", Guid.NewGuid().ToString("N"));
             var anchor = AnchorComboBox.SelectedIndex == 1 ? FrameAnchor.Center : FrameAnchor.BottomCenter;
             var frames = _marked.Select(frame => frame.Frame).ToList();
-            var paths = _importer.ExportFrames(_sheetPath, frames, Keying(), anchor, null, outputDirectory);
+            var paths = _importer.ExportFrames(_sheetPath, frames, Keying(), anchor, null, outputDirectory, Mirror);
             Close(new SpriteSheetResult(paths, new AtlasSize(frames.Max(frame => frame.Width), frames.Max(frame => frame.Height))));
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)
@@ -225,6 +277,9 @@ public sealed partial class SpriteSheetDialog : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _previewTimer.Stop();
+        _marked.Clear();
+        RefreshPreview();
         SheetCanvas.Source = null;
         _sheetBitmap?.Dispose();
         base.OnClosed(e);

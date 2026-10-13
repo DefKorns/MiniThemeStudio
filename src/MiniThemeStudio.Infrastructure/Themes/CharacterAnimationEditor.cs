@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using MiniThemeStudio.Core.Themes;
@@ -159,6 +160,44 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
         return textureId;
     }
 
+    public void MirrorTextures(string themeDraftPath, string? baseUiPath, IReadOnlyCollection<string> textureIds)
+    {
+        ArgumentNullException.ThrowIfNull(textureIds);
+        var paths = ReadDependencies(themeDraftPath, baseUiPath)
+            .Where(resource => resource.Type == "TextureResource" && resource.Path is not null)
+            .ToDictionary(resource => resource.Id, resource => resource.Path!, StringComparer.Ordinal);
+        foreach (var textureId in textureIds.Distinct(StringComparer.Ordinal))
+        {
+            var resourcePath = paths.GetValueOrDefault(textureId)
+                ?? throw new InvalidDataException($"Texture {textureId} is not registered in dependencies.json.");
+            var sourcePath = Resolve(themeDraftPath, baseUiPath, resourcePath)
+                ?? throw new FileNotFoundException($"Texture not found: resources{resourcePath}");
+
+            using var bitmap = DecodeUnpremultiplied(sourcePath)
+                ?? throw new InvalidDataException($"resources{resourcePath} is not a valid PNG image.");
+            var info = bitmap.Info;
+            var pixels = MemoryMarshal.Cast<byte, int>(bitmap.GetPixelSpan()).ToArray();
+            for (var y = 0; y < info.Height; y++)
+            {
+                Array.Reverse(pixels, y * info.Width, info.Width);
+            }
+
+            Marshal.Copy(pixels, 0, bitmap.GetPixels(), pixels.Length);
+
+            var targetPath = DraftPath(themeDraftPath, resourcePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+            var temporaryPath = targetPath + ".tmp";
+            using (var image = SKImage.FromBitmap(bitmap))
+            using (var data = image.Encode(SKEncodedImageFormat.Png, 100))
+            using (var stream = File.Create(temporaryPath))
+            {
+                data.SaveTo(stream);
+            }
+
+            File.Move(temporaryPath, targetPath, true);
+        }
+    }
+
     public void SetTrackKeys(string themeDraftPath, string? baseUiPath, string animationResourcePath, string nodeName, IReadOnlyList<AnimationKey> keys, double duration)
     {
         ArgumentNullException.ThrowIfNull(keys);
@@ -262,6 +301,24 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
         {
             throw new InvalidDataException($"No scene node draws the character '{character}'.");
         }
+    }
+
+    private static SKBitmap? DecodeUnpremultiplied(string path)
+    {
+        using var codec = SKCodec.Create(path);
+        if (codec is null)
+        {
+            return null;
+        }
+
+        var bitmap = new SKBitmap(new SKImageInfo(codec.Info.Width, codec.Info.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
+        if (codec.GetPixels(bitmap.Info, bitmap.GetPixels()) != SKCodecResult.Success)
+        {
+            bitmap.Dispose();
+            return null;
+        }
+
+        return bitmap;
     }
 
     private static IEnumerable<JsonObject> TextureTracks(JsonObject animation)

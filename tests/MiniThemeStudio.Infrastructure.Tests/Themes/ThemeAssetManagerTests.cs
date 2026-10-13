@@ -255,6 +255,36 @@ public sealed class ThemeAssetManagerTests
         }
     }
 
+    [Fact]
+    public void ProvideMissingTextureKeepsReferencedTextureId()
+    {
+        var draftDir = Directory.CreateTempSubdirectory().FullName;
+        var sourcePng = Path.Combine(draftDir, "..", $"{Guid.NewGuid():N}.png");
+        SaveSolidPng(sourcePng, 48, 48, SKColors.Green);
+        var missing = new MissingTexture(
+            "3e60e2df-39af-42b8-b28c-9ac3cd1a785c",
+            Path.Combine("resources", "sprites", "sampleasset", "goku.png"),
+            Path.Combine("resources", "sprites", "sampleasset", "goku.json"),
+            ["bg.scn"]);
+
+        try
+        {
+            new ThemeAssetManager().ProvideMissingTexture(draftDir, missing, sourcePng);
+
+            var root = ReadJson(Path.Combine(draftDir, missing.DefinitionRelativePath));
+            Assert.True(File.Exists(Path.Combine(draftDir, missing.ImageRelativePath)));
+            Assert.Equal(missing.TextureId, root["texture"]!["id"]!.GetValue<string>());
+            Assert.Equal("[0,0,48,48]", root["sprites"]!["Default"]!["textureFrame"]!.ToJsonString());
+            Assert.Equal("[24,24]", root["sprites"]!["Default"]!["pivot"]!.ToJsonString());
+            Assert.Throws<IOException>(() => new ThemeAssetManager().ProvideMissingTexture(draftDir, missing, sourcePng));
+        }
+        finally
+        {
+            Directory.Delete(draftDir, true);
+            File.Delete(sourcePng);
+        }
+    }
+
     private static JsonNode ReadJson(string path) => JsonNode.Parse(File.ReadAllText(path))!;
 
     private static void SaveSolidPng(string path, int width, int height, SKColor color)

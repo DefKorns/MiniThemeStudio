@@ -7,8 +7,10 @@ using SkiaSharp;
 
 namespace MiniThemeStudio.Infrastructure.Themes;
 
-public sealed class ThemeValidator : IThemeValidator
+public sealed class ThemeValidator(IThemeResourceIndexer? resourceIndexer = null) : IThemeValidator
 {
+    private readonly IThemeResourceIndexer _resourceIndexer = resourceIndexer ?? new ThemeResourceIndexer();
+
     public ThemeValidationResult Validate(string themeDraftPath, string? baseUiPath = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
@@ -69,6 +71,8 @@ public sealed class ThemeValidator : IThemeValidator
             issues.Add(new ThemeValidationIssue("Theme is an incomplete delta mod. System files will be inherited from the console stock firmware.", false));
         }
 
+        issues.AddRange(_resourceIndexer.Analyze(themeDraftPath, baseUiPath).Issues);
+
         var isValid = issues.TrueForAll(i => !i.IsError);
         return new ThemeValidationResult(isValid, issues);
     }
@@ -85,8 +89,8 @@ public sealed class ThemeValidator : IThemeValidator
         if (atlas.Size.Width != bmp.Width || atlas.Size.Height != bmp.Height)
         {
             issues.Add(new ThemeValidationIssue(
-                $"{atlas.Name}.png dimensions ({bmp.Width}x{bmp.Height}) do not match {atlas.Name}.json ({atlas.Size.Width}x{atlas.Size.Height}).",
-                true));
+                $"{atlas.Name}.png is {bmp.Width}x{bmp.Height} but {atlas.Name}.json declares {atlas.Size.Width}x{atlas.Size.Height}.",
+                false));
         }
 
         foreach (var sprite in atlas.Sprites)

@@ -16,5 +16,7 @@ public interface IThemeAssetManager
     void DeleteExtraAsset(string imagePath, string? jsonPath = null);
     void ExportExtraAsset(ExtraAsset asset, string destinationPath);
 
+    void ProvideMissingTexture(string themeDraftPath, MissingTexture texture, string sourceImagePath);
+
     void ExportPackedSprite(string atlasImagePath, SpriteRegion sprite, string destinationPath);
 }

@@ -19,13 +19,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
 
-        var draftRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(themeDraftPath));
-        var targetPath = Path.GetFullPath(Path.Combine(draftRoot, relativePath));
-        if (!targetPath.StartsWith(draftRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new ArgumentException($"The path must stay inside the theme draft: {relativePath}", nameof(relativePath));
-        }
-
+        var targetPath = EnsureInsideDraft(themeDraftPath, relativePath);
         if (File.Exists(targetPath))
         {
             return targetPath;
@@ -119,7 +113,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
                 _ => $"{char.ToUpperInvariant(name[0])}{name[1..]}"
             };
 
-            list.Add(new WallpaperAsset(name, displayName, pngPath, jsonPath, width, height, isFromBase));
+            list.Add(new WallpaperAsset(name, displayName, pngPath, jsonPath, width, height, isFromBase, ReadTextureId(jsonPath)));
         }
 
         return list;
@@ -212,15 +206,18 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             var category = CategorizeExtraAsset(relPath);
             var displayName = Path.GetFileNameWithoutExtension(relPath);
 
+            var jsonPath = info.JsonPath
+                ?? (baseResDir is null ? null : Path.Combine(baseResDir, Path.ChangeExtension(relPath, ".json")) is var baseJson && File.Exists(baseJson) ? baseJson : null);
             result.Add(new ExtraAsset(
                 relPath,
                 displayName,
                 category,
                 info.ImagePath,
-                info.JsonPath,
+                jsonPath,
                 w,
                 h,
-                info.IsBase));
+                info.IsBase,
+                ReadTextureId(jsonPath)));
         }
 
         return result.OrderBy(a => a.Category).ThenBy(a => a.DisplayName).ToList();
@@ -401,6 +398,84 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         }
 
         File.Move(temp, outputPath, true);
+    }
+
+    public void ProvideMissingTexture(string themeDraftPath, MissingTexture texture, string sourceImagePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
+        ArgumentNullException.ThrowIfNull(texture);
+
+        using var bitmap = SKBitmap.Decode(sourceImagePath)
+            ?? throw new InvalidDataException("Source file is not a valid PNG image.");
+        var imagePath = EnsureInsideDraft(themeDraftPath, texture.ImageRelativePath);
+        var definitionPath = EnsureInsideDraft(themeDraftPath, texture.DefinitionRelativePath);
+        if (File.Exists(imagePath))
+        {
+            throw new IOException($"The texture image already exists: {texture.ImageRelativePath}");
+        }
+
+        var definition = File.Exists(definitionPath)
+            ? LoadTextureJson(definitionPath, null)
+            : new JsonObject
+            {
+                ["texture"] = new JsonObject(),
+                ["sprites"] = new JsonObject
+                {
+                    ["Default"] = new JsonObject
+                    {
+                        ["textureFrame"] = new JsonArray(0, 0, bitmap.Width, bitmap.Height),
+                        ["pivot"] = new JsonArray(Half(bitmap.Width), Half(bitmap.Height)),
+                        ["sourceSize"] = new JsonArray(bitmap.Width, bitmap.Height),
+                        ["sourceOffset"] = new JsonArray(0, 0),
+                    },
+                },
+            };
+        var textureNode = (JsonObject)definition["texture"]!;
+        if (textureNode["id"]?.GetValue<string>() is { } existingId && existingId != texture.TextureId)
+        {
+            throw new InvalidDataException($"{texture.DefinitionRelativePath} belongs to texture {existingId}, not {texture.TextureId}.");
+        }
+
+        textureNode["id"] = texture.TextureId;
+        ResizeTextureJson(definition, bitmap.Width, bitmap.Height, Path.GetFileName(imagePath));
+
+        Directory.CreateDirectory(Path.GetDirectoryName(imagePath)!);
+        SaveBitmapToPng(bitmap, imagePath);
+        WriteTextureJson(definitionPath, definition);
+    }
+
+    private static JsonValue Half(int size)
+    {
+        return size % 2 == 0 ? JsonValue.Create(size / 2) : JsonValue.Create(size / 2.0);
+    }
+
+    private static string EnsureInsideDraft(string themeDraftPath, string relativePath)
+    {
+        var draftRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(themeDraftPath));
+        var targetPath = Path.GetFullPath(Path.Combine(draftRoot, relativePath));
+        if (!targetPath.StartsWith(draftRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException($"The path must stay inside the theme draft: {relativePath}", nameof(relativePath));
+        }
+
+        return targetPath;
+    }
+
+    private static string? ReadTextureId(string? jsonPath)
+    {
+        if (jsonPath is null || !File.Exists(jsonPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return (JsonNode.Parse(File.ReadAllText(jsonPath)) as JsonObject)?["texture"]?["id"]?.GetValue<string>();
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException)
+        {
+            return null;
+        }
     }
 
     private static JsonObject LoadTextureJson(string targetJsonPath, string? templateJsonPath)

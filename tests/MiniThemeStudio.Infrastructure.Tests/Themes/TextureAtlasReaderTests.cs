@@ -121,6 +121,39 @@ public sealed class TextureAtlasReaderTests
         }
     }
 
+    [Fact]
+    public void DependencyFramesOverridePackedDefinition()
+    {
+        var themeRootPath = Directory.CreateTempSubdirectory().FullName;
+        var baseRootPath = Directory.CreateTempSubdirectory().FullName;
+        var baseSpritesPath = Path.Combine(baseRootPath, "resources", "sprites");
+        Directory.CreateDirectory(baseSpritesPath);
+        File.WriteAllText(Path.Combine(baseSpritesPath, "packed.json"), AtlasJson("tex", 2));
+        File.WriteAllText(Path.Combine(themeRootPath, "dependencies.json"), """
+            {"resources":[
+              {"id":"tex.s1","type":"SpriteResource","content":"{\"textureId\":\"tex\",\"textureFrame\":[20,10,4,6],\"pivot\":[2,3]}"},
+              {"id":"tex.extra.png","type":"SpriteResource","content":"{\"textureId\":\"tex\",\"textureFrame\":[0,20,8,8],\"pivot\":[4,4]}"},
+              {"id":"other.s0","type":"SpriteResource","content":"{\"textureId\":\"other\",\"textureFrame\":[9,9,9,9],\"pivot\":[0,0]}"}
+            ],"resourceGroups":[]}
+            """);
+
+        try
+        {
+            var sprites = new TextureAtlasReader().Read(themeRootPath, baseRootPath)!.Sprites.ToDictionary(sprite => sprite.Name);
+
+            Assert.Equal(new AtlasRectangle(0, 0, 2, 2), sprites["s0"].Frame);
+            Assert.Equal(new AtlasRectangle(20, 10, 4, 6), sprites["s1"].Frame);
+            Assert.Equal(new AtlasPoint(2, 3), sprites["s1"].Pivot);
+            Assert.Equal(new AtlasRectangle(0, 20, 8, 8), sprites["extra.png"].Frame);
+            Assert.Equal(3, sprites.Count);
+        }
+        finally
+        {
+            Directory.Delete(themeRootPath, true);
+            Directory.Delete(baseRootPath, true);
+        }
+    }
+
     private static string AtlasJson(string id, int spriteCount)
     {
         var sprites = string.Join(",", Enumerable.Range(0, spriteCount).Select(index =>

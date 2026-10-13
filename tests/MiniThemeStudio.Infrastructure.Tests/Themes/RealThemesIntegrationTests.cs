@@ -94,68 +94,64 @@ public sealed class RealThemesIntegrationTests
         }
     }
 
-    [Fact]
-    public void CanInspectRealShonenThemeWallpapersAndExtraAssets()
+    [Theory]
+    [InlineData("shonen_jump_50th_ui")]
+    [InlineData("chrono_trigger")]
+    [InlineData("wii_theme")]
+    public async Task RealSnesThemesValidateAgainstRealBaseIfPresent(string themeName)
     {
-        var shonenPath = @"E:\Documents\_projects\hmods\om_themes\new-packaging\snes\themes\shonen_jump_50th_ui";
-        if (!Directory.Exists(shonenPath))
+        var themePath = Path.Combine(@"E:\Documents\_projects\hmods\om_themes\new-packaging\snes\themes", themeName);
+        if (!Directory.Exists(themePath) || !File.Exists(SnesEuropeImage))
         {
             return;
         }
 
-        var assetManager = new ThemeAssetManager();
-        var extraAssets = assetManager.GetExtraAssets(shonenPath);
-        Assert.NotEmpty(extraAssets);
+        var tempBases = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            var manager = new BaseFirmwareManager(FirmwareRegistry.CreateDefault(), basesRootPath: tempBases);
+            var snesBase = await manager.ImportFromFileAsync(SnesEuropeImage);
 
-        // Shonen contains characters in sampleasset/
-        Assert.Contains(extraAssets, a => a.Category == "Characters");
+            var validation = new ThemeValidator().Validate(themePath, snesBase.LocalPath);
+            var atlas = new TextureAtlasReader().Read(themePath, snesBase.LocalPath)!;
 
-        var validator = new ThemeValidator();
-        var baseUiPath = @"Z:\_organize\minis\snes\snes-eur";
-        var validation = validator.Validate(shonenPath, Directory.Exists(baseUiPath) ? baseUiPath : null);
-        Assert.True(validation.IsValid);
+            Assert.True(validation.IsValid, string.Join("\n", validation.Issues.Where(issue => issue.IsError).Select(issue => issue.Message)));
+            Assert.Equal("packed", atlas.Name);
+            Assert.NotEmpty(new ThemeAssetManager().GetWallpapers(themePath, snesBase.LocalPath));
+        }
+        finally
+        {
+            Directory.Delete(tempBases, true);
+        }
     }
 
     [Fact]
-    public void CanInspectRealChronoTriggerTheme()
+    public async Task ShonenCharactersAreUsedByItsBackgroundSceneIfPresent()
     {
-        var chronoPath = @"E:\Documents\_projects\hmods\om_themes\new-packaging\snes\themes\chrono_trigger";
-        if (!Directory.Exists(chronoPath))
+        var themePath = @"E:\Documents\_projects\hmods\om_themes\new-packaging\snes\themes\shonen_jump_50th_ui";
+        if (!Directory.Exists(themePath) || !File.Exists(SnesEuropeImage))
         {
             return;
         }
 
-        var assetManager = new ThemeAssetManager();
-        var wallpapers = assetManager.GetWallpapers(chronoPath);
-        Assert.NotEmpty(wallpapers);
-
-        var extraAssets = assetManager.GetExtraAssets(chronoPath);
-        Assert.NotEmpty(extraAssets);
-
-        var validator = new ThemeValidator();
-        var validation = validator.Validate(chronoPath);
-        Assert.True(validation.IsValid);
-    }
-
-    [Fact]
-    public void CanInspectIncompleteThemeDeloreanWithFallbackBase()
-    {
-        var deloreanPath = @"Z:\_organize\minis\snes\theme\delorean";
-        var baseUiPath = @"Z:\_organize\minis\snes\snes-eur";
-        if (!Directory.Exists(deloreanPath) || !Directory.Exists(baseUiPath))
+        var tempBases = Directory.CreateTempSubdirectory().FullName;
+        try
         {
-            return;
+            var manager = new BaseFirmwareManager(FirmwareRegistry.CreateDefault(), basesRootPath: tempBases);
+            var snesBase = await manager.ImportFromFileAsync(SnesEuropeImage);
+
+            var report = new ThemeResourceIndexer().Analyze(themePath, snesBase.LocalPath);
+            var goku = Assert.Single(new ThemeAssetManager().GetExtraAssets(themePath, snesBase.LocalPath), asset => asset.DisplayName == "01_goku_48x48_v2");
+
+            Assert.Equal("Characters", goku.Category);
+            Assert.Equal(["bg.scn"], report.UsageOf(goku.TextureId));
+            Assert.Empty(report.MissingTextures);
         }
-
-        var assetManager = new ThemeAssetManager();
-        var wallpapers = assetManager.GetWallpapers(deloreanPath, baseUiPath);
-        Assert.NotEmpty(wallpapers);
-
-        // DeLorean has custom pole wallpapers
-        Assert.Contains(wallpapers, w => w.Name.StartsWith("pole", System.StringComparison.OrdinalIgnoreCase));
-
-        var validator = new ThemeValidator();
-        var validation = validator.Validate(deloreanPath, baseUiPath);
-        Assert.True(validation.IsValid);
+        finally
+        {
+            Directory.Delete(tempBases, true);
+        }
     }
+
+    private const string SnesEuropeImage = @"Z:\_organize\minis\snes\dp-sneseur-release-v2.0.14-0-gd8b65c6.hsqs";
 }

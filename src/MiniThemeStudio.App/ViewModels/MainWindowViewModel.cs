@@ -19,6 +19,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly IThemeAssetManager _assetManager;
     private readonly IThemeValidator _themeValidator;
     private readonly IBaseFirmwareManager _baseFirmwareManager;
+    private readonly IThemeResourceIndexer _resourceIndexer;
 
     private ThemeDraft? _draft;
     private string? _currentBaseUiPath;
@@ -30,7 +31,8 @@ public partial class MainWindowViewModel : ViewModelBase
         ITextureAtlasEditor textureAtlasEditor,
         IThemeAssetManager? assetManager = null,
         IThemeValidator? themeValidator = null,
-        IBaseFirmwareManager? baseFirmwareManager = null)
+        IBaseFirmwareManager? baseFirmwareManager = null,
+        IThemeResourceIndexer? resourceIndexer = null)
     {
         _metadataReader = metadataReader;
         _textureAtlasReader = textureAtlasReader;
@@ -39,6 +41,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _assetManager = assetManager ?? new ThemeAssetManager();
         _themeValidator = themeValidator ?? new ThemeValidator();
         _baseFirmwareManager = baseFirmwareManager ?? new BaseFirmwareManager(FirmwareRegistry.CreateDefault());
+        _resourceIndexer = resourceIndexer ?? new ThemeResourceIndexer();
     }
 
     [ObservableProperty]
@@ -114,6 +117,15 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool canReplaceExtraAsset;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasMissingTextures))]
+    private IReadOnlyList<MissingTexture> missingTextures = [];
+
+    public bool HasMissingTextures => MissingTextures.Count > 0;
+
+    [ObservableProperty]
+    private MissingTexture? selectedMissingTexture;
 
     // Validation
     [ObservableProperty]
@@ -308,7 +320,7 @@ public partial class MainWindowViewModel : ViewModelBase
             _assetManager.AddExtraAsset(_draft.DraftPath, relativeDestPath, sourceImagePath);
             ReloadAssets();
             HasUnsavedChanges = true;
-            Status = $"Added element {Path.GetFileName(relativeDestPath)}.";
+            Status = $"Added {Path.GetFileName(relativeDestPath)}. No scene uses it yet, so it will not appear on the console.";
             return true;
         }
         catch (Exception exception)
@@ -473,16 +485,55 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             Wallpapers = [];
             ExtraAssets = [];
+            MissingTextures = [];
             SelectedWallpaper = null;
             SelectedExtraAsset = null;
             return;
         }
 
-        Wallpapers = _assetManager.GetWallpapers(_draft.DraftPath, _currentBaseUiPath);
-        SelectedWallpaper = Wallpapers.Count > 0 ? Wallpapers[0] : null;
+        var report = _resourceIndexer.Analyze(_draft.DraftPath, _currentBaseUiPath);
+        var selectedWallpaperName = SelectedWallpaper?.Name;
+        var selectedExtraPath = SelectedExtraAsset?.RelativePath;
 
-        ExtraAssets = _assetManager.GetExtraAssets(_draft.DraftPath, _currentBaseUiPath);
-        SelectedExtraAsset = ExtraAssets.Count > 0 ? ExtraAssets[0] : null;
+        Wallpapers = _assetManager.GetWallpapers(_draft.DraftPath, _currentBaseUiPath)
+            .Select(wallpaper => wallpaper with { UsedBy = report.UsageOf(wallpaper.TextureId) })
+            .ToList();
+        SelectedWallpaper = Wallpapers.FirstOrDefault(wallpaper => wallpaper.Name == selectedWallpaperName)
+            ?? (Wallpapers.Count > 0 ? Wallpapers[0] : null);
+
+        ExtraAssets = _assetManager.GetExtraAssets(_draft.DraftPath, _currentBaseUiPath)
+            .Select(asset => asset with { UsedBy = report.UsageOf(asset.TextureId) })
+            .ToList();
+        SelectedExtraAsset = ExtraAssets.FirstOrDefault(asset => asset.RelativePath == selectedExtraPath)
+            ?? (ExtraAssets.Count > 0 ? ExtraAssets[0] : null);
+
+        MissingTextures = report.MissingTextures;
+        SelectedMissingTexture = MissingTextures.Count > 0 ? MissingTextures[0] : null;
+    }
+
+    public bool ProvideSelectedMissingTexture(string sourceImagePath)
+    {
+        if (SelectedMissingTexture is not { } texture || _draft is null)
+        {
+            Status = "Select a missing texture first.";
+            return false;
+        }
+
+        try
+        {
+            _assetManager.ProvideMissingTexture(_draft.DraftPath, texture, sourceImagePath);
+            ReloadAssets();
+            RunValidation();
+            HasUnsavedChanges = true;
+            Status = $"Added {Path.GetFileName(texture.ImageRelativePath)} for texture {texture.TextureId}.";
+            return true;
+        }
+        catch (Exception exception) when (
+            exception is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException)
+        {
+            Status = exception.Message;
+            return false;
+        }
     }
 
     private void ApplySpriteFilter()

@@ -53,10 +53,94 @@ public sealed class TextureAtlasReader : ITextureAtlasReader
             }
         }
 
+        var frameOverrides = ReadDependencyFrames(themeRootPath, definitionRootPath);
         return atlases
+            .Select(atlas => ApplyDependencyFrames(atlas, frameOverrides))
             .OrderBy(atlas => IsPrimaryAtlasName(atlas.Name) ? 0 : 1)
             .ThenBy(atlas => atlas.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    private static TextureAtlas ApplyDependencyFrames(
+        TextureAtlas atlas,
+        Dictionary<string, Dictionary<string, (AtlasRectangle Frame, AtlasPoint? Pivot)>> frameOverrides)
+    {
+        if (!frameOverrides.TryGetValue(atlas.TextureId, out var overrides))
+        {
+            return atlas;
+        }
+
+        var sprites = atlas.Sprites
+            .Select(sprite => overrides.TryGetValue(sprite.Name, out var value)
+                ? sprite with { Frame = value.Frame, Pivot = value.Pivot ?? sprite.Pivot }
+                : sprite)
+            .ToList();
+        var known = atlas.Sprites.Select(sprite => sprite.Name).ToHashSet(StringComparer.Ordinal);
+        sprites.AddRange(overrides
+            .Where(entry => !known.Contains(entry.Key))
+            .Select(entry => new SpriteRegion(
+                entry.Key,
+                entry.Value.Frame,
+                entry.Value.Pivot ?? new AtlasPoint(entry.Value.Frame.Width / 2.0, entry.Value.Frame.Height / 2.0),
+                new AtlasSize(entry.Value.Frame.Width, entry.Value.Frame.Height),
+                new AtlasPoint(0, 0))));
+
+        return atlas with { Sprites = sprites };
+    }
+
+    private static Dictionary<string, Dictionary<string, (AtlasRectangle Frame, AtlasPoint? Pivot)>> ReadDependencyFrames(
+        string themeRootPath,
+        string? definitionRootPath)
+    {
+        var result = new Dictionary<string, Dictionary<string, (AtlasRectangle, AtlasPoint?)>>(StringComparer.Ordinal);
+        var dependenciesPath = new[] { themeRootPath, definitionRootPath }
+            .Where(root => root != null)
+            .Select(root => Path.Combine(root!, "dependencies.json"))
+            .FirstOrDefault(File.Exists);
+        if (dependenciesPath is null)
+        {
+            return result;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(dependenciesPath));
+            foreach (var resource in document.RootElement.GetProperty("resources").EnumerateArray())
+            {
+                if (resource.GetProperty("type").GetString() != "SpriteResource"
+                    || !resource.TryGetProperty("content", out var contentElement)
+                    || contentElement.GetString() is not { } contentText)
+                {
+                    continue;
+                }
+
+                using var content = JsonDocument.Parse(contentText);
+                var textureId = content.RootElement.GetProperty("textureId").GetString() ?? "";
+                var id = resource.GetProperty("id").GetString() ?? "";
+                if (!id.StartsWith(textureId + ".", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var frame = ReadIntegerVector(content.RootElement, "textureFrame", 4);
+                AtlasPoint? pivot = content.RootElement.TryGetProperty("pivot", out _)
+                    ? ReadNumberVector(content.RootElement, "pivot", 2) is var values ? new AtlasPoint(values[0], values[1]) : null
+                    : null;
+                if (!result.TryGetValue(textureId, out var sprites))
+                {
+                    sprites = new Dictionary<string, (AtlasRectangle, AtlasPoint?)>(StringComparer.Ordinal);
+                    result[textureId] = sprites;
+                }
+
+                sprites[id[(textureId.Length + 1)..]] = (new AtlasRectangle(frame[0], frame[1], frame[2], frame[3]), pivot);
+            }
+        }
+        catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException or InvalidDataException)
+        {
+            return [];
+        }
+
+        return result;
     }
 
     public static bool IsAtlasDefinition(string definitionPath)

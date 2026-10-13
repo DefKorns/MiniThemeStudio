@@ -450,6 +450,27 @@ public sealed partial class MainWindow : Window, IDisposable
         }
     }
 
+    private async void ProvideMissingTexture_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel { SelectedMissingTexture: { } texture } viewModel)
+        {
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = $"Select PNG for {Path.GetFileName(texture.ImageRelativePath)}",
+            AllowMultiple = false,
+            FileTypeFilter = [new FilePickerFileType("PNG image") { Patterns = ["*.png"] }]
+        });
+
+        var sourcePath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
+        if (sourcePath is not null && !viewModel.ProvideSelectedMissingTexture(sourcePath))
+        {
+            await _errorHandlingService.ShowErrorAsync(this, "Cannot add texture", viewModel.Status);
+        }
+    }
+
     private async void ReplaceExtraAsset_Click(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not MainWindowViewModel viewModel || viewModel.SelectedExtraAsset is null)

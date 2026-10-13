@@ -273,6 +273,7 @@
                   <Image x:Name="WallpaperPreviewImage" Margin="8" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
                 </Border>
                 <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedWallpaper.DisplayName}" />
+                <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SelectedWallpaper.UsageText}" TextWrapping="Wrap" />
                 <Grid ColumnDefinitions="*,*" Margin="0,4">
                   <Button Margin="0,0,4,0" Padding="12,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" IsEnabled="{Binding CanReplaceWallpaper}" Click="ReplaceWallpaper_Click" Content="Replace PNG" />
                   <Button Grid.Column="1" Margin="4,0,0,0" Padding="12,8" HorizontalAlignment="Stretch" IsEnabled="{Binding CanReplaceWallpaper}" Click="ExportWallpaper_Click" Content="Export PNG" />
@@ -337,12 +338,31 @@
                 </Border>
                 <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedExtraAsset.DisplayName}" />
                 <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SelectedExtraAsset.RelativePath}" TextWrapping="Wrap" />
+                <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SelectedExtraAsset.UsageText}" TextWrapping="Wrap" />
 
                 <Grid ColumnDefinitions="*,*" Margin="0,4">
                   <Button Margin="0,0,4,0" Padding="10,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" IsEnabled="{Binding CanReplaceExtraAsset}" Click="ReplaceExtraAsset_Click" Content="Replace PNG" />
                   <Button Grid.Column="1" Margin="4,0,0,0" Padding="10,8" HorizontalAlignment="Stretch" IsEnabled="{Binding CanReplaceExtraAsset}" Click="ExportExtraAsset_Click" Content="Export PNG" />
                 </Grid>
                 <Button Padding="10,6" HorizontalAlignment="Stretch" IsEnabled="{Binding CanReplaceExtraAsset}" Click="DeleteExtraAsset_Click" Content="Delete Element" />
+
+                <Border Height="1" Background="{DynamicResource BorderBrush}" IsVisible="{Binding HasMissingTextures}" />
+                <StackPanel Spacing="8" IsVisible="{Binding HasMissingTextures}">
+                  <TextBlock FontWeight="Bold" Foreground="{DynamicResource ErrorTextBrush}" Text="{Binding MissingTextures.Count, StringFormat='Missing textures ({0})'}" />
+                  <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
+                             Text="These textures are registered in dependencies.json but their image is missing. Provide a PNG and it is saved with the texture id the scenes already use." />
+                  <ListBox MaxHeight="180" ItemsSource="{Binding MissingTextures}" SelectedItem="{Binding SelectedMissingTexture}">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate x:DataType="themes:MissingTexture">
+                        <StackPanel Spacing="2">
+                          <TextBlock FontWeight="SemiBold" Text="{Binding ImageRelativePath}" TextTrimming="CharacterEllipsis" />
+                          <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding TextureId}" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                  <Button Padding="10,6" HorizontalAlignment="Stretch" Click="ProvideMissingTexture_Click" Content="Provide PNG for selected texture" />
+                </StackPanel>
               </StackPanel>
             </ScrollViewer>
           </Border>

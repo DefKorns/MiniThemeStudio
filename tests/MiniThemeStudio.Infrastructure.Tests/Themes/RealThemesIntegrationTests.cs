@@ -181,5 +181,49 @@ public sealed class RealThemesIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task SixFrameRunAnimationValidatesOnRealSnesBaseIfPresent()
+    {
+        if (!File.Exists(SnesEuropeImage))
+        {
+            return;
+        }
+
+        var tempRoot = Directory.CreateTempSubdirectory().FullName;
+        try
+        {
+            var manager = new BaseFirmwareManager(FirmwareRegistry.CreateDefault(), basesRootPath: Path.Combine(tempRoot, "bases"));
+            var snesBase = await manager.ImportFromFileAsync(SnesEuropeImage);
+            var draft = Directory.CreateDirectory(Path.Combine(tempRoot, "draft")).FullName;
+            var editor = new CharacterAnimationEditor();
+            var run = editor.GetAnimations(draft, snesBase.LocalPath, "mario").Single(animation => animation.Name == "run");
+            var track = run.Tracks.Single(candidate => candidate.NodeName == "Sprite_Mario_0");
+
+            var frameIds = new List<string>();
+            for (var index = 0; index < 6; index++)
+            {
+                var framePath = Path.Combine(tempRoot, $"frame{index}.png");
+                CharacterAnimationEditorTests.SavePng(framePath, 35, 43);
+                frameIds.Add(editor.AddTexture(draft, snesBase.LocalPath, $"resources/layout/asset/sprite/mario/samus_run{index + 1:00}.png", framePath));
+            }
+
+            var keys = frameIds.Select((id, index) => new AnimationKey(index * 0.025, id))
+                .Concat(track.Keys.Where(key => key.Time >= run.Duration))
+                .ToList();
+            editor.SetTrackKeys(draft, snesBase.LocalPath, run.ResourcePath, "Sprite_Mario_0", keys, 0.15);
+            editor.SetFrameSize(draft, snesBase.LocalPath, "mario", new AtlasSize(35, 43));
+
+            var report = new ThemeResourceIndexer().Analyze(draft, snesBase.LocalPath);
+            var validation = new ThemeValidator().Validate(draft, snesBase.LocalPath);
+            Assert.True(validation.IsValid, string.Join("\n", validation.Issues.Where(issue => issue.IsError).Select(issue => issue.Message)));
+            Assert.All(frameIds, id => Assert.Equal(["lyt_mario@run.sceneanimation"], report.UsageOf(id)));
+            Assert.All(editor.GetNodes(draft, snesBase.LocalPath, "mario"), node => Assert.Equal((105, 129), (node.Width, node.Height)));
+        }
+        finally
+        {
+            Directory.Delete(tempRoot, true);
+        }
+    }
+
     private const string SnesEuropeImage = @"Z:\_organize\minis\snes\dp-sneseur-release-v2.0.14-0-gd8b65c6.hsqs";
 }

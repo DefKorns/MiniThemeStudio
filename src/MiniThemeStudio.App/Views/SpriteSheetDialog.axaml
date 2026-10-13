@@ -1,0 +1,51 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:MiniThemeStudio.App.Controls"
+        x:Class="MiniThemeStudio.App.Views.SpriteSheetDialog"
+        Title="Import frames from a sprite sheet"
+        Width="1100" Height="760" MinWidth="800" MinHeight="520"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource PageBackgroundBrush}"
+        FontFamily="Segoe UI, Ubuntu, sans-serif">
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="20">
+    <StackPanel Spacing="4">
+      <TextBlock x:Name="TitleText" FontSize="20" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Import frames from a sprite sheet" />
+      <TextBlock x:Name="HintText" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
+                 Text="Open a sheet, mark every background colour as transparent, then click the frames in playback order." />
+    </StackPanel>
+
+    <WrapPanel Grid.Row="1" Margin="0,14,0,10" ItemSpacing="8" LineSpacing="8">
+      <Button Padding="12,6" Click="OpenSheet_Click" Content="Open sheet..." />
+      <ToggleButton x:Name="PickColourButton" Padding="12,6" Content="Pick background colour" IsEnabled="False" />
+      <StackPanel x:Name="ColourChips" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" />
+      <Button x:Name="ClearColoursButton" Padding="10,6" Click="ClearColours_Click" Content="Clear colours" IsEnabled="False" />
+      <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+        <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Tolerance" />
+        <NumericUpDown x:Name="ToleranceBox" Width="110" Minimum="0" Maximum="64" Value="8" Increment="2" FormatString="0" ValueChanged="Tolerance_ValueChanged" />
+      </StackPanel>
+      <Button x:Name="ClearSelectionButton" Padding="10,6" Click="ClearSelection_Click" Content="Clear selection" IsEnabled="False" />
+      <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+        <Button Padding="6,2" Content="1x" Click="Zoom1x_Click" />
+        <Button Padding="6,2" Content="2x" Click="Zoom2x_Click" />
+        <Button Padding="6,2" Content="3x" Click="Zoom3x_Click" />
+      </StackPanel>
+    </WrapPanel>
+
+    <Border Grid.Row="2" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+      <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+        <controls:AtlasView x:Name="SheetCanvas" Margin="12" HorizontalAlignment="Left" VerticalAlignment="Top" />
+      </ScrollViewer>
+    </Border>
+
+    <Grid Grid.Row="3" Margin="0,14,0,0" ColumnDefinitions="*,Auto,Auto,Auto">
+      <TextBlock x:Name="SelectionText" VerticalAlignment="Center" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}" Text="No sheet open." />
+      <ComboBox x:Name="AnchorComboBox" Grid.Column="1" Margin="12,0" SelectedIndex="0" VerticalAlignment="Center">
+        <ComboBoxItem Content="Align by the feet" />
+        <ComboBoxItem Content="Align centred" />
+      </ComboBox>
+      <Button Grid.Column="2" Margin="0,0,8,0" Padding="16,8" Click="Cancel_Click" Content="Cancel" />
+      <Button x:Name="UseFramesButton" Grid.Column="3" Padding="16,8" IsEnabled="False" Click="UseFrames_Click"
+              Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Content="Use frames" />
+    </Grid>
+  </Grid>
+</Window>

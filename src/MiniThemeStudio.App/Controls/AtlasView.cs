@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
@@ -26,6 +28,15 @@ public sealed class AtlasView : Control
     public static readonly StyledProperty<double> ZoomProperty =
         AvaloniaProperty.Register<AtlasView, double>(nameof(Zoom), 1);
 
+    public static readonly StyledProperty<IReadOnlyList<SpriteRegion>?> MarkedSpritesProperty =
+        AvaloniaProperty.Register<AtlasView, IReadOnlyList<SpriteRegion>?>(nameof(MarkedSprites));
+
+    public static readonly StyledProperty<bool> IsSelectionEnabledProperty =
+        AvaloniaProperty.Register<AtlasView, bool>(nameof(IsSelectionEnabled), true);
+
+    private static readonly IBrush MarkFill = new SolidColorBrush(Color.FromArgb(80, 0, 200, 120));
+    private static readonly IPen MarkPen = new Pen(new SolidColorBrush(Color.FromRgb(0, 200, 120)), 2);
+
     private static readonly IBrush BackdropBrush = new SolidColorBrush(Color.FromArgb(40, 128, 128, 128));
     private static readonly IPen OutlinePen = new Pen(new SolidColorBrush(Color.FromArgb(120, 0, 170, 255)), 1);
     private static readonly IPen HoverPen = new Pen(new SolidColorBrush(Color.FromArgb(220, 255, 255, 255)), 1);
@@ -34,7 +45,7 @@ public sealed class AtlasView : Control
 
     static AtlasView()
     {
-        AffectsRender<AtlasView>(SourceProperty, SpritesProperty, SelectedSpriteProperty, HoveredSpriteProperty, ZoomProperty);
+        AffectsRender<AtlasView>(SourceProperty, SpritesProperty, SelectedSpriteProperty, HoveredSpriteProperty, ZoomProperty, MarkedSpritesProperty);
         AffectsMeasure<AtlasView>(SourceProperty, ZoomProperty);
     }
 
@@ -68,6 +79,20 @@ public sealed class AtlasView : Control
         set => SetValue(ZoomProperty, value);
     }
 
+    public IReadOnlyList<SpriteRegion>? MarkedSprites
+    {
+        get => GetValue(MarkedSpritesProperty);
+        set => SetValue(MarkedSpritesProperty, value);
+    }
+
+    public bool IsSelectionEnabled
+    {
+        get => GetValue(IsSelectionEnabledProperty);
+        set => SetValue(IsSelectionEnabledProperty, value);
+    }
+
+    public event EventHandler<PixelPoint>? AtlasPointerPressed;
+
     protected override Size MeasureOverride(Size availableSize)
     {
         return Source is { } source
@@ -99,6 +124,22 @@ public sealed class AtlasView : Control
             context.DrawRectangle(null, HoverPen, ToView(hovered).Deflate(0.5));
         }
 
+        var marked = MarkedSprites ?? [];
+        for (var index = 0; index < marked.Count; index++)
+        {
+            var area = ToView(marked[index]);
+            context.DrawRectangle(MarkFill, MarkPen, area.Deflate(1));
+            var label = new FormattedText(
+                (index + 1).ToString(CultureInfo.InvariantCulture),
+                CultureInfo.InvariantCulture,
+                FlowDirection.LeftToRight,
+                Typeface.Default,
+                12,
+                Brushes.White);
+            context.FillRectangle(Brushes.Black, new Rect(area.X, area.Y, label.Width + 4, label.Height));
+            context.DrawText(label, new Point(area.X + 2, area.Y));
+        }
+
         if (SelectedSprite is { } selected)
         {
             context.DrawRectangle(SelectionFill, SelectionPen, ToView(selected).Deflate(1));
@@ -108,7 +149,13 @@ public sealed class AtlasView : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
-        if (FindSprite(e.GetPosition(this)) is { } sprite)
+        var position = e.GetPosition(this);
+        if (Zoom > 0)
+        {
+            AtlasPointerPressed?.Invoke(this, new PixelPoint((int)(position.X / Zoom), (int)(position.Y / Zoom)));
+        }
+
+        if (IsSelectionEnabled && FindSprite(position) is { } sprite)
         {
             SelectedSprite = sprite;
             e.Handled = true;

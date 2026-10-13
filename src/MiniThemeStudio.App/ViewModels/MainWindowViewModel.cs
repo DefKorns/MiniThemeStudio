@@ -21,6 +21,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly IBaseFirmwareManager _baseFirmwareManager;
     private readonly IThemeResourceIndexer _resourceIndexer;
     private readonly IThemeExporter _themeExporter;
+    private readonly ICharacterAnimationEditor _characterEditor;
 
     private ThemeDraft? _draft;
     private string? _currentBaseUiPath;
@@ -35,7 +36,8 @@ public partial class MainWindowViewModel : ViewModelBase
         IThemeValidator? themeValidator = null,
         IBaseFirmwareManager? baseFirmwareManager = null,
         IThemeResourceIndexer? resourceIndexer = null,
-        IThemeExporter? themeExporter = null)
+        IThemeExporter? themeExporter = null,
+        ICharacterAnimationEditor? characterEditor = null)
     {
         _metadataReader = metadataReader;
         _textureAtlasReader = textureAtlasReader;
@@ -46,6 +48,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _baseFirmwareManager = baseFirmwareManager ?? new BaseFirmwareManager(FirmwareRegistry.CreateDefault());
         _resourceIndexer = resourceIndexer ?? new ThemeResourceIndexer();
         _themeExporter = themeExporter ?? new ThemeExporter();
+        _characterEditor = characterEditor ?? new CharacterAnimationEditor();
     }
 
     [ObservableProperty]
@@ -593,6 +596,7 @@ public partial class MainWindowViewModel : ViewModelBase
             Wallpapers = [];
             ExtraAssets = [];
             MissingTextures = [];
+            ReloadCharacters();
             SelectedWallpaper = null;
             SelectedExtraAsset = null;
             return;
@@ -616,6 +620,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         MissingTextures = report.MissingTextures;
         SelectedMissingTexture = MissingTextures.Count > 0 ? MissingTextures[0] : null;
+        ReloadCharacters();
     }
 
     public bool ProvideSelectedMissingTexture(string sourceImagePath)

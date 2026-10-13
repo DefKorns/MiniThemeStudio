@@ -40,6 +40,8 @@ public sealed partial class MainWindow : Window, IDisposable
     private CroppedBitmap? _spritePreview;
     private Bitmap? _wallpaperBitmap;
     private Bitmap? _extraAssetBitmap;
+    private readonly Avalonia.Threading.DispatcherTimer _animationTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
+    private readonly System.Diagnostics.Stopwatch _animationClock = System.Diagnostics.Stopwatch.StartNew();
 
     public MainWindow()
         : this(
@@ -63,6 +65,8 @@ public sealed partial class MainWindow : Window, IDisposable
         _errorHandlingService = new ErrorHandlingService(_dialogService);
         InitializeComponent();
         Opened += MainWindow_Opened;
+        _animationTimer.Tick += AnimationTimer_Tick;
+        _animationTimer.Start();
 
         if (Application.Current is { } application)
         {
@@ -810,6 +814,80 @@ public sealed partial class MainWindow : Window, IDisposable
         {
             ShowSpritePreview(viewModel.SelectedSprite);
         }
+        else if (e.PropertyName == nameof(MainWindowViewModel.AnimationFrames))
+        {
+            AnimationPreviewImage.Source = null;
+            _animationClock.Restart();
+        }
+    }
+
+    private void AnimationTimer_Tick(object? sender, EventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel { SelectedAnimation.Duration: > 0 } viewModel)
+        {
+            return;
+        }
+
+        var loop = viewModel.AnimationFrames.Where(frame => frame.IsLoopFrame).ToList();
+        if (loop.Count == 0)
+        {
+            return;
+        }
+
+        var frameTime = (double)viewModel.FrameTimeMilliseconds / 1000;
+        var frame = frameTime > 0
+            ? loop[(int)(_animationClock.Elapsed.TotalSeconds / frameTime) % loop.Count]
+            : loop[0];
+        if (!ReferenceEquals(AnimationPreviewImage.Source, frame.Thumbnail))
+        {
+            AnimationPreviewImage.Source = frame.Thumbnail;
+        }
+    }
+
+    private async void ApplyFrameTime_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel viewModel && !viewModel.ApplyFrameTime())
+        {
+            await _errorHandlingService.ShowErrorAsync(this, "Cannot change the frame time", viewModel.Status);
+        }
+    }
+
+    private async void ReplaceAnimationFrames_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel { SelectedAnimation: { } animation, SelectedCharacter: { } character } viewModel)
+        {
+            return;
+        }
+
+        var result = await new SpriteSheetDialog(
+            new SpriteSheetImporter(),
+            $"Frames for {character} {animation.Name}",
+            viewModel.CurrentCharacterFrameSize).ShowDialog<SpriteSheetResult?>(this);
+        if (result is null)
+        {
+            return;
+        }
+
+        var resize = false;
+        if (viewModel.CurrentCharacterFrameSize is { } current
+            && (current.Width != result.FrameSize.Width || current.Height != result.FrameSize.Height))
+        {
+            resize = await _dialogService.ShowConfirmationAsync(
+                this,
+                "Resize the character?",
+                $"The new frames are {result.FrameSize.Width} x {result.FrameSize.Height} but {character} is drawn from {current.Width} x {current.Height} frames. "
+                + "Resize the character in the scenes so the new frames are not stretched? Its other animations will then need frames of the same size.",
+                DialogVariant.Warning,
+                "Resize character",
+                "Keep current size",
+                false);
+        }
+
+        AnimationPreviewImage.Source = null;
+        if (!viewModel.ReplaceAnimationFrames(result.FramePaths, result.FrameSize, resize))
+        {
+            await _errorHandlingService.ShowErrorAsync(this, "Cannot replace frames", viewModel.Status);
+        }
     }
 
     private void AtlasZoom1x_Click(object? sender, RoutedEventArgs e) => AtlasCanvas.Zoom = 1;
@@ -904,6 +982,7 @@ public sealed partial class MainWindow : Window, IDisposable
 
     protected override void OnClosed(EventArgs e)
     {
+        _animationTimer.Stop();
         if (Application.Current is { } application)
         {
             application.ActualThemeVariantChanged -= Application_ActualThemeVariantChanged;

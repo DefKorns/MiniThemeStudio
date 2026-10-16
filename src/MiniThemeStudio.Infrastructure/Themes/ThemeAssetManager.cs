@@ -731,7 +731,8 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         File.Copy(font.FilePath, destinationFontPath, overwrite: true);
     }
 
-    public void ImportTrueTypeFont(string themeDraftPath, MiniThemeStudio.Core.Fonts.FontAsset targetFont, string ttfOrZipPath, int? fontSize = null, bool antiAlias = false)
+    public void ImportTrueTypeFont(string themeDraftPath, MiniThemeStudio.Core.Fonts.FontAsset targetFont, string ttfOrZipPath, int? fontSize = null, bool antiAlias = false,
+        MiniThemeStudio.Core.Fonts.ExtraScripts extraScripts = MiniThemeStudio.Core.Fonts.ExtraScripts.None, string? scriptFontFamily = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
         ArgumentNullException.ThrowIfNull(targetFont);
@@ -741,10 +742,26 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             ? fontSize.Value
             : (targetFont.LineHeight > 0 ? targetFont.LineHeight : 16);
 
+        MiniThemeStudio.Core.Fonts.MiniFont? fallbackFont = null;
+        try
+        {
+            if (File.Exists(targetFont.FilePath))
+            {
+                fallbackFont = MiniThemeStudio.Infrastructure.Fonts.MiniFontReader.Read(targetFont.FilePath);
+            }
+        }
+        catch
+        {
+            // Ignore fallback load error
+        }
+
         var rasterizer = new MiniThemeStudio.Infrastructure.Fonts.TrueTypeFontRasterizer();
         var miniFont = rasterizer.Rasterize(ttfOrZipPath, new MiniThemeStudio.Core.Fonts.TrueTypeRasterOptions(
             FontSize: size,
-            AntiAlias: antiAlias));
+            AntiAlias: antiAlias,
+            FallbackFont: fallbackFont,
+            ExtraScripts: extraScripts,
+            ScriptFallbackFamily: scriptFontFamily));
 
         var targetPath = EnsureInsideDraft(themeDraftPath, targetFont.RelativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);

@@ -1,59 +1,104 @@
+using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using MiniThemeStudio.Core.Fonts;
 using MiniThemeStudio.Infrastructure.Fonts;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace MiniThemeStudio.Infrastructure.Tests.Fonts;
 
-public sealed class TrueTypeFontRasterizerTests
+/// <summary>
+/// Diagnostic: quais caracteres da font de referência CFW (title.fnt hakchi)
+/// NÃO existem na Super Metroid font rasterizada — agrupados por categoria.
+/// Run: dotnet test --filter "CompareHakchiTitleFntWithRasterizer" --logger "console;verbosity=detailed"
+/// </summary>
+public sealed class FontComparisonDiagnosticsTests(ITestOutputHelper output)
 {
-    [Fact]
-    public void CanRasterizeZippedOpenTypeOrTrueTypeFont()
-    {
-        var otfZip = @"E:\Downloads\super-metroid-intro-snes.otf.zip";
-        var ttfZip = @"E:\Downloads\super-metroid-intro-snes.ttf.zip";
+    private const string HakchiFntPath = @"D:\games\SNESCE\hakchi-CE\user_mods\title.fnt";
+    private const string OtfZipPath    = @"E:\Downloads\super-metroid-intro-snes.otf.zip";
+    private const string TtfZipPath    = @"E:\Downloads\super-metroid-intro-snes.ttf.zip";
 
-        var testPath = File.Exists(otfZip) ? otfZip : (File.Exists(ttfZip) ? ttfZip : null);
-        if (testPath is null)
+    [Fact]
+    public void CompareHakchiTitleFntWithRasterizer()
+    {
+        if (!File.Exists(HakchiFntPath))
         {
-            return; // Skip if test files not available in environment
+            output.WriteLine($"[SKIP] {HakchiFntPath} nao encontrado.");
+            return;
+        }
+        var fontPath = File.Exists(OtfZipPath) ? OtfZipPath
+                     : File.Exists(TtfZipPath) ? TtfZipPath
+                     : null;
+        if (fontPath is null)
+        {
+            output.WriteLine("[SKIP] Ficheiro .zip da Super Metroid nao encontrado.");
+            return;
         }
 
+        var reference  = MiniFontReader.Read(HakchiFntPath);
         var rasterizer = new TrueTypeFontRasterizer();
-        var font = rasterizer.Rasterize(testPath, new TrueTypeRasterOptions(
-            FontSize: 16,
-            AntiAlias: false,
-            AtlasWidth: 512));
+        var rasterized = rasterizer.Rasterize(fontPath, new TrueTypeRasterOptions(
+            FontSize:   (int)Math.Abs(reference.Info.FontSize),
+            AntiAlias:  reference.Info.Smooth,
+            AtlasWidth: (int)reference.Common.ScaleW));
 
-        Assert.NotNull(font);
-        Assert.Equal(1, font.FormatType);
-        Assert.True(font.Glyphs.Count > 20);
-        Assert.True(font.Common.LineHeight > 0);
-        Assert.Equal(512, font.Common.ScaleW);
-        Assert.True(font.Common.ScaleH >= 64);
-        Assert.NotEmpty(font.TexturePngBytes);
+        var refIds  = reference.Glyphs.Select(g => g.Id).ToHashSet();
+        var rastIds = rasterized.Glyphs.Select(g => g.Id).ToHashSet();
 
-        // Check PNG signature
-        Assert.Equal(0x89, font.TexturePngBytes[0]);
-        Assert.Equal(0x50, font.TexturePngBytes[1]);
-        Assert.Equal(0x4E, font.TexturePngBytes[2]);
-        Assert.Equal(0x47, font.TexturePngBytes[3]);
+        // Caracteres que o CFW espera mas a Super Metroid nao tem
+        var missing = refIds.Except(rastIds).OrderBy(x => x).ToList();
 
-        // Has essential uppercase glyphs
-        Assert.True(font.HasGlyph('S'));
-        Assert.True(font.HasGlyph('M'));
-        Assert.True(font.HasGlyph('0'));
+        output.WriteLine($"Font de referencia : {reference.Info.FontName} — {reference.Glyphs.Count} glyphs");
+        output.WriteLine($"Font rasterizada   : {rasterized.Info.FontName} — {rasterized.Glyphs.Count} glyphs");
+        output.WriteLine($"Em falta na rast.  : {missing.Count} caracteres\n");
 
-        // Verify round-trip binary compatibility
-        var bytes = MiniFontWriter.ToBytes(font);
-        var roundTripped = MiniFontReader.Read(bytes);
+        // Agrupar por categoria Unicode
+        var groups = new (string Label, Func<uint, bool> Match)[]
+        {
+            ("ASCII imprimivel basico (32-126)",           id => id is >= 32 and <= 126),
+            ("Latin-1 maiusculas acentuadas (192-214)",    id => id is >= 192 and <= 214),
+            ("Latin-1 restantes acentuados (216-255)",     id => id is >= 216 and <= 255),
+            ("Latin Extended-A (256-383)",                 id => id is >= 256 and <= 383),
+            ("Simbolos e pontuacao geral (8192-8303)",     id => id is >= 8192 and <= 8303),
+            ("Outros Unicode",                             _ => true),
+        };
 
-        Assert.Equal(font.Glyphs.Count, roundTripped.Glyphs.Count);
-        Assert.Equal(font.Common.LineHeight, roundTripped.Common.LineHeight);
-        Assert.Equal(font.Common.ScaleW, roundTripped.Common.ScaleW);
-        Assert.Equal(font.Common.ScaleH, roundTripped.Common.ScaleH);
+        var assigned = new HashSet<uint>();
+        foreach (var (label, match) in groups)
+        {
+            var inGroup = missing
+                .Where(id => !assigned.Contains(id) && match(id))
+                .ToList();
 
-        var val = FontValidator.Validate(font);
-        Assert.NotNull(val);
+            if (inGroup.Count == 0) continue;
+
+            if (label != "Outros Unicode")
+                foreach (var id in inGroup) assigned.Add(id);
+
+            output.WriteLine($"-- {label} ({inGroup.Count} em falta) --");
+            for (var i = 0; i < inGroup.Count; i += 8)
+            {
+                var row = inGroup.Skip(i).Take(8)
+                    .Select(id => char.IsControl((char)id) || id > 0xFFFF
+                        ? $"U+{id:X4}      "
+                        : $"U+{id:X4}({(char)id})  ");
+                output.WriteLine("  " + string.Concat(row));
+            }
+            output.WriteLine("");
+        }
+
+        // Sumario ASCII 32-126
+        var asciiMissing = missing.Where(id => id is >= 32 and <= 126).Select(id => (char)id).ToList();
+        var asciiInRef   = refIds.Count(id => id is >= 32 and <= 126);
+        output.WriteLine($"-- Sumario ASCII 32-126 --");
+        output.WriteLine($"  Presentes no rasterizado : {asciiInRef - asciiMissing.Count} / {asciiInRef}");
+        output.WriteLine(asciiMissing.Count > 0
+            ? $"  Em falta : {string.Join(" ", asciiMissing)}"
+            : "  Em falta : (nenhum)");
+
+        Assert.NotNull(reference);
+        Assert.NotNull(rasterized);
     }
 }

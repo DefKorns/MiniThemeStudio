@@ -557,6 +557,18 @@
                 <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SelectedFont.RelativePath}" TextWrapping="Wrap" />
                 <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SelectedFont.RolesText, StringFormat='Roles: {0}'}" TextWrapping="Wrap" />
 
+                <!-- Extra scripts for Convert TTF/OTF; glyphs the font lacks come from the script font -->
+                <StackPanel Spacing="4">
+                  <TextBlock FontWeight="Bold" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="EXTRA SCRIPTS" />
+                  <WrapPanel>
+                    <CheckBox Margin="0,0,12,0" Content="Japanese" IsChecked="{Binding ConvertJapanese}" />
+                    <CheckBox Margin="0,0,12,0" Content="Cyrillic" IsChecked="{Binding ConvertCyrillic}" />
+                    <CheckBox Content="Greek" IsChecked="{Binding ConvertGreek}" />
+                  </WrapPanel>
+                  <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding ScriptFontFamilies}" SelectedItem="{Binding ConvertScriptFont}"
+                            ToolTip.Tip="Font used for the characters the converted font lacks" />
+                </StackPanel>
+
                 <!-- Action Buttons: Convert TTF/OTF, Replace PNG, Replace FNT, Export PNG, Export FNT -->
                 <Grid ColumnDefinitions="*,*" Margin="0,4" RowDefinitions="Auto,Auto,Auto" RowSpacing="6" ColumnSpacing="6">
                   <Button Padding="8,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold"

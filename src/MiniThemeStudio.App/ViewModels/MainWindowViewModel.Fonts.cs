@@ -15,6 +15,43 @@ public partial class MainWindowViewModel
     private IReadOnlyList<FontAsset> fonts = [];
 
     [ObservableProperty]
+    private bool convertJapanese;
+
+    [ObservableProperty]
+    private bool convertCyrillic;
+
+    [ObservableProperty]
+    private bool convertGreek;
+
+    [ObservableProperty]
+    private string convertScriptFont = "Yu Gothic UI";
+
+    // Yu Gothic UI is the consoles' own UI font
+    public IReadOnlyList<string> ScriptFontFamilies { get; } = ["Yu Gothic UI", "Noto Sans CJK JP"];
+
+    // the TTF last converted into the selected font, re-run when the script options change
+    private string? lastConvertedFontPath;
+
+    partial void OnConvertJapaneseChanged(bool value) => OnConvertOptionsChanged();
+    partial void OnConvertCyrillicChanged(bool value) => OnConvertOptionsChanged();
+    partial void OnConvertGreekChanged(bool value) => OnConvertOptionsChanged();
+    partial void OnConvertScriptFontChanged(string value) => OnConvertOptionsChanged();
+
+    private void OnConvertOptionsChanged()
+    {
+        if (lastConvertedFontPath is not null)
+            ImportSelectedTrueTypeFont(lastConvertedFontPath);
+        else
+            RenderFontSamplePreview();
+    }
+
+    private string EffectiveSampleText =>
+        (FontSampleText ?? string.Empty)
+        + (ConvertJapanese ? "\n日本語 テーマ ダウンロード" : string.Empty)
+        + (ConvertCyrillic ? "\nРусский Язык" : string.Empty)
+        + (ConvertGreek ? "\nΕλληνικά Γλώσσα" : string.Empty);
+
+    [ObservableProperty]
     private FontAsset? selectedFont;
 
     [ObservableProperty]
@@ -46,6 +83,7 @@ public partial class MainWindowViewModel
     partial void OnSelectedFontChanged(FontAsset? value)
     {
         OnPropertyChanged(nameof(CanReplaceFont));
+        lastConvertedFontPath = null;
         LoadSelectedFont(value);
     }
 
@@ -153,7 +191,7 @@ public partial class MainWindowViewModel
 
             const int pad = 14;
             var lineH = Math.Max(12, CurrentLoadedFont.Common.LineHeight);
-            var lines = (FontSampleText ?? string.Empty).Split('\n');
+            var lines = EffectiveSampleText.Split('\n');
             var totalH = Math.Max(64, lines.Length * lineH + pad * 2);
             const int totalW = 620;
 
@@ -297,10 +335,14 @@ public partial class MainWindowViewModel
 
         try
         {
-            _assetManager.ImportTrueTypeFont(_draft.DraftPath, SelectedFont, fontOrZipPath, fontSize, antiAlias);
+            var scripts = (ConvertJapanese ? ExtraScripts.Japanese : ExtraScripts.None)
+                | (ConvertCyrillic ? ExtraScripts.Cyrillic : ExtraScripts.None)
+                | (ConvertGreek ? ExtraScripts.Greek : ExtraScripts.None);
+            _assetManager.ImportTrueTypeFont(_draft.DraftPath, SelectedFont, fontOrZipPath, fontSize, antiAlias, scripts, ConvertScriptFont);
             ReloadAssets();
             RunValidation();
             HasUnsavedChanges = true;
+            lastConvertedFontPath = fontOrZipPath;
             Status = $"Generated console font from {Path.GetFileName(fontOrZipPath)} for {SelectedFont.DisplayName}.";
             return true;
         }

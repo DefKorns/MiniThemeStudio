@@ -296,4 +296,100 @@ public sealed class ThemeAssetManagerTests
         using var stream = File.Create(path);
         data.SaveTo(stream);
     }
+
+    [Fact]
+    public void GetFontsDiscoversFontsFromBaseAndDraft()
+    {
+        var tempBase = Directory.CreateTempSubdirectory().FullName;
+        var tempDraft = Directory.CreateTempSubdirectory().FullName;
+
+        var baseFontsDir = Path.Combine(tempBase, "resources", "fonts");
+        var draftFontsDir = Path.Combine(tempDraft, "resources", "fonts");
+        Directory.CreateDirectory(baseFontsDir);
+        Directory.CreateDirectory(draftFontsDir);
+
+        var font = new MiniThemeStudio.Core.Fonts.MiniFont(
+            formatType: 1,
+            info: new MiniThemeStudio.Core.Fonts.FontInfo("BaseL", 16, false, false, true, false, 0, 100, 0, 0, 0, 0, 0, 0, 0, 0),
+            common: new MiniThemeStudio.Core.Fonts.FontCommon(16, 14, 256, 256, 1, false, 0, 0, 0, 0),
+            pageNames: ["l.png"],
+            glyphs: [new MiniThemeStudio.Core.Fonts.FontGlyph(65, 0, 0, 10, 14, 0, 0, 10, 0, 0)],
+            kerningPairs: [],
+            texturePngBytes: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+
+        // Put l.font in base and s.fnt in draft
+        MiniThemeStudio.Infrastructure.Fonts.MiniFontWriter.Write(font, Path.Combine(baseFontsDir, "l.font"));
+        MiniThemeStudio.Infrastructure.Fonts.MiniFontWriter.Write(font, Path.Combine(draftFontsDir, "s.fnt"));
+
+        try
+        {
+            var manager = new ThemeAssetManager();
+            var fonts = manager.GetFonts(tempDraft, tempBase);
+
+            Assert.Equal(2, fonts.Count);
+            var fontL = fonts.FirstOrDefault(f => f.Name == "l");
+            var fontS = fonts.FirstOrDefault(f => f.Name == "s");
+
+            Assert.NotNull(fontL);
+            Assert.True(fontL.IsFromBaseUi);
+            Assert.Equal("Large UI Font (l)", fontL.DisplayName);
+
+            Assert.NotNull(fontS);
+            Assert.False(fontS.IsFromBaseUi);
+            Assert.Equal("Small UI Font (s)", fontS.DisplayName);
+        }
+        finally
+        {
+            Directory.Delete(tempBase, true);
+            Directory.Delete(tempDraft, true);
+        }
+    }
+
+    [Fact]
+    public void ReplaceFontTextureUpdatesEmbeddedPngAndDimensions()
+    {
+        var tempBase = Directory.CreateTempSubdirectory().FullName;
+        var tempDraft = Directory.CreateTempSubdirectory().FullName;
+        var sourcePng = Path.GetTempFileName() + ".png";
+
+        var baseFontsDir = Path.Combine(tempBase, "resources", "fonts");
+        Directory.CreateDirectory(baseFontsDir);
+
+        var font = new MiniThemeStudio.Core.Fonts.MiniFont(
+            formatType: 1,
+            info: new MiniThemeStudio.Core.Fonts.FontInfo("BaseL", 16, false, false, true, false, 0, 100, 0, 0, 0, 0, 0, 0, 0, 0),
+            common: new MiniThemeStudio.Core.Fonts.FontCommon(16, 14, 256, 256, 1, false, 0, 0, 0, 0),
+            pageNames: ["l.png"],
+            glyphs: [new MiniThemeStudio.Core.Fonts.FontGlyph(65, 0, 0, 10, 14, 0, 0, 10, 0, 0)],
+            kerningPairs: [],
+            texturePngBytes: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+
+        var baseFontFile = Path.Combine(baseFontsDir, "l.font");
+        MiniThemeStudio.Infrastructure.Fonts.MiniFontWriter.Write(font, baseFontFile);
+        SaveSolidPng(sourcePng, 512, 512, SKColors.White);
+
+        try
+        {
+            var manager = new ThemeAssetManager();
+            var fontAsset = manager.GetFonts(tempDraft, tempBase).First(f => f.Name == "l");
+
+            manager.ReplaceFontTexture(tempDraft, fontAsset, sourcePng);
+
+            var draftFontFile = Path.Combine(tempDraft, "resources", "fonts", "l.font");
+            Assert.True(File.Exists(draftFontFile));
+
+            var reloaded = manager.LoadFont(draftFontFile);
+            Assert.Equal(512, reloaded.Common.ScaleW);
+            Assert.Equal(512, reloaded.Common.ScaleH);
+        }
+        finally
+        {
+            Directory.Delete(tempBase, true);
+            Directory.Delete(tempDraft, true);
+            if (File.Exists(sourcePng))
+            {
+                File.Delete(sourcePng);
+            }
+        }
+    }
 }

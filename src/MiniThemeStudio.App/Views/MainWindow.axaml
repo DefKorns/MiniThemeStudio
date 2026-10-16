@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:MiniThemeStudio.App.ViewModels"
         xmlns:themes="using:MiniThemeStudio.Core.Themes"
+        xmlns:fonts="using:MiniThemeStudio.Core.Fonts"
         xmlns:lucide="using:Lucide.Avalonia"
         xmlns:controls="using:MiniThemeStudio.App.Controls"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -471,7 +472,154 @@
         </Grid>
       </TabItem>
 
-      <!-- TAB 4: METADATA & VALIDATION -->
+      <!-- TAB 4: FONTS -->
+      <TabItem Header="Fonts">
+        <Grid ColumnDefinitions="280,*,340" Margin="16,12">
+          <!-- Column 1: Fonts List -->
+          <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+            <Grid RowDefinitions="Auto,*">
+              <TextBlock Margin="16,12" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="UI Fonts (.fnt / .font)" />
+              <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding Fonts}" SelectedItem="{Binding SelectedFont}">
+                <ListBox.Styles>
+                  <Style Selector="ListBoxItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="Padding" Value="10,8" />
+                  </Style>
+                </ListBox.Styles>
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="fonts:FontAsset">
+                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="4,2">
+                      <Border Width="32" Height="32" Background="{DynamicResource PanelBackgroundBrush}" CornerRadius="4" Margin="0,0,12,0">
+                        <lucide:LucideIcon Kind="Type" Size="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      </Border>
+                      <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                        <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding DisplayName}" />
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding GlyphCount, StringFormat='{}{0} glyphs'}" />
+                          <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding LineHeight, StringFormat='{}• {0}px height'}" />
+                          <TextBlock FontSize="11" Foreground="{DynamicResource AccentBrush}" Text="(From Base)" IsVisible="{Binding IsFromBaseUi}" />
+                        </StackPanel>
+                      </StackPanel>
+                      <lucide:LucideIcon Grid.Column="2" Kind="ChevronRight" Size="16" Foreground="{DynamicResource SecondaryTextBrush}" />
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Grid>
+          </Border>
+
+          <!-- Column 2: Center - Texture Atlas & Rendered Sample Text Preview -->
+          <Border Grid.Column="1" Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+            <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="14">
+              <!-- Rendered Preview Header & Sample Text Input -->
+              <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+                <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Live Text Preview (Rendered from Font)" />
+                <TextBlock Grid.Column="1" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="Pixel-accurate console render" />
+              </Grid>
+
+              <TextBox Grid.Row="1" Height="56" AcceptsReturn="True" TextWrapping="Wrap"
+                       Watermark="Type sample text to preview font rendering..."
+                       Text="{Binding FontSampleText}" Margin="0,0,0,10" />
+
+              <Border Grid.Row="2" Height="140" Margin="0,0,0,14" Background="#18181B" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                  <Image Source="{Binding FontSamplePreview}" Margin="8" Stretch="None" RenderOptions.BitmapInterpolationMode="None" />
+                </ScrollViewer>
+              </Border>
+
+              <!-- Font Texture Atlas View -->
+              <Grid Grid.Row="3" RowDefinitions="Auto,*">
+                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+                  <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Glyph Texture Atlas" />
+                  <TextBlock Grid.Column="1" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}">
+                    <Run Text="{Binding SelectedFont.TextureWidth}" />
+                    <Run Text="×" />
+                    <Run Text="{Binding SelectedFont.TextureHeight}" />
+                    <Run Text="px" />
+                  </TextBlock>
+                </Grid>
+                <Border Grid.Row="1" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                  <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                    <Image Source="{Binding FontTexturePreview}" Margin="8" Stretch="None" RenderOptions.BitmapInterpolationMode="None" />
+                  </ScrollViewer>
+                </Border>
+              </Grid>
+            </Grid>
+          </Border>
+
+          <!-- Column 3: Font Details, Glyphs List & Actions -->
+          <Border Grid.Column="2" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+            <ScrollViewer>
+              <StackPanel Margin="16" Spacing="12">
+                <TextBlock FontFamily="Georgia, serif" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Font Properties" />
+
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedFont.DisplayName}" />
+                <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SelectedFont.RelativePath}" TextWrapping="Wrap" />
+                <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SelectedFont.RolesText, StringFormat='Roles: {0}'}" TextWrapping="Wrap" />
+
+                <!-- Action Buttons: Convert TTF/OTF, Replace PNG, Replace FNT, Export PNG, Export FNT -->
+                <Grid ColumnDefinitions="*,*" Margin="0,4" RowDefinitions="Auto,Auto,Auto" RowSpacing="6" ColumnSpacing="6">
+                  <Button Padding="8,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold"
+                          IsEnabled="{Binding CanReplaceFont}" Click="ImportTrueTypeFont_Click" Content="Convert TTF / OTF..."
+                          Grid.ColumnSpan="2" ToolTip.Tip="Convert .ttf, .otf, or .zip directly into console BMFont" />
+                  <Button Grid.Row="1" Padding="8,8" HorizontalAlignment="Stretch"
+                          IsEnabled="{Binding CanReplaceFont}" Click="ReplaceFontTexture_Click" Content="Replace PNG" ToolTip.Tip="Replace texture art while preserving glyph coordinates" />
+                  <Button Grid.Row="1" Grid.Column="1" Padding="8,8" HorizontalAlignment="Stretch"
+                          IsEnabled="{Binding CanReplaceFont}" Click="ExportFontTexture_Click" Content="Export PNG" ToolTip.Tip="Export glyph atlas as PNG" />
+                  <Button Grid.Row="2" Padding="8,8" HorizontalAlignment="Stretch"
+                          IsEnabled="{Binding CanReplaceFont}" Click="ReplaceFontFile_Click" Content="Replace .fnt" ToolTip.Tip="Import whole .fnt or .font file" />
+                  <Button Grid.Row="2" Grid.Column="1" Padding="8,8" HorizontalAlignment="Stretch"
+                          IsEnabled="{Binding CanReplaceFont}" Click="ExportFontFile_Click" Content="Export .fnt" ToolTip.Tip="Export .fnt file to disk" />
+                </Grid>
+
+                <Border Height="1" Background="{DynamicResource BorderBrush}" />
+
+                <!-- Glyph Coverage Validation -->
+                <TextBlock FontWeight="Bold" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="GLYPH COVERAGE &amp; C8 RISK" />
+                <Border Padding="10" CornerRadius="4" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                  <StackPanel Spacing="4">
+                    <Grid ColumnDefinitions="Auto,*">
+                      <lucide:LucideIcon Kind="Check" Size="16" Foreground="#10B981" Margin="0,0,6,0" IsVisible="{Binding FontValidation.IsSafeForWesternUi, FallbackValue=false}" />
+                      <lucide:LucideIcon Kind="TriangleAlert" Size="16" Foreground="{DynamicResource DialogWarningBrush}" Margin="0,0,6,0" IsVisible="{Binding !FontValidation.IsSafeForWesternUi, FallbackValue=true}" />
+                      <TextBlock Grid.Column="1" FontWeight="SemiBold" FontSize="12" Text="{Binding FontValidation.Summary, FallbackValue='Select a font to check'}" TextWrapping="Wrap" />
+                    </Grid>
+                  </StackPanel>
+                </Border>
+
+                <Border Height="1" Background="{DynamicResource BorderBrush}" />
+
+                <!-- Glyphs List with Search -->
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock FontWeight="Bold" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="GLYPH TABLE" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="1" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding FilteredFontGlyphs.Count, StringFormat='{}{0} glyphs'}" VerticalAlignment="Center" />
+                </Grid>
+                <TextBox Height="32" Watermark="Filter glyphs (char, code, U+0041)..." Text="{Binding GlyphSearchText}" />
+
+                <ListBox MaxHeight="220" ItemsSource="{Binding FilteredFontGlyphs}">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="fonts:FontGlyph">
+                      <Grid ColumnDefinitions="32,*,Auto" Margin="0,2">
+                        <Border Width="24" Height="24" Background="{DynamicResource PreviewBackgroundBrush}" CornerRadius="2">
+                          <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" Text="{Binding Character}" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="8,0" VerticalAlignment="Center">
+                          <TextBlock FontSize="12" Text="{Binding Id, StringFormat='U+{0:X4}'}" />
+                          <TextBlock FontSize="10" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Width, StringFormat='{}{0}×'}" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}"
+                                   Text="{Binding XAdvance, StringFormat='adv: {0}px'}" />
+                      </Grid>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <!-- TAB 5: METADATA & VALIDATION -->
       <TabItem Header="Theme Details &amp; Validation">
         <Grid ColumnDefinitions="*,*" Margin="24">
           <Border Margin="0,0,12,0" Padding="20" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">

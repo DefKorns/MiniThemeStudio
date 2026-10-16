@@ -63,6 +63,13 @@ public sealed class ThemeValidator(IThemeResourceIndexer? resourceIndexer = null
             ValidateWallpapers(wallpaperDir, issues);
         }
 
+        // Validate fonts if present
+        var fontsDir = Path.Combine(themeDraftPath, "resources", "fonts");
+        if (Directory.Exists(fontsDir))
+        {
+            ValidateFonts(fontsDir, issues);
+        }
+
         // Check if delta package
         var initJson = Path.Combine(themeDraftPath, "init.json");
         var depsJson = Path.Combine(themeDraftPath, "dependencies.json");
@@ -75,6 +82,48 @@ public sealed class ThemeValidator(IThemeResourceIndexer? resourceIndexer = null
 
         var isValid = issues.TrueForAll(i => !i.IsError);
         return new ThemeValidationResult(isValid, issues);
+    }
+
+    private static void ValidateFonts(string fontsDir, List<ThemeValidationIssue> issues)
+    {
+        foreach (var file in Directory.EnumerateFiles(fontsDir, "*.*"))
+        {
+            var ext = Path.GetExtension(file);
+            if (!ext.Equals(".fnt", StringComparison.OrdinalIgnoreCase) && !ext.Equals(".font", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var fontName = Path.GetFileNameWithoutExtension(file);
+            if (fontName.Equals("debug", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var fileName = Path.GetFileName(file);
+            try
+            {
+                var font = MiniThemeStudio.Infrastructure.Fonts.MiniFontReader.Read(file);
+                var validation = MiniThemeStudio.Core.Fonts.FontValidator.Validate(font);
+
+                if (!validation.HasBasicAscii)
+                {
+                    issues.Add(new ThemeValidationIssue(
+                        $"Font '{fileName}' has a subsetted character set ({validation.MissingAsciiChars.Count} basic ASCII characters omitted).",
+                        false));
+                }
+                else if (!validation.HasLatinAccents)
+                {
+                    issues.Add(new ThemeValidationIssue(
+                        $"Font '{fileName}' is missing European accented glyphs ({validation.MissingAccentChars.Count} missing, e.g. {string.Join(", ", validation.MissingAccentChars.Take(6))}). Potential C8 error on translated UI.",
+                        false));
+                }
+            }
+            catch (Exception ex)
+            {
+                issues.Add(new ThemeValidationIssue($"Font file corrupt: {fileName} ({ex.Message})", true));
+            }
+        }
     }
 
     private static void ValidateAtlas(TextureAtlas atlas, List<ThemeValidationIssue> issues)

@@ -568,4 +568,211 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         File.WriteAllText(tempJson, EngineJson.ToCompactString(root));
         File.Move(tempJson, jsonPath, true);
     }
+
+    public IReadOnlyList<MiniThemeStudio.Core.Fonts.FontAsset> GetFonts(string themeDraftPath, string? baseUiPath = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
+
+        var draftFontsDir = Path.Combine(themeDraftPath, "resources", "fonts");
+        var baseFontsDir = baseUiPath != null ? Path.Combine(baseUiPath, "resources", "fonts") : null;
+
+        var fontFiles = new Dictionary<string, (string Path, string Extension, bool FromBase)>(StringComparer.OrdinalIgnoreCase);
+
+        if (baseFontsDir != null && Directory.Exists(baseFontsDir))
+        {
+            foreach (var file in Directory.EnumerateFiles(baseFontsDir, "*.*"))
+            {
+                var ext = Path.GetExtension(file);
+                if (ext.Equals(".fnt", StringComparison.OrdinalIgnoreCase) || ext.Equals(".font", StringComparison.OrdinalIgnoreCase))
+                {
+                    var name = Path.GetFileNameWithoutExtension(file);
+                    if (!name.Equals("debug", StringComparison.OrdinalIgnoreCase))
+                    {
+                        fontFiles[name] = (file, ext, true);
+                    }
+                }
+            }
+        }
+
+        if (Directory.Exists(draftFontsDir))
+        {
+            foreach (var file in Directory.EnumerateFiles(draftFontsDir, "*.*"))
+            {
+                var ext = Path.GetExtension(file);
+                if (ext.Equals(".fnt", StringComparison.OrdinalIgnoreCase) || ext.Equals(".font", StringComparison.OrdinalIgnoreCase))
+                {
+                    var name = Path.GetFileNameWithoutExtension(file);
+                    if (!name.Equals("debug", StringComparison.OrdinalIgnoreCase))
+                    {
+                        fontFiles[name] = (file, ext, false);
+                    }
+                }
+            }
+        }
+
+        var result = new List<MiniThemeStudio.Core.Fonts.FontAsset>();
+        foreach (var (name, (filePath, ext, fromBase)) in fontFiles.OrderBy(kvp => GetFontSortKey(kvp.Key)))
+        {
+            try
+            {
+                var font = MiniThemeStudio.Infrastructure.Fonts.MiniFontReader.Read(filePath);
+                var relPath = $"resources/fonts/{name}{ext}";
+                var (displayName, roles) = GetFontMetadata(name);
+
+                result.Add(new MiniThemeStudio.Core.Fonts.FontAsset(
+                    Name: name,
+                    DisplayName: displayName,
+                    FilePath: filePath,
+                    RelativePath: relPath,
+                    GlyphCount: font.Glyphs.Count,
+                    TextureWidth: font.Common.ScaleW,
+                    TextureHeight: font.Common.ScaleH,
+                    LineHeight: font.Common.LineHeight,
+                    IsFromBaseUi: fromBase)
+                {
+                    Roles = roles
+                });
+            }
+            catch
+            {
+                // If corrupted or unreadable, still register with fallback metrics
+                var relPath = $"resources/fonts/{name}{ext}";
+                var (displayName, roles) = GetFontMetadata(name);
+                result.Add(new MiniThemeStudio.Core.Fonts.FontAsset(
+                    Name: name,
+                    DisplayName: displayName,
+                    FilePath: filePath,
+                    RelativePath: relPath,
+                    GlyphCount: 0,
+                    TextureWidth: 0,
+                    TextureHeight: 0,
+                    LineHeight: 0,
+                    IsFromBaseUi: fromBase)
+                {
+                    Roles = roles
+                });
+            }
+        }
+
+        return result;
+    }
+
+    public MiniThemeStudio.Core.Fonts.MiniFont LoadFont(string fontFilePath)
+    {
+        return MiniThemeStudio.Infrastructure.Fonts.MiniFontReader.Read(fontFilePath);
+    }
+
+    public void ReplaceFontTexture(string themeDraftPath, MiniThemeStudio.Core.Fonts.FontAsset font, string replacementPngPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
+        ArgumentNullException.ThrowIfNull(font);
+        ArgumentException.ThrowIfNullOrWhiteSpace(replacementPngPath);
+
+        var draftPath = EnsureDraftCopy(themeDraftPath, font.RelativePath, font.FilePath);
+        var miniFont = MiniThemeStudio.Infrastructure.Fonts.MiniFontReader.Read(draftPath);
+
+        var newPngBytes = File.ReadAllBytes(replacementPngPath);
+        using var bmp = SKBitmap.Decode(newPngBytes);
+        if (bmp == null)
+        {
+            throw new InvalidOperationException("The replacement image is not a valid PNG.");
+        }
+
+        miniFont.TexturePngBytes = newPngBytes;
+        miniFont.Common = miniFont.Common with
+        {
+            ScaleW = bmp.Width,
+            ScaleH = bmp.Height
+        };
+
+        MiniThemeStudio.Infrastructure.Fonts.MiniFontWriter.Write(miniFont, draftPath);
+    }
+
+    public void ReplaceFont(string themeDraftPath, MiniThemeStudio.Core.Fonts.FontAsset font, string sourceFontPath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
+        ArgumentNullException.ThrowIfNull(font);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceFontPath);
+
+        var targetPath = EnsureInsideDraft(themeDraftPath, font.RelativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+
+        // Validate that source is a readable font before overwriting
+        _ = MiniThemeStudio.Infrastructure.Fonts.MiniFontReader.Read(sourceFontPath);
+        File.Copy(sourceFontPath, targetPath, overwrite: true);
+    }
+
+    public void ExportFontTexture(MiniThemeStudio.Core.Fonts.FontAsset font, string destinationPngPath)
+    {
+        ArgumentNullException.ThrowIfNull(font);
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationPngPath);
+
+        var miniFont = MiniThemeStudio.Infrastructure.Fonts.MiniFontReader.Read(font.FilePath);
+        var dir = Path.GetDirectoryName(destinationPngPath);
+        if (!string.IsNullOrEmpty(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+
+        File.WriteAllBytes(destinationPngPath, miniFont.TexturePngBytes);
+    }
+
+    public void ExportFont(MiniThemeStudio.Core.Fonts.FontAsset font, string destinationFontPath)
+    {
+        ArgumentNullException.ThrowIfNull(font);
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationFontPath);
+
+        var dir = Path.GetDirectoryName(destinationFontPath);
+        if (!string.IsNullOrEmpty(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+
+        File.Copy(font.FilePath, destinationFontPath, overwrite: true);
+    }
+
+    public void ImportTrueTypeFont(string themeDraftPath, MiniThemeStudio.Core.Fonts.FontAsset targetFont, string ttfOrZipPath, int? fontSize = null, bool antiAlias = false)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
+        ArgumentNullException.ThrowIfNull(targetFont);
+        ArgumentException.ThrowIfNullOrWhiteSpace(ttfOrZipPath);
+
+        var size = fontSize.HasValue && fontSize.Value > 0
+            ? fontSize.Value
+            : (targetFont.LineHeight > 0 ? targetFont.LineHeight : 16);
+
+        var rasterizer = new MiniThemeStudio.Infrastructure.Fonts.TrueTypeFontRasterizer();
+        var miniFont = rasterizer.Rasterize(ttfOrZipPath, new MiniThemeStudio.Core.Fonts.TrueTypeRasterOptions(
+            FontSize: size,
+            AntiAlias: antiAlias));
+
+        var targetPath = EnsureInsideDraft(themeDraftPath, targetFont.RelativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+
+        MiniThemeStudio.Infrastructure.Fonts.MiniFontWriter.Write(miniFont, targetPath);
+    }
+
+    private static (string DisplayName, string[] Roles) GetFontMetadata(string name) =>
+        name.ToLowerInvariant() switch
+        {
+            "l" => ("Large UI Font (l)", ["Menus", "Dialog Headers", "Action Prompts"]),
+            "m" => ("Medium UI Font (m)", ["Game Settings", "Options Menu", "Subtitles"]),
+            "s" => ("Small UI Font (s)", ["Footer Hints", "Button Labels", "Metadata"]),
+            "title" => ("Game Title Font (title)", ["Game Titles in Carousel"]),
+            "copyright" => ("Copyright Font (copyright)", ["Boot Screen Copyright Text"]),
+            "debug" => ("Debug Console Font (debug)", ["System Debug Messages"]),
+            _ => ($"{name} Font", ["UI Font"])
+        };
+
+    private static int GetFontSortKey(string name) =>
+        name.ToLowerInvariant() switch
+        {
+            "l" => 1,
+            "m" => 2,
+            "s" => 3,
+            "title" => 4,
+            "copyright" => 5,
+            "debug" => 6,
+            _ => 10
+        };
 }

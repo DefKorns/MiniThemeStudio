@@ -1052,6 +1052,144 @@ public sealed partial class MainWindow : Window, IDisposable
         base.OnClosed(e);
     }
 
+    private async void ImportTrueTypeFont_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel || viewModel.SelectedFont is null)
+        {
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = $"Select TTF, OTF or ZIP font file to convert for {viewModel.SelectedFont.DisplayName}",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Font or Zip package") { Patterns = ["*.ttf", "*.otf", "*.zip"] },
+                new FilePickerFileType("TrueType / OpenType font") { Patterns = ["*.ttf", "*.otf"] },
+                new FilePickerFileType("Zip archive") { Patterns = ["*.zip"] }
+            ]
+        });
+
+        var fontPath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
+        if (fontPath is null)
+        {
+            return;
+        }
+
+        if (!viewModel.ImportSelectedTrueTypeFont(fontPath))
+        {
+            await _errorHandlingService.ShowErrorAsync(this, "Cannot convert font", viewModel.Status);
+        }
+    }
+
+    private async void ReplaceFontTexture_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel || viewModel.SelectedFont is null)
+        {
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = $"Select replacement PNG texture for {viewModel.SelectedFont.DisplayName}",
+            AllowMultiple = false,
+            FileTypeFilter = [new FilePickerFileType("PNG image") { Patterns = ["*.png"] }]
+        });
+
+        var replacementPath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
+        if (replacementPath is null)
+        {
+            return;
+        }
+
+        if (!viewModel.ReplaceSelectedFontTexture(replacementPath))
+        {
+            await _errorHandlingService.ShowErrorAsync(this, "Cannot replace font texture", viewModel.Status);
+        }
+    }
+
+    private async void ReplaceFontFile_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel || viewModel.SelectedFont is null)
+        {
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = $"Select replacement font file for {viewModel.SelectedFont.DisplayName}",
+            AllowMultiple = false,
+            FileTypeFilter = [new FilePickerFileType("Console Font file") { Patterns = ["*.fnt", "*.font"] }]
+        });
+
+        var replacementPath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
+        if (replacementPath is null)
+        {
+            return;
+        }
+
+        if (!viewModel.ReplaceSelectedFontFile(replacementPath))
+        {
+            await _errorHandlingService.ShowErrorAsync(this, "Cannot replace font file", viewModel.Status);
+        }
+    }
+
+    private async void ExportFontTexture_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel || viewModel.SelectedFont is null)
+        {
+            return;
+        }
+
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = $"Export font texture {viewModel.SelectedFont.DisplayName}",
+            DefaultExtension = "png",
+            SuggestedFileName = $"{viewModel.SelectedFont.Name}_texture.png",
+            FileTypeChoices = [new FilePickerFileType("PNG image") { Patterns = ["*.png"] }]
+        });
+
+        var destinationPath = file?.TryGetLocalPath();
+        if (destinationPath is null)
+        {
+            return;
+        }
+
+        if (!viewModel.ExportSelectedFontTexture(destinationPath))
+        {
+            await _errorHandlingService.ShowErrorAsync(this, "Cannot export font texture", viewModel.Status);
+        }
+    }
+
+    private async void ExportFontFile_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel viewModel || viewModel.SelectedFont is null)
+        {
+            return;
+        }
+
+        var ext = Path.GetExtension(viewModel.SelectedFont.FilePath);
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = $"Export font file {viewModel.SelectedFont.DisplayName}",
+            DefaultExtension = ext.TrimStart('.'),
+            SuggestedFileName = $"{viewModel.SelectedFont.Name}{ext}",
+            FileTypeChoices = [new FilePickerFileType("Console Font file") { Patterns = ["*.fnt", "*.font"] }]
+        });
+
+        var destinationPath = file?.TryGetLocalPath();
+        if (destinationPath is null)
+        {
+            return;
+        }
+
+        if (!viewModel.ExportSelectedFontFile(destinationPath))
+        {
+            await _errorHandlingService.ShowErrorAsync(this, "Cannot export font", viewModel.Status);
+        }
+    }
+
     public void Dispose()
     {
         DisposePreview();

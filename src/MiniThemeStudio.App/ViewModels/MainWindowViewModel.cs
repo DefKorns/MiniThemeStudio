@@ -580,9 +580,11 @@ public partial class MainWindowViewModel : ViewModelBase
             Wallpapers = [];
             ExtraAssets = [];
             MissingTextures = [];
+            Fonts = [];
             ReloadCharacters();
             SelectedWallpaper = null;
             SelectedExtraAsset = null;
+            SelectedFont = null;
             return;
         }
 
@@ -605,6 +607,7 @@ public partial class MainWindowViewModel : ViewModelBase
         MissingTextures = report.MissingTextures;
         SelectedMissingTexture = MissingTextures.Count > 0 ? MissingTextures[0] : null;
         ReloadCharacters();
+        ReloadFonts();
     }
 
     public bool ProvideSelectedMissingTexture(string sourceImagePath)

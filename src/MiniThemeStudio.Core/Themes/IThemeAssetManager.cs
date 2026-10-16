@@ -19,4 +19,12 @@ public interface IThemeAssetManager
     void ProvideMissingTexture(string themeDraftPath, MissingTexture texture, string sourceImagePath);
 
     void ExportPackedSprite(string atlasImagePath, SpriteRegion sprite, string destinationPath);
+
+    IReadOnlyList<MiniThemeStudio.Core.Fonts.FontAsset> GetFonts(string themeDraftPath, string? baseUiPath = null);
+    MiniThemeStudio.Core.Fonts.MiniFont LoadFont(string fontFilePath);
+    void ReplaceFontTexture(string themeDraftPath, MiniThemeStudio.Core.Fonts.FontAsset font, string replacementPngPath);
+    void ReplaceFont(string themeDraftPath, MiniThemeStudio.Core.Fonts.FontAsset font, string sourceFontPath);
+    void ExportFontTexture(MiniThemeStudio.Core.Fonts.FontAsset font, string destinationPngPath);
+    void ExportFont(MiniThemeStudio.Core.Fonts.FontAsset font, string destinationFontPath);
+    void ImportTrueTypeFont(string themeDraftPath, MiniThemeStudio.Core.Fonts.FontAsset targetFont, string ttfOrZipPath, int? fontSize = null, bool antiAlias = false);
 }

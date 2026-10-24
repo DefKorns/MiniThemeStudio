@@ -102,3 +102,4 @@ public sealed class FontComparisonDiagnosticsTests(ITestOutputHelper output)
         Assert.NotNull(rasterized);
     }
 }
+

@@ -346,6 +346,45 @@ public sealed class ThemeAssetManagerTests
     }
 
     [Fact]
+    public void GetFontsListsTheBaseTitleFontAsItIs()
+    {
+        var tempBase = Directory.CreateTempSubdirectory().FullName;
+        var tempDraft = Directory.CreateTempSubdirectory().FullName;
+
+        var baseFontsDir = Path.Combine(tempBase, "resources", "fonts");
+        Directory.CreateDirectory(baseFontsDir);
+
+        // Mock stock firmware title.font with only 1 glyph
+        var stockFont = new MiniThemeStudio.Core.Fonts.MiniFont(
+            formatType: 1,
+            info: new MiniThemeStudio.Core.Fonts.FontInfo("StockTitle", 16, false, false, true, false, 0, 100, 0, 0, 0, 0, 0, 0, 0, 0),
+            common: new MiniThemeStudio.Core.Fonts.FontCommon(16, 14, 256, 256, 1, false, 0, 0, 0, 0),
+            pageNames: ["title.png"],
+            glyphs: [new MiniThemeStudio.Core.Fonts.FontGlyph(65, 0, 0, 10, 14, 0, 0, 10, 0, 0)],
+            kerningPairs: [],
+            texturePngBytes: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
+
+        MiniThemeStudio.Infrastructure.Fonts.MiniFontWriter.Write(stockFont, Path.Combine(baseFontsDir, "title.font"));
+
+        try
+        {
+            var manager = new ThemeAssetManager();
+            var fonts = manager.GetFonts(tempDraft, tempBase);
+
+            var titleFont = fonts.FirstOrDefault(f => f.Name == "title");
+            Assert.NotNull(titleFont);
+            Assert.True(titleFont.IsFromBaseUi);
+            // the reference only fills characters when a font is converted
+            Assert.Equal(1, titleFont.GlyphCount);
+        }
+        finally
+        {
+            Directory.Delete(tempBase, true);
+            Directory.Delete(tempDraft, true);
+        }
+    }
+
+    [Fact]
     public void ReplaceFontTextureUpdatesEmbeddedPngAndDimensions()
     {
         var tempBase = Directory.CreateTempSubdirectory().FullName;

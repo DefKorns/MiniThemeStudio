@@ -95,6 +95,11 @@ public sealed partial class MainWindow : Window, IDisposable
     private async void MainWindow_Opened(object? sender, EventArgs e)
     {
         Opened -= MainWindow_Opened;
+        if (DataContext is MainWindowViewModel startViewModel)
+        {
+            startViewModel.FillFontPath = _settingsStore.Current.FillFontPath;
+        }
+
         if (!_settingsStore.Current.InitialSetupCompleted && !await ShowSettingsAsync(true))
         {
             Close();
@@ -173,6 +178,11 @@ public sealed partial class MainWindow : Window, IDisposable
         try
         {
             _settingsStore.Save(settings);
+            if (DataContext is MainWindowViewModel viewModel)
+            {
+                viewModel.FillFontPath = settings.FillFontPath;
+            }
+
             if (Application.Current is { } application)
             {
                 application.RequestedThemeVariant = settings.Theme switch
@@ -714,7 +724,7 @@ public sealed partial class MainWindow : Window, IDisposable
 
     private async Task<bool> ConfirmDiscardDraftAsync()
     {
-        if (DataContext is not MainWindowViewModel { HasUnsavedChanges: true })
+        if (DataContext is not MainWindowViewModel { HasUnsavedWork: true })
         {
             return true;
         }
@@ -850,6 +860,22 @@ public sealed partial class MainWindow : Window, IDisposable
         if (!ReferenceEquals(AnimationPreviewImage.Source, frame.Thumbnail))
         {
             AnimationPreviewImage.Source = frame.Thumbnail;
+        }
+    }
+
+    private async void CompleteFont_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel viewModel && !viewModel.CompleteSelectedFont())
+        {
+            await _errorHandlingService.ShowErrorAsync(this, "Cannot fill the font", viewModel.Status);
+        }
+    }
+
+    private async void ApplyPaletteColor_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel viewModel && !viewModel.ApplyPaletteColor())
+        {
+            await _errorHandlingService.ShowErrorAsync(this, "Cannot change the colour", viewModel.Status);
         }
     }
 
@@ -990,7 +1016,7 @@ public sealed partial class MainWindow : Window, IDisposable
     protected override async void OnClosing(WindowClosingEventArgs e)
     {
         if (_isCloseConfirmed
-            || DataContext is not MainWindowViewModel { IsThemeOpen: true, HasUnsavedChanges: true } viewModel)
+            || DataContext is not MainWindowViewModel { IsThemeOpen: true, HasUnsavedWork: true } viewModel)
         {
             base.OnClosing(e);
             return;

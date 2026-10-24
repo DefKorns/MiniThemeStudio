@@ -52,14 +52,6 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
 
         var fontSize = Math.Clamp(options.FontSize, 6, 96);
 
-        // ── Script fallback typeface (for extra-script glyphs) ────────────────
-        // Priority: user-specified family → system auto-match per character
-        SKTypeface? scriptFallback = null;
-        if (!string.IsNullOrWhiteSpace(options.ScriptFallbackFamily))
-        {
-            scriptFallback = SKTypeface.FromFamilyName(options.ScriptFallbackFamily);
-        }
-
         using var paint = new SKPaint
         {
             Typeface = typeface,
@@ -76,15 +68,8 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
         // ── Build full character set ──────────────────────────────────────────
         var charset = BuildCharacterSet(options);
 
-        // ── MiniFont bitmap fallback (existing mechanism) ─────────────────────
-        using var fallbackTexture = options.FallbackFont?.TexturePngBytes is { Length: > 0 }
-            ? SKBitmap.Decode(options.FallbackFont.TexturePngBytes)
-            : null;
-
         // ── Resolve glyphs ───────────────────────────────────────────────────
-        var pendingGlyphs = new List<(char Ch, char DrawChar, SKRect Bounds, float Advance,
-            bool IsMiniFallback, FontGlyph? MiniGlyph,
-            bool IsScriptFallback, SKTypeface? ScriptTf)>();
+        var pendingGlyphs = new List<(char Ch, char DrawChar, SKRect Bounds, float Advance)>();
 
         foreach (var c in charset)
         {
@@ -94,7 +79,7 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
                 var bounds = new SKRect();
                 var advance = paint.MeasureText(" ", ref bounds);
                 advance = advance > 0 ? advance : fontSize / 2f;
-                pendingGlyphs.Add((c, ' ', SKRect.Empty, advance, false, null, false, null));
+                pendingGlyphs.Add((c, ' ', SKRect.Empty, advance));
                 continue;
             }
 
@@ -119,40 +104,9 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
                 var advance = paint.MeasureText(drawChar.ToString(), ref bounds);
                 if (bounds.Width > 0 && bounds.Height > 0)
                 {
-                    pendingGlyphs.Add((c, drawChar, bounds, advance, false, null, false, null));
-                    continue;
+                    pendingGlyphs.Add((c, drawChar, bounds, advance));
                 }
             }
-
-            // 2. Try MiniFont bitmap fallback (for pre-generated console glyphs)
-            if (options.FallbackFont?.GetGlyph(c) is { } miniGlyph && fallbackTexture is not null)
-            {
-                var fb = new SKRect(0, 0, miniGlyph.Width, miniGlyph.Height);
-                pendingGlyphs.Add((c, c, fb, miniGlyph.XAdvance, true, miniGlyph, false, null));
-                continue;
-            }
-
-            // 3. Try script fallback typeface (Yu Gothic UI / Noto Sans / auto)
-            var scriptTf = ResolveScriptTypeface(c, scriptFallback);
-            if (scriptTf is not null)
-            {
-                using var scriptPaint = new SKPaint
-                {
-                    Typeface = scriptTf,
-                    TextSize = fontSize,
-                    IsAntialias = options.AntiAlias,
-                    Color = SKColors.White,
-                };
-                var bounds  = new SKRect();
-                var advance = scriptPaint.MeasureText(c.ToString(), ref bounds);
-                if (bounds.Width > 0 && bounds.Height > 0)
-                {
-                    pendingGlyphs.Add((c, c, bounds, advance, false, null, true, scriptTf));
-                    continue;
-                }
-            }
-
-            // Glyph not found anywhere — skip silently
         }
 
         // ── Shelf packing into atlas ─────────────────────────────────────────
@@ -162,9 +116,7 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
         var curY = padding;
         var rowHeight = 0;
 
-        var packedGlyphs = new List<(char Ch, char DrawChar, SKRect Bounds, float Advance,
-            bool IsMiniF, FontGlyph? MiniG, bool IsScriptF, SKTypeface? ScriptTf,
-            int X, int Y, int W, int H)>();
+        var packedGlyphs = new List<(char Ch, char DrawChar, SKRect Bounds, float Advance, int X, int Y, int W, int H)>();
 
         foreach (var item in pendingGlyphs)
         {
@@ -180,9 +132,7 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
                 rowHeight = 0;
             }
 
-            packedGlyphs.Add((item.Ch, item.DrawChar, item.Bounds, item.Advance,
-                item.IsMiniFallback, item.MiniGlyph, item.IsScriptFallback, item.ScriptTf,
-                curX, curY, w, h));
+            packedGlyphs.Add((item.Ch, item.DrawChar, item.Bounds, item.Advance, curX, curY, w, h));
 
             rowHeight = Math.Max(rowHeight, h);
             curX += w + padding;
@@ -205,52 +155,18 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
 
         foreach (var p in packedGlyphs)
         {
-            if (p.IsMiniF && p.MiniG is not null && fallbackTexture is not null)
-            {
-                // Blit from MiniFont bitmap fallback
-                if (p.W > 0 && p.H > 0)
-                {
-                    var src = new SKRect(p.MiniG.X, p.MiniG.Y, p.MiniG.X + p.W, p.MiniG.Y + p.H);
-                    canvas.DrawBitmap(fallbackTexture, src, new SKRect(p.X, p.Y, p.X + p.W, p.Y + p.H));
-                }
-                finalGlyphs.Add(new FontGlyph(p.Ch, p.X, p.Y, p.W, p.H,
-                    p.MiniG.XOffset, p.MiniG.YOffset, p.MiniG.XAdvance, 0, 15));
-            }
-            else if (p.IsScriptF && p.ScriptTf is not null)
-            {
-                // Draw using the script fallback typeface
-                using var scriptPaint = new SKPaint
-                {
-                    Typeface = p.ScriptTf,
-                    TextSize = fontSize,
-                    IsAntialias = options.AntiAlias,
-                    Color = SKColors.White,
-                };
-                scriptPaint.GetFontMetrics(out var sm);
-                var sBase = (int)Math.Ceiling(-sm.Ascent);
-                canvas.DrawText(p.DrawChar.ToString(), p.X - p.Bounds.Left, p.Y - p.Bounds.Top, scriptPaint);
+            canvas.DrawText(p.DrawChar.ToString(), p.X - p.Bounds.Left, p.Y - p.Bounds.Top, paint);
 
-                finalGlyphs.Add(new FontGlyph(p.Ch, p.X, p.Y, p.W, p.H,
-                    (int)Math.Floor(p.Bounds.Left),
-                    sBase + (int)Math.Floor(p.Bounds.Top),
-                    (int)Math.Round(p.Advance), 0, 15));
-            }
-            else
-            {
-                // Draw using custom typeface
-                canvas.DrawText(p.DrawChar.ToString(), p.X - p.Bounds.Left, p.Y - p.Bounds.Top, paint);
-
-                finalGlyphs.Add(new FontGlyph(p.Ch, p.X, p.Y, p.W, p.H,
-                    (int)Math.Floor(p.Bounds.Left),
-                    baseOffset + (int)Math.Floor(p.Bounds.Top),
-                    (int)Math.Round(p.Advance), 0, 15));
-            }
+            finalGlyphs.Add(new FontGlyph(p.Ch, p.X, p.Y, p.W, p.H,
+                (int)Math.Floor(p.Bounds.Left),
+                baseOffset + (int)Math.Floor(p.Bounds.Top),
+                (int)Math.Round(p.Advance), 0, 15));
         }
 
         using var image   = surface.Snapshot();
         using var pngData = image.Encode(SKEncodedImageFormat.Png, 100);
 
-        return new MiniFont(
+        var rasterized = new MiniFont(
             formatType: 1,
             info: new FontInfo(effectiveFontName, (short)fontSize,
                 Bold: false, Italic: false, Unicode: true, Smooth: options.AntiAlias,
@@ -263,30 +179,15 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
             glyphs: finalGlyphs,
             kerningPairs: [],
             texturePngBytes: pngData.ToArray());
+
+        // whatever the font lacks comes from the complete reference of its role
+        return MiniFontCompleter.Complete(rasterized, options.ExtraScripts, options.FillFontPath);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static IReadOnlyList<char> BuildCharacterSet(TrueTypeRasterOptions options) =>
         options.CharacterSet is { Count: > 0 } ? [.. options.CharacterSet] : FontCharsets.Build(options.ExtraScripts);
-
-    /// <summary>
-    /// Returns a typeface that contains a glyph for <paramref name="c"/>,
-    /// trying the user-specified fallback first, then the system font manager.
-    /// Returns null if no typeface is found.
-    /// </summary>
-    private static SKTypeface? ResolveScriptTypeface(char c, SKTypeface? preferredFallback)
-    {
-        if (preferredFallback is not null && preferredFallback.GetGlyph(c) != 0)
-            return preferredFallback;
-
-        // Auto-match from system fonts (Noto Sans, Yu Gothic, etc.)
-        var matched = SKFontManager.Default.MatchCharacter(c);
-        if (matched is not null && matched.GetGlyph(c) != 0)
-            return matched;
-
-        return null;
-    }
 
     private static int NextPowerOfTwo(int value)
     {

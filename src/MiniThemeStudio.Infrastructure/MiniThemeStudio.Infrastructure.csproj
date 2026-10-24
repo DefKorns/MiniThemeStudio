@@ -13,6 +13,8 @@
   <ItemGroup>
     <EmbeddedResource Include="Firmware\firmwares.json" LogicalName="MiniThemeStudio.Firmware.firmwares.json" />
     <EmbeddedResource Include="Fonts\Charsets\*.txt" LogicalName="MiniThemeStudio.Fonts.Charsets.%(Filename).txt" />
+    <EmbeddedResource Include="Fonts\Resources\*.ttf" LogicalName="MiniThemeStudio.Fonts.Resources.%(Filename).ttf" />
+    <None Include="Fonts\Resources\OFL-*.txt" CopyToOutputDirectory="PreserveNewest" Link="licenses\%(Filename).txt" />
   </ItemGroup>
 
   <PropertyGroup>

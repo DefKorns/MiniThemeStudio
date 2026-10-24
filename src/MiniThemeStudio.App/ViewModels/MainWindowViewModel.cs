@@ -22,6 +22,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly IThemeResourceIndexer _resourceIndexer;
     private readonly IThemeExporter _themeExporter;
     private readonly ICharacterAnimationEditor _characterEditor;
+    private readonly IThemePaletteEditor _paletteEditor;
     private readonly ISavedDraftStore _savedDraftStore;
 
     private ThemeDraft? _draft;
@@ -39,7 +40,8 @@ public partial class MainWindowViewModel : ViewModelBase
         IThemeResourceIndexer? resourceIndexer = null,
         IThemeExporter? themeExporter = null,
         ICharacterAnimationEditor? characterEditor = null,
-        ISavedDraftStore? savedDraftStore = null)
+        ISavedDraftStore? savedDraftStore = null,
+        IThemePaletteEditor? paletteEditor = null)
     {
         _metadataReader = metadataReader;
         _textureAtlasReader = textureAtlasReader;
@@ -52,6 +54,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _themeExporter = themeExporter ?? new ThemeExporter();
         _characterEditor = characterEditor ?? new CharacterAnimationEditor();
         _savedDraftStore = savedDraftStore ?? new SavedDraftStore();
+        _paletteEditor = paletteEditor ?? new ThemePaletteEditor();
     }
 
     [ObservableProperty]
@@ -151,7 +154,26 @@ public partial class MainWindowViewModel : ViewModelBase
     private bool isThemeValid = true;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowUnsavedChangesBadge), nameof(ShowDraftSavedBadge), nameof(HasUnsavedWork))]
     private bool hasUnsavedChanges;
+
+    // the changes not yet saved to the theme are kept in a saved draft
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowUnsavedChangesBadge), nameof(ShowDraftSavedBadge), nameof(HasUnsavedWork))]
+    private bool isDraftSaved;
+
+    public bool ShowUnsavedChangesBadge => HasUnsavedChanges && !IsDraftSaved;
+
+    public bool ShowDraftSavedBadge => HasUnsavedChanges && IsDraftSaved;
+
+    // changes that would be lost on closing: not in the theme and not in a saved draft
+    public bool HasUnsavedWork => HasUnsavedChanges && !IsDraftSaved;
+
+    private void MarkChanged()
+    {
+        HasUnsavedChanges = true;
+        IsDraftSaved = false;
+    }
 
     public string? CurrentDraftPath => _draft?.DraftPath;
     public string? CurrentBaseUiPath => _currentBaseUiPath;
@@ -250,7 +272,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 draftImagePath,
                 sprite,
                 replacementImagePath));
-            HasUnsavedChanges = true;
+            MarkChanged();
             Status = $"Replaced {sprite.Name} in draft.";
             return true;
         }
@@ -307,7 +329,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
             _assetManager.ReplaceWallpaper(targetPng, replacementImagePath, SelectedWallpaper.JsonPath);
             ReloadAssets();
-            HasUnsavedChanges = true;
+            MarkChanged();
             Status = $"Replaced wallpaper {SelectedWallpaper.DisplayName}.";
             return true;
         }
@@ -349,7 +371,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             _assetManager.AddExtraAsset(_draft.DraftPath, relativeDestPath, sourceImagePath);
             ReloadAssets();
-            HasUnsavedChanges = true;
+            MarkChanged();
             Status = $"Added {Path.GetFileName(relativeDestPath)}. No scene uses it yet, so it will not appear on the console.";
             return true;
         }
@@ -372,7 +394,7 @@ public partial class MainWindowViewModel : ViewModelBase
             var targetPng = Path.Combine(_draft.DraftPath, "resources", SelectedExtraAsset.RelativePath);
             _assetManager.ReplaceExtraAsset(targetPng, replacementImagePath, SelectedExtraAsset.JsonPath);
             ReloadAssets();
-            HasUnsavedChanges = true;
+            MarkChanged();
             Status = $"Replaced element {SelectedExtraAsset.DisplayName}.";
             return true;
         }
@@ -395,7 +417,7 @@ public partial class MainWindowViewModel : ViewModelBase
             var targetPng = Path.Combine(_draft.DraftPath, "resources", SelectedExtraAsset.RelativePath);
             _assetManager.DeleteExtraAsset(targetPng);
             ReloadAssets();
-            HasUnsavedChanges = true;
+            MarkChanged();
             Status = $"Deleted element {SelectedExtraAsset.DisplayName}.";
             return true;
         }
@@ -521,7 +543,9 @@ public partial class MainWindowViewModel : ViewModelBase
             _draft = null;
         }
 
+        OnPropertyChanged(nameof(CurrentDraftPath));
         HasUnsavedChanges = false;
+        IsDraftSaved = false;
     }
 
     private bool OpenDraft(Func<ThemeDraft> createDraft, bool isNewTheme)
@@ -554,6 +578,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ThemeName = metadata.Name;
         Author = metadata.Author ?? "Not specified";
         ThemePath = draft.SavePath;
+        OnPropertyChanged(nameof(CurrentDraftPath));
         RequiresOverlay = metadata.RequiresOverlay;
 
         _currentBase = _baseFirmwareManager.GetInstalledBases()
@@ -608,6 +633,7 @@ public partial class MainWindowViewModel : ViewModelBase
         SelectedMissingTexture = MissingTextures.Count > 0 ? MissingTextures[0] : null;
         ReloadCharacters();
         ReloadFonts();
+        ReloadPalettes();
     }
 
     public bool ProvideSelectedMissingTexture(string sourceImagePath)
@@ -623,7 +649,7 @@ public partial class MainWindowViewModel : ViewModelBase
             _assetManager.ProvideMissingTexture(_draft.DraftPath, texture, sourceImagePath);
             ReloadAssets();
             RunValidation();
-            HasUnsavedChanges = true;
+            MarkChanged();
             Status = $"Added {Path.GetFileName(texture.ImageRelativePath)} for texture {texture.TextureId}.";
             return true;
         }

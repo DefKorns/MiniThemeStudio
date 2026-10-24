@@ -27,5 +27,6 @@ public interface IThemeAssetManager
     void ExportFontTexture(MiniThemeStudio.Core.Fonts.FontAsset font, string destinationPngPath);
     void ExportFont(MiniThemeStudio.Core.Fonts.FontAsset font, string destinationFontPath);
     void ImportTrueTypeFont(string themeDraftPath, MiniThemeStudio.Core.Fonts.FontAsset targetFont, string ttfOrZipPath, int? fontSize = null, bool antiAlias = false,
-        MiniThemeStudio.Core.Fonts.ExtraScripts extraScripts = MiniThemeStudio.Core.Fonts.ExtraScripts.None, string? scriptFontFamily = null);
+        MiniThemeStudio.Core.Fonts.ExtraScripts extraScripts = MiniThemeStudio.Core.Fonts.ExtraScripts.None, string? fillFontPath = null);
+    void CompleteFont(string themeDraftPath, MiniThemeStudio.Core.Fonts.FontAsset font, MiniThemeStudio.Core.Fonts.ExtraScripts extraScripts, string? fillFontPath = null);
 }

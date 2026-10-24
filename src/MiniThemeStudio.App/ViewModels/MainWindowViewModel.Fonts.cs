@@ -23,26 +23,34 @@ public partial class MainWindowViewModel
     [ObservableProperty]
     private bool convertGreek;
 
-    [ObservableProperty]
-    private string convertScriptFont = "Yu Gothic UI";
-
-    // Yu Gothic UI is the consoles' own UI font
-    public IReadOnlyList<string> ScriptFontFamilies { get; } = ["Yu Gothic UI", "Noto Sans CJK JP"];
-
     // the TTF last converted into the selected font, re-run when the script options change
     private string? lastConvertedFontPath;
+
+    private bool _isUpdatingScriptCheckboxes;
 
     partial void OnConvertJapaneseChanged(bool value) => OnConvertOptionsChanged();
     partial void OnConvertCyrillicChanged(bool value) => OnConvertOptionsChanged();
     partial void OnConvertGreekChanged(bool value) => OnConvertOptionsChanged();
-    partial void OnConvertScriptFontChanged(string value) => OnConvertOptionsChanged();
 
     private void OnConvertOptionsChanged()
     {
+        if (_isUpdatingScriptCheckboxes)
+        {
+            return;
+        }
+
         if (lastConvertedFontPath is not null)
+        {
             ImportSelectedTrueTypeFont(lastConvertedFontPath);
+        }
+        else if (CanCompleteSelectedFont)
+        {
+            CompleteSelectedFont();
+        }
         else
+        {
             RenderFontSamplePreview();
+        }
     }
 
     private string EffectiveSampleText =>
@@ -50,6 +58,19 @@ public partial class MainWindowViewModel
         + (ConvertJapanese ? "\n日本語 テーマ ダウンロード" : string.Empty)
         + (ConvertCyrillic ? "\nРусский Язык" : string.Empty)
         + (ConvertGreek ? "\nΕλληνικά Γλώσσα" : string.Empty);
+
+    private static bool IsJapaneseChar(char c) =>
+        (c is >= '\u3000' and <= '\u30FF') ||
+        (c is >= '\u31F0' and <= '\u31FF') ||
+        (c is >= '\u4E00' and <= '\u9FFF') ||
+        (c is >= '\u2E80' and <= '\u2FD5') ||
+        (c is >= '\uFF00' and <= '\uFFEF');
+
+    private static bool IsCyrillicChar(char c) =>
+        (c is >= '\u0400' and <= '\u04FF');
+
+    private static bool IsGreekChar(char c) =>
+        (c is >= '\u0370' and <= '\u03FF');
 
     [ObservableProperty]
     private FontAsset? selectedFont;
@@ -83,6 +104,7 @@ public partial class MainWindowViewModel
     partial void OnSelectedFontChanged(FontAsset? value)
     {
         OnPropertyChanged(nameof(CanReplaceFont));
+        OnPropertyChanged(nameof(CanCompleteSelectedFont));
         lastConvertedFontPath = null;
         LoadSelectedFont(value);
     }
@@ -142,6 +164,7 @@ public partial class MainWindowViewModel
                 FontTexturePreview = null;
             }
 
+            SyncScriptCheckboxesToFont(CurrentLoadedFont);
             RenderFontSamplePreview();
         }
         catch (Exception ex)
@@ -153,6 +176,38 @@ public partial class MainWindowViewModel
             FontGlyphs = [];
             FilteredFontGlyphs = [];
             FontValidation = null;
+        }
+    }
+
+    /// <summary>
+    /// Actualiza silenciosamente as checkboxes de script para reflectir
+    /// os caracteres efectivamente presentes na fonte carregada.
+    /// </summary>
+    private void SyncScriptCheckboxesToFont(MiniFont font)
+    {
+        var hasJapanese = false;
+        var hasCyrillic = false;
+        var hasGreek    = false;
+
+        foreach (var g in font.Glyphs)
+        {
+            var c = (char)g.Id;
+            if (!hasJapanese && IsJapaneseChar(c)) hasJapanese = true;
+            if (!hasCyrillic && IsCyrillicChar(c)) hasCyrillic = true;
+            if (!hasGreek    && IsGreekChar(c))    hasGreek    = true;
+            if (hasJapanese && hasCyrillic && hasGreek) break;
+        }
+
+        _isUpdatingScriptCheckboxes = true;
+        try
+        {
+            ConvertJapanese = hasJapanese;
+            ConvertCyrillic = hasCyrillic;
+            ConvertGreek    = hasGreek;
+        }
+        finally
+        {
+            _isUpdatingScriptCheckboxes = false;
         }
     }
 
@@ -205,6 +260,21 @@ public partial class MainWindowViewModel
                 var x = pad;
                 foreach (var ch in line)
                 {
+                    if (!ConvertJapanese && IsJapaneseChar(ch))
+                    {
+                        continue;
+                    }
+
+                    if (!ConvertCyrillic && IsCyrillicChar(ch))
+                    {
+                        continue;
+                    }
+
+                    if (!ConvertGreek && IsGreekChar(ch))
+                    {
+                        continue;
+                    }
+
                     var glyph = CurrentLoadedFont.GetGlyph(ch);
                     if (glyph is { Width: > 0, Height: > 0 })
                     {
@@ -250,7 +320,7 @@ public partial class MainWindowViewModel
             _assetManager.ReplaceFontTexture(_draft.DraftPath, SelectedFont, sourcePngPath);
             ReloadAssets();
             RunValidation();
-            HasUnsavedChanges = true;
+            MarkChanged();
             Status = $"Replaced texture for {SelectedFont.DisplayName}.";
             return true;
         }
@@ -274,7 +344,7 @@ public partial class MainWindowViewModel
             _assetManager.ReplaceFont(_draft.DraftPath, SelectedFont, sourceFontPath);
             ReloadAssets();
             RunValidation();
-            HasUnsavedChanges = true;
+            MarkChanged();
             Status = $"Replaced font file for {SelectedFont.DisplayName}.";
             return true;
         }
@@ -335,15 +405,49 @@ public partial class MainWindowViewModel
 
         try
         {
-            var scripts = (ConvertJapanese ? ExtraScripts.Japanese : ExtraScripts.None)
-                | (ConvertCyrillic ? ExtraScripts.Cyrillic : ExtraScripts.None)
-                | (ConvertGreek ? ExtraScripts.Greek : ExtraScripts.None);
-            _assetManager.ImportTrueTypeFont(_draft.DraftPath, SelectedFont, fontOrZipPath, fontSize, antiAlias, scripts, ConvertScriptFont);
-            ReloadAssets();
+            _assetManager.ImportTrueTypeFont(_draft.DraftPath, SelectedFont, fontOrZipPath, fontSize, antiAlias, SelectedScripts, FillFontPath);
+            ReloadFonts();
             RunValidation();
-            HasUnsavedChanges = true;
+            MarkChanged();
             lastConvertedFontPath = fontOrZipPath;
             Status = $"Generated console font from {Path.GetFileName(fontOrZipPath)} for {SelectedFont.DisplayName}.";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Status = ex.Message;
+            return false;
+        }
+    }
+
+    // the user's own font for the characters a font lacks (Settings); empty uses the system's or the built-in one
+    public string? FillFontPath { get; set; }
+
+    public bool CanCompleteSelectedFont =>
+        SelectedFont is not null;
+
+    private ExtraScripts SelectedScripts =>
+        (ConvertJapanese ? ExtraScripts.Japanese : ExtraScripts.None)
+        | (ConvertCyrillic ? ExtraScripts.Cyrillic : ExtraScripts.None)
+        | (ConvertGreek ? ExtraScripts.Greek : ExtraScripts.None);
+
+    // the missing characters, and the scripts ticked, from the complete font of the same role
+    public bool CompleteSelectedFont()
+    {
+        if (SelectedFont is null || _draft is null)
+        {
+            Status = "Select a font first.";
+            return false;
+        }
+
+        try
+        {
+            _assetManager.CompleteFont(_draft.DraftPath, SelectedFont, SelectedScripts, FillFontPath);
+            var name = SelectedFont.DisplayName;
+            ReloadFonts();
+            RunValidation();
+            MarkChanged();
+            Status = $"Filled {name} from the base font.";
             return true;
         }
         catch (Exception ex)

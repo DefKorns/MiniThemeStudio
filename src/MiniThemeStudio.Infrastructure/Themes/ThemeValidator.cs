@@ -95,7 +95,7 @@ public sealed class ThemeValidator(IThemeResourceIndexer? resourceIndexer = null
             }
 
             var fontName = Path.GetFileNameWithoutExtension(file);
-            if (fontName.Equals("debug", StringComparison.OrdinalIgnoreCase))
+            if (MiniThemeStudio.Infrastructure.Fonts.FirmwareFonts.IsFirmwareOnly(fontName))
             {
                 continue;
             }

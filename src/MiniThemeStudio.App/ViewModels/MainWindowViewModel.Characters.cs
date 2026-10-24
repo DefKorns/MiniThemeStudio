@@ -85,7 +85,7 @@ public partial class MainWindowViewModel
             }
 
             var animationName = animation.Name;
-            HasUnsavedChanges = true;
+            MarkChanged();
             ReloadAssets();
             SelectedAnimation = CharacterAnimations.FirstOrDefault(candidate => candidate.Name == animationName);
             RunValidation();
@@ -125,7 +125,7 @@ public partial class MainWindowViewModel
                 .ToList();
 
             var animationName = animation.Name;
-            HasUnsavedChanges = true;
+            MarkChanged();
             ReloadAssets();
             SelectedAnimation = CharacterAnimations.FirstOrDefault(candidate => candidate.Name == animationName);
             Status = $"{character} {animationName}: flipped {distinct.Count} frame{(distinct.Count == 1 ? "" : "s")} horizontally."
@@ -160,7 +160,7 @@ public partial class MainWindowViewModel
 
             var animationName = animation.Name;
             var frameTimeMilliseconds = FrameTimeMilliseconds;
-            HasUnsavedChanges = true;
+            MarkChanged();
             ReloadAssets();
             SelectedAnimation = CharacterAnimations.FirstOrDefault(candidate => candidate.Name == animationName);
             Status = $"{SelectedCharacter} {animationName}: {loopKeys.Count} frames at {frameTimeMilliseconds} ms ({duration:0.###} s per loop).";

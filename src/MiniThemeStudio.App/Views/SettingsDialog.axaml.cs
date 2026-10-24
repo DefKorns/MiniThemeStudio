@@ -36,6 +36,7 @@ public sealed partial class SettingsDialog : Window
         ThemeComboBox.ItemsSource = Enum.GetValues<ApplicationThemePreference>();
         DraftRootTextBox.Text = settings.DraftRootPath;
         ThemeDestinationTextBox.Text = settings.DefaultThemeDestinationPath;
+        FillFontTextBox.Text = settings.FillFontPath;
         ThemeComboBox.SelectedItem = settings.Theme;
         ConsoleHostTextBox.Text = settings.ConsoleHost;
         UsbConnectionButton.IsChecked = !_usesNetwork;
@@ -124,6 +125,18 @@ public sealed partial class SettingsDialog : Window
             ?? ThemeDestinationTextBox.Text;
     }
 
+    private async void BrowseFillFont_Click(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Select the fill font",
+            AllowMultiple = false,
+            FileTypeFilter = [new FilePickerFileType("Fonts") { Patterns = ["*.ttf", "*.otf", "*.ttc"] }],
+        });
+
+        FillFontTextBox.Text = files.Count > 0 ? files[0].TryGetLocalPath() ?? FillFontTextBox.Text : FillFontTextBox.Text;
+    }
+
     private void PathTextBox_TextChanged(object? sender, TextChangedEventArgs e)
     {
         UpdatePathValidation();
@@ -139,6 +152,8 @@ public sealed partial class SettingsDialog : Window
     {
         UpdatePathValidation(DraftRootTextBox, false);
         UpdatePathValidation(ThemeDestinationTextBox, true);
+        var fillFont = FillFontTextBox.Text?.Trim() ?? "";
+        FillFontTextBox.Classes.Set("invalid-path", fillFont.Length > 0 && !File.Exists(fillFont));
     }
 
     private static void UpdatePathValidation(TextBox textBox, bool allowsEmpty)
@@ -197,6 +212,7 @@ public sealed partial class SettingsDialog : Window
                 ? ""
                 : Path.GetFullPath(ThemeDestinationTextBox.Text.Trim()),
             Theme = theme,
+            FillFontPath = string.IsNullOrWhiteSpace(FillFontTextBox.Text) ? "" : Path.GetFullPath(FillFontTextBox.Text.Trim()),
             ConsoleHost = IPAddress.TryParse(_networkConsoleHost, out _)
                 ? _networkConsoleHost
                 : consoleHost,

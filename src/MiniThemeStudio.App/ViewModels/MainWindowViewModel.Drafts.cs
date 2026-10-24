@@ -20,6 +20,7 @@ public partial class MainWindowViewModel
         {
             var saved = _savedDraftStore.Save(_draft, ThemeName, _currentBaseUiPath);
             _draft = _draft with { SavedDraftId = saved.Id };
+            IsDraftSaved = true;
             Status = $"Draft saved at {saved.SavedAt:HH:mm}. Reopen it from Saved drafts.";
             return true;
         }
@@ -40,6 +41,7 @@ public partial class MainWindowViewModel
             return false;
         }
 
+        IsDraftSaved = true;
         Status = $"Resumed draft '{savedDraft.Name}' saved at {savedDraft.SavedAt:g}.";
         return true;
     }

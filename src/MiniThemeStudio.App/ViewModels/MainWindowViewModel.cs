@@ -43,7 +43,8 @@ public partial class MainWindowViewModel : ViewModelBase
         ICharacterAnimationEditor? characterEditor = null,
         ISavedDraftStore? savedDraftStore = null,
         IThemePaletteEditor? paletteEditor = null,
-        MiniThemeStudio.Core.Settings.IAppSettingsStore? settingsStore = null)
+        MiniThemeStudio.Core.Settings.IAppSettingsStore? settingsStore = null,
+        MiniThemeStudio.Core.Scenes.ISceneEditor? sceneEditor = null)
     {
         _metadataReader = metadataReader;
         _textureAtlasReader = textureAtlasReader;
@@ -58,6 +59,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _savedDraftStore = savedDraftStore ?? new SavedDraftStore();
         _paletteEditor = paletteEditor ?? new ThemePaletteEditor();
         _settingsStore = settingsStore ?? new MiniThemeStudio.Infrastructure.Settings.JsonAppSettingsStore();
+        _sceneEditor = sceneEditor ?? new SceneEditor();
     }
 
     [ObservableProperty]
@@ -127,15 +129,15 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool canReplaceWallpaper;
 
-    // Extra assets (Characters, poles, standalone elements)
+    // images of this theme that no scene draws
     [ObservableProperty]
-    private IReadOnlyList<ExtraAsset> extraAssets = [];
+    [NotifyPropertyChangedFor(nameof(HasUnusedImages))]
+    private IReadOnlyList<ExtraAsset> unusedImages = [];
+
+    public bool HasUnusedImages => UnusedImages.Count > 0;
 
     [ObservableProperty]
-    private ExtraAsset? selectedExtraAsset;
-
-    [ObservableProperty]
-    private bool canReplaceExtraAsset;
+    private ExtraAsset? selectedUnusedImage;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasMissingTextures))]
@@ -363,7 +365,19 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    public bool AddExtraAsset(string relativeDestPath, string sourceImagePath)
+    public bool DeleteSelectedUnusedImage()
+    {
+        if (SelectedUnusedImage is not { IsFromBaseUi: false } image)
+        {
+            return false;
+        }
+
+        return DeleteDraftImage(image, image.OverridesBase
+            ? $"Removed the replacement of {image.DisplayName}; the Base image is used again."
+            : $"Deleted {image.DisplayName}.");
+    }
+
+    private bool DeleteDraftImage(ExtraAsset image, string status)
     {
         if (_draft is null)
         {
@@ -372,79 +386,15 @@ public partial class MainWindowViewModel : ViewModelBase
 
         try
         {
-            _assetManager.AddExtraAsset(_draft.DraftPath, relativeDestPath, sourceImagePath);
-            ReloadAssets();
-            MarkChanged();
-            Status = $"Added {Path.GetFileName(relativeDestPath)}. No scene uses it yet, so it will not appear on the console.";
-            return true;
-        }
-        catch (Exception exception)
-        {
-            Status = exception.Message;
-            return false;
-        }
-    }
-
-    public bool ReplaceSelectedExtraAsset(string replacementImagePath)
-    {
-        if (SelectedExtraAsset is null || _draft is null)
-        {
-            return false;
-        }
-
-        try
-        {
-            var targetPng = Path.Combine(_draft.DraftPath, "resources", SelectedExtraAsset.RelativePath);
-            _assetManager.ReplaceExtraAsset(targetPng, replacementImagePath, SelectedExtraAsset.JsonPath);
-            ReloadAssets();
-            MarkChanged();
-            Status = $"Replaced element {SelectedExtraAsset.DisplayName}.";
-            return true;
-        }
-        catch (Exception exception)
-        {
-            Status = exception.Message;
-            return false;
-        }
-    }
-
-    public bool DeleteSelectedExtraAsset()
-    {
-        if (SelectedExtraAsset is null || _draft is null || SelectedExtraAsset.IsFromBaseUi)
-        {
-            return false;
-        }
-
-        try
-        {
-            var targetPng = Path.Combine(_draft.DraftPath, "resources", SelectedExtraAsset.RelativePath);
+            var targetPng = Path.Combine(_draft.DraftPath, "resources", image.RelativePath);
             _assetManager.DeleteExtraAsset(targetPng);
             ReloadAssets();
+            RunValidation();
             MarkChanged();
-            Status = $"Deleted element {SelectedExtraAsset.DisplayName}.";
+            Status = status;
             return true;
         }
-        catch (Exception exception)
-        {
-            Status = exception.Message;
-            return false;
-        }
-    }
-
-    public bool ExportSelectedExtraAsset(string destinationPath)
-    {
-        if (SelectedExtraAsset is null)
-        {
-            return false;
-        }
-
-        try
-        {
-            _assetManager.ExportExtraAsset(SelectedExtraAsset, destinationPath);
-            Status = $"Exported element {SelectedExtraAsset.DisplayName}.";
-            return true;
-        }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             Status = exception.Message;
             return false;
@@ -621,32 +571,40 @@ public partial class MainWindowViewModel : ViewModelBase
         if (_draft is null)
         {
             Wallpapers = [];
-            ExtraAssets = [];
+            UnusedImages = [];
             MissingTextures = [];
             Fonts = [];
             ReloadCharacters();
             ReloadBgmTracks();
             SelectedWallpaper = null;
-            SelectedExtraAsset = null;
             SelectedFont = null;
+            ReloadScenes(null);
             return;
         }
 
         var report = _resourceIndexer.Analyze(_draft.DraftPath, _currentBaseUiPath);
         var selectedWallpaperName = SelectedWallpaper?.Name;
-        var selectedExtraPath = SelectedExtraAsset?.RelativePath;
 
         Wallpapers = _assetManager.GetWallpapers(_draft.DraftPath, _currentBaseUiPath)
-            .Select(wallpaper => wallpaper with { UsedBy = report.UsageOf(wallpaper.TextureId) })
+            .Select(wallpaper => wallpaper with
+            {
+                UsedBy = report.UsageOf(report.TextureIdOf($"layout/asset/sprite/wallpaper/{wallpaper.Name}.png", wallpaper.TextureId)),
+            })
             .ToList();
         SelectedWallpaper = Wallpapers.FirstOrDefault(wallpaper => wallpaper.Name == selectedWallpaperName)
             ?? (Wallpapers.Count > 0 ? Wallpapers[0] : null);
 
-        ExtraAssets = _assetManager.GetExtraAssets(_draft.DraftPath, _currentBaseUiPath)
-            .Select(asset => asset with { UsedBy = report.UsageOf(asset.TextureId) })
+        var images = _assetManager.GetExtraAssets(_draft.DraftPath, _currentBaseUiPath)
+            .Select(asset => report.TextureIdOf(asset.RelativePath, asset.TextureId) is var textureId
+                ? asset with { TextureId = textureId, UsedBy = report.UsageOf(textureId) }
+                : asset)
             .ToList();
-        SelectedExtraAsset = ExtraAssets.FirstOrDefault(asset => asset.RelativePath == selectedExtraPath)
-            ?? (ExtraAssets.Count > 0 ? ExtraAssets[0] : null);
+
+        // a Base image nobody draws is not part of the theme, so only the theme's own files are reported
+        var selectedUnusedPath = SelectedUnusedImage?.RelativePath;
+        UnusedImages = images.Where(asset => asset.UsedBy.Count == 0 && !asset.IsFromBaseUi).ToList();
+        SelectedUnusedImage = UnusedImages.FirstOrDefault(asset => asset.RelativePath == selectedUnusedPath)
+            ?? (UnusedImages.Count > 0 ? UnusedImages[0] : null);
 
         MissingTextures = report.MissingTextures;
         SelectedMissingTexture = MissingTextures.Count > 0 ? MissingTextures[0] : null;
@@ -654,6 +612,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ReloadFonts();
         ReloadPalettes();
         ReloadBgmTracks();
+        ReloadScenes(report);
     }
 
     public bool ProvideSelectedMissingTexture(string sourceImagePath)
@@ -742,10 +701,5 @@ public partial class MainWindowViewModel : ViewModelBase
     partial void OnSelectedWallpaperChanged(WallpaperAsset? value)
     {
         CanReplaceWallpaper = value is not null;
-    }
-
-    partial void OnSelectedExtraAssetChanged(ExtraAsset? value)
-    {
-        CanReplaceExtraAsset = value is not null;
     }
 }

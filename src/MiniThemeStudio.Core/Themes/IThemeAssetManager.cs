@@ -11,7 +11,6 @@ public interface IThemeAssetManager
     void ExportWallpaper(WallpaperAsset wallpaper, string destinationPath);
 
     IReadOnlyList<ExtraAsset> GetExtraAssets(string themeDraftPath, string? baseUiPath = null);
-    void AddExtraAsset(string themeDraftPath, string relativeDestinationPath, string sourceImagePath, string? sourceJsonPath = null);
     void ReplaceExtraAsset(string targetImagePath, string replacementImagePath, string? templateJsonPath = null);
     void DeleteExtraAsset(string imagePath, string? jsonPath = null);
     void ExportExtraAsset(ExtraAsset asset, string destinationPath);

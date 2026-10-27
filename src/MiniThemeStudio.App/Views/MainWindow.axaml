@@ -138,7 +138,7 @@
     </Grid>
 
     <!-- Theme Workspace View -->
-    <TabControl Grid.Row="1" Grid.Column="1" IsVisible="{Binding IsThemeOpen}">
+    <TabControl x:Name="WorkspaceTabs" Grid.Row="1" Grid.Column="1" IsVisible="{Binding IsThemeOpen}">
       <!-- TAB 1: PACKED ATLAS SPRITES -->
       <TabItem Header="Sprites">
         <Grid ColumnDefinitions="270,*,320" Margin="16,12">
@@ -315,42 +315,30 @@
         </Grid>
       </TabItem>
 
-      <!-- TAB 3: EXTRA ELEMENTS -->
-      <TabItem Header="Extra Elements">
-        <Grid ColumnDefinitions="*,380" Margin="16,12">
+      <!-- TAB 3: SCENES -->
+      <TabItem Header="Scenes">
+        <Grid ColumnDefinitions="290,*,320" Margin="16,12">
+          <!-- Scene and node tree -->
           <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid RowDefinitions="Auto,*">
-              <Grid Margin="16,12" ColumnDefinitions="*,Auto">
-                <TextBlock VerticalAlignment="Center" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Characters &amp; Standalone Assets (Shonen, Chrono, etc.)" />
-                <Button Grid.Column="1" Click="AddExtraAsset_Click" Padding="10,6" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold">
-                  <StackPanel Orientation="Horizontal" Spacing="6">
-                    <lucide:LucideIcon Kind="Plus" Size="16" />
-                    <TextBlock Text="Add Element" />
-                  </StackPanel>
-                </Button>
-              </Grid>
+              <StackPanel Margin="12" Spacing="8">
+                <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding SceneResources}" SelectedItem="{Binding SelectedSceneResource}" ToolTip.Tip="Scene file" />
+                <TextBox Height="36" Watermark="Search nodes by name..." Text="{Binding SceneSearchText}" />
+              </StackPanel>
 
-              <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding ExtraAssets}" SelectedItem="{Binding SelectedExtraAsset}" SelectionChanged="ExtraAssetList_SelectionChanged">
+              <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding SceneRows}" SelectedItem="{Binding SelectedSceneRow}">
                 <ListBox.Styles>
                   <Style Selector="ListBoxItem">
                     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                    <Setter Property="Padding" Value="10,8" />
+                    <Setter Property="Padding" Value="6,3" />
+                    <Setter Property="MinHeight" Value="0" />
                   </Style>
                 </ListBox.Styles>
                 <ListBox.ItemTemplate>
-                  <DataTemplate x:DataType="themes:ExtraAsset">
-                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="4,2">
-                      <Border Width="32" Height="32" Background="{DynamicResource PanelBackgroundBrush}" CornerRadius="4" Margin="0,0,12,0">
-                        <lucide:LucideIcon Kind="Sparkles" Size="16" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                      </Border>
-                      <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                        <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding DisplayName}" />
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                          <TextBlock FontSize="11" Foreground="{DynamicResource AccentBrush}" Text="{Binding Category}" />
-                          <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding RelativePath}" TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
-                      </StackPanel>
-                      <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Width, StringFormat='{}{0}px'}" />
+                  <DataTemplate x:DataType="vm:SceneTreeRow">
+                    <Grid Margin="{Binding Indent}" ColumnDefinitions="*,Auto" Opacity="{Binding Opacity}">
+                      <TextBlock Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Grid.Column="1" Margin="8,0,0,0" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Detail}" />
                     </Grid>
                   </DataTemplate>
                 </ListBox.ItemTemplate>
@@ -358,39 +346,74 @@
             </Grid>
           </Border>
 
-          <Border Grid.Column="1" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+          <!-- Preview -->
+          <Border Grid.Column="1" Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+            <Grid RowDefinitions="Auto,*,Auto">
+              <StackPanel Margin="12,8" Orientation="Horizontal" Spacing="16">
+                <CheckBox IsChecked="{Binding IsolateSceneBranch}" Content="Only the selected branch" ToolTip.Tip="Draw only the menu or background the selected node belongs to" />
+                <CheckBox IsChecked="{Binding ShowHiddenSceneNodes}" Content="Show hidden nodes" />
+              </StackPanel>
+              <controls:ScenePreview Grid.Row="1" Margin="12,0"
+                                     Root="{Binding CurrentScene.Root}"
+                                     SelectedPath="{Binding SelectedScenePath}"
+                                     BranchPath="{Binding PreviewBranchPath}"
+                                     ShowHidden="{Binding ShowHiddenSceneNodes}"
+                                     Images="{Binding SceneImages}" />
+              <TextBlock Grid.Row="2" Margin="12,8" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
+                         Text="Click an image to select its node. This is the layout saved in the scene; scripts and animations can still move, show or hide nodes on the console." />
+            </Grid>
+          </Border>
+
+          <!-- Node properties -->
+          <Border Grid.Column="2" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <ScrollViewer>
-              <StackPanel Margin="20" Spacing="14">
-                <TextBlock FontFamily="Georgia, serif" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Element Preview" />
-                <Border Height="240" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
-                  <Image x:Name="ExtraAssetPreviewImage" Margin="8" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
-                </Border>
-                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedExtraAsset.DisplayName}" />
-                <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SelectedExtraAsset.RelativePath}" TextWrapping="Wrap" />
-                <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SelectedExtraAsset.UsageText}" TextWrapping="Wrap" />
+              <StackPanel Margin="20" Spacing="12">
+                <TextBlock FontFamily="Georgia, serif" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Node" />
+                <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SelectedSceneNodeSummary}" TextWrapping="Wrap" />
 
-                <Grid ColumnDefinitions="*,*" Margin="0,4">
-                  <Button Margin="0,0,4,0" Padding="10,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" IsEnabled="{Binding CanReplaceExtraAsset}" Click="ReplaceExtraAsset_Click" Content="Replace PNG" />
-                  <Button Grid.Column="1" Margin="4,0,0,0" Padding="10,8" HorizontalAlignment="Stretch" IsEnabled="{Binding CanReplaceExtraAsset}" Click="ExportExtraAsset_Click" Content="Export PNG" />
-                </Grid>
-                <Button Padding="10,6" HorizontalAlignment="Stretch" IsEnabled="{Binding CanReplaceExtraAsset}" Click="DeleteExtraAsset_Click" Content="Delete Element" />
+                <StackPanel Spacing="10" IsEnabled="{Binding HasSelectedSceneNode}">
+                  <Grid ColumnDefinitions="80,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+                    <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Name" />
+                    <TextBox Grid.Column="1" Text="{Binding SceneNodeName}" />
+                    <TextBlock Grid.Row="1" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="X" />
+                    <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding SceneNodeX}" Increment="1" FormatString="0.##" ToolTip.Tip="Pixels to the right of the parent (the screen centre for top nodes)" />
+                    <TextBlock Grid.Row="2" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Y" />
+                    <NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding SceneNodeY}" Increment="1" FormatString="0.##" ToolTip.Tip="Pixels above the parent: Y points up" />
+                    <TextBlock Grid.Row="3" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Layer" />
+                    <NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding SceneNodeZIndex}" Increment="1" FormatString="0" ToolTip.Tip="zIndex: among siblings, higher layers are drawn over lower ones" />
+                    <CheckBox Grid.Row="4" Grid.Column="1" IsChecked="{Binding SceneNodeVisible}" Content="Visible" />
+                  </Grid>
 
-                <Border Height="1" Background="{DynamicResource BorderBrush}" IsVisible="{Binding HasMissingTextures}" />
-                <StackPanel Spacing="8" IsVisible="{Binding HasMissingTextures}">
-                  <TextBlock FontWeight="Bold" Foreground="{DynamicResource ErrorTextBrush}" Text="{Binding MissingTextures.Count, StringFormat='Missing textures ({0})'}" />
-                  <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
-                             Text="These textures are registered in dependencies.json but their image is missing. Provide a PNG and it is saved with the texture id the scenes already use." />
-                  <ListBox MaxHeight="180" ItemsSource="{Binding MissingTextures}" SelectedItem="{Binding SelectedMissingTexture}">
-                    <ListBox.ItemTemplate>
-                      <DataTemplate x:DataType="themes:MissingTexture">
-                        <StackPanel Spacing="2">
-                          <TextBlock FontWeight="SemiBold" Text="{Binding ImageRelativePath}" TextTrimming="CharacterEllipsis" />
-                          <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding TextureId}" />
-                        </StackPanel>
-                      </DataTemplate>
-                    </ListBox.ItemTemplate>
-                  </ListBox>
-                  <Button Padding="10,6" HorizontalAlignment="Stretch" Click="ProvideMissingTexture_Click" Content="Provide PNG for selected texture" />
+                  <StackPanel Spacing="10" IsVisible="{Binding SelectedNodeDrawsImage}">
+                    <Border Height="1" Background="{DynamicResource BorderBrush}" />
+                    <TextBlock FontWeight="Bold" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="IMAGE" />
+                    <Grid ColumnDefinitions="80,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
+                      <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Width" />
+                      <NumericUpDown Grid.Column="1" Value="{Binding SceneNodeWidth}" Minimum="0" Increment="1" FormatString="0.##" ToolTip.Tip="Drawn width in pixels" />
+                      <TextBlock Grid.Row="1" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Height" />
+                      <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding SceneNodeHeight}" Minimum="0" Increment="1" FormatString="0.##" ToolTip.Tip="Drawn height in pixels" />
+                      <TextBlock Grid.Row="2" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Texture" IsVisible="{Binding SelectedNodeIsTexture}" />
+                      <ComboBox Grid.Row="2" Grid.Column="1" HorizontalAlignment="Stretch" IsVisible="{Binding SelectedNodeIsTexture}"
+                                ItemsSource="{Binding SceneTextureChoices}" SelectedItem="{Binding SceneNodeTexture}">
+                        <ComboBox.ItemTemplate>
+                          <DataTemplate x:DataType="vm:SceneTextureChoice">
+                            <TextBlock Text="{Binding Name}" ToolTip.Tip="{Binding RelativePath}" />
+                          </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                      </ComboBox>
+                    </Grid>
+                    <Button Padding="10,6" HorizontalAlignment="Stretch" IsVisible="{Binding SelectedNodeIsTexture}" Click="ReplaceSceneImage_Click" Content="Replace PNG..."
+                            ToolTip.Tip="Replaces the image file: every node that uses this texture changes" />
+                    <Button Padding="10,6" HorizontalAlignment="Stretch" IsVisible="{Binding SelectedNodeIsSprite}" Click="OpenSceneSprite_Click" Content="Edit sprite in Sprites tab" />
+                  </StackPanel>
+
+                  <Border Height="1" Background="{DynamicResource BorderBrush}" />
+                  <Grid ColumnDefinitions="*,*">
+                    <Button Margin="0,0,4,0" Padding="10,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Click="ApplySceneNode_Click" Content="Apply" />
+                    <Button Grid.Column="1" Margin="4,0,0,0" Padding="10,8" HorizontalAlignment="Stretch" Click="ResetSceneNode_Click" Content="Discard" />
+                  </Grid>
+                  <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
+                             Text="Changes are written to this theme's copy of the scene; the Base is never modified." />
                 </StackPanel>
               </StackPanel>
             </ScrollViewer>
@@ -791,7 +814,7 @@
           </ScrollViewer>
 
           <Border Grid.Column="1" Margin="12,0,0,0" Padding="20" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
-            <Grid RowDefinitions="Auto,Auto,*">
+            <Grid RowDefinitions="Auto,Auto,*,Auto">
               <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,12">
                 <TextBlock VerticalAlignment="Center" FontFamily="Georgia, serif" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Integrity Validation" />
                 <Button Grid.Column="1" Click="RunValidation_Click" Padding="12,6" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Content="Re-validate" />
@@ -813,6 +836,47 @@
                   </DataTemplate>
                 </ListBox.ItemTemplate>
               </ListBox>
+
+              <StackPanel Grid.Row="3">
+                <StackPanel Spacing="8" Margin="0,12,0,0" IsVisible="{Binding HasMissingTextures}">
+                  <TextBlock FontWeight="Bold" Foreground="{DynamicResource ErrorTextBrush}" Text="{Binding MissingTextures.Count, StringFormat='Missing textures ({0})'}" />
+                  <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
+                             Text="These textures are registered in dependencies.json but their image is missing. Provide a PNG and it is saved with the texture id the scenes already use." />
+                  <ListBox MaxHeight="160" ItemsSource="{Binding MissingTextures}" SelectedItem="{Binding SelectedMissingTexture}">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate x:DataType="themes:MissingTexture">
+                        <StackPanel Spacing="2">
+                          <TextBlock FontWeight="SemiBold" Text="{Binding ImageRelativePath}" TextTrimming="CharacterEllipsis" />
+                          <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding TextureId}" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                  <Button Padding="10,6" HorizontalAlignment="Stretch" Click="ProvideMissingTexture_Click" Content="Provide PNG for selected texture" />
+                </StackPanel>
+
+                <StackPanel Spacing="8" Margin="0,12,0,0" IsVisible="{Binding HasUnusedImages}">
+                  <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding UnusedImages.Count, StringFormat='Unused images ({0})'}" />
+                  <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
+                             Text="These images are in the theme but no scene draws them, so they only make the package bigger." />
+                  <Grid ColumnDefinitions="*,96">
+                    <ListBox MaxHeight="160" ItemsSource="{Binding UnusedImages}" SelectedItem="{Binding SelectedUnusedImage}" SelectionChanged="UnusedImageList_SelectionChanged">
+                      <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="themes:ExtraAsset">
+                          <StackPanel Spacing="2">
+                            <TextBlock FontWeight="SemiBold" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding RelativePath}" TextTrimming="CharacterEllipsis" />
+                          </StackPanel>
+                        </DataTemplate>
+                      </ListBox.ItemTemplate>
+                    </ListBox>
+                    <Border Grid.Column="1" Margin="8,0,0,0" Height="96" VerticalAlignment="Top" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                      <Image x:Name="UnusedImagePreviewImage" Margin="4" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
+                    </Border>
+                  </Grid>
+                  <Button Padding="10,6" HorizontalAlignment="Stretch" Click="DeleteUnusedImage_Click" Content="Delete selected image from the theme" />
+                </StackPanel>
+              </StackPanel>
             </Grid>
           </Border>
         </Grid>

@@ -41,7 +41,7 @@ public sealed partial class MainWindow : Window, IDisposable
     private Bitmap? _atlasBitmap;
     private CroppedBitmap? _spritePreview;
     private Bitmap? _wallpaperBitmap;
-    private Bitmap? _extraAssetBitmap;
+    private Bitmap? _unusedImageBitmap;
     private readonly Avalonia.Threading.DispatcherTimer _animationTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
     private readonly System.Diagnostics.Stopwatch _animationClock = System.Diagnostics.Stopwatch.StartNew();
 
@@ -527,68 +527,93 @@ public sealed partial class MainWindow : Window, IDisposable
         }
     }
 
-    // Extra Elements Handlers
-    private void ExtraAssetList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    // Scene Handlers
+    private void ApplySceneNode_Click(object? sender, RoutedEventArgs e)
     {
-        if (sender is ListBox { SelectedItem: ExtraAsset asset })
-        {
-            ShowExtraAssetPreview(asset);
-        }
+        (DataContext as MainWindowViewModel)?.ApplySceneNodeChanges();
     }
 
-    private void ShowExtraAssetPreview(ExtraAsset asset)
+    private void ResetSceneNode_Click(object? sender, RoutedEventArgs e)
     {
-        ExtraAssetPreviewImage.Source = null;
-        _extraAssetBitmap?.Dispose();
-        _extraAssetBitmap = null;
-
-        if (File.Exists(asset.ImagePath))
-        {
-            try
-            {
-                _extraAssetBitmap = new Bitmap(asset.ImagePath);
-                ExtraAssetPreviewImage.Source = _extraAssetBitmap;
-            }
-            catch
-            {
-                // Ignore preview decode failure
-            }
-        }
+        (DataContext as MainWindowViewModel)?.ResetSceneNodeFields();
     }
 
-    private async void AddExtraAsset_Click(object? sender, RoutedEventArgs e)
+    private async void ReplaceSceneImage_Click(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is not MainWindowViewModel viewModel)
+        if (DataContext is not MainWindowViewModel { SelectedSceneNode: { } node } viewModel)
         {
             return;
         }
 
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Select PNG element to add to theme",
+            Title = $"Select replacement PNG for {node.Name}",
             AllowMultiple = false,
             FileTypeFilter = [new FilePickerFileType("PNG image") { Patterns = ["*.png"] }]
         });
 
-        var sourcePath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
-        if (sourcePath is null)
+        var replacementPath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
+        if (replacementPath is not null && !viewModel.ReplaceSelectedSceneImage(replacementPath))
+        {
+            await _errorHandlingService.ShowErrorAsync(this, "Cannot replace image", viewModel.Status);
+        }
+    }
+
+    private void OpenSceneSprite_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainWindowViewModel viewModel
+            && viewModel.SelectSceneSpriteInAtlas()
+            && WorkspaceTabs.Items.OfType<TabItem>().FirstOrDefault(tab => tab.Header as string == "Sprites") is { } tab)
+        {
+            WorkspaceTabs.SelectedItem = tab;
+        }
+    }
+
+    private void UnusedImageList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        UnusedImagePreviewImage.Source = null;
+        _unusedImageBitmap?.Dispose();
+        _unusedImageBitmap = LoadPreview((sender as ListBox)?.SelectedItem as ExtraAsset);
+        UnusedImagePreviewImage.Source = _unusedImageBitmap;
+    }
+
+    private static Bitmap? LoadPreview(ExtraAsset? asset)
+    {
+        if (asset is null || !File.Exists(asset.ImagePath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return new Bitmap(asset.ImagePath);
+        }
+        catch (Exception exception) when (exception is IOException or ArgumentException or InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    private async void DeleteUnusedImage_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainWindowViewModel { SelectedUnusedImage: { } image } viewModel)
         {
             return;
         }
 
-        var fileName = Path.GetFileName(sourcePath);
-        var relativePath = $"resources/sprites/sampleasset/{fileName}";
-
-        if (viewModel.AddExtraAsset(relativePath, sourcePath))
+        var confirmed = await _dialogService.ShowConfirmationAsync(
+            this,
+            "Delete unused image?",
+            image.OverridesBase
+                ? $"No scene draws resources/{image.RelativePath}. Its replacement is removed and the Base image is kept."
+                : $"No scene draws resources/{image.RelativePath}. It is removed from the theme.",
+            DialogVariant.Warning,
+            "Delete",
+            "Keep",
+            true);
+        if (confirmed && !viewModel.DeleteSelectedUnusedImage())
         {
-            if (viewModel.SelectedExtraAsset != null)
-            {
-                ShowExtraAssetPreview(viewModel.SelectedExtraAsset);
-            }
-        }
-        else
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot add element", viewModel.Status);
+            await _errorHandlingService.ShowErrorAsync(this, "Cannot delete image", viewModel.Status);
         }
     }
 
@@ -610,67 +635,6 @@ public sealed partial class MainWindow : Window, IDisposable
         if (sourcePath is not null && !viewModel.ProvideSelectedMissingTexture(sourcePath))
         {
             await _errorHandlingService.ShowErrorAsync(this, "Cannot add texture", viewModel.Status);
-        }
-    }
-
-    private async void ReplaceExtraAsset_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel viewModel || viewModel.SelectedExtraAsset is null)
-        {
-            return;
-        }
-
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = $"Select replacement PNG for {viewModel.SelectedExtraAsset.DisplayName}",
-            AllowMultiple = false,
-            FileTypeFilter = [new FilePickerFileType("PNG image") { Patterns = ["*.png"] }]
-        });
-
-        var replacementPath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
-        if (replacementPath is null)
-        {
-            return;
-        }
-
-        if (viewModel.ReplaceSelectedExtraAsset(replacementPath))
-        {
-            ShowExtraAssetPreview(viewModel.SelectedExtraAsset);
-        }
-        else
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot replace element", viewModel.Status);
-        }
-    }
-
-    private void DeleteExtraAsset_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainWindowViewModel viewModel)
-        {
-            viewModel.DeleteSelectedExtraAsset();
-            ExtraAssetPreviewImage.Source = null;
-        }
-    }
-
-    private async void ExportExtraAsset_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel viewModel || viewModel.SelectedExtraAsset is null)
-        {
-            return;
-        }
-
-        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-        {
-            Title = "Export Element",
-            DefaultExtension = "png",
-            SuggestedFileName = Path.GetFileName(viewModel.SelectedExtraAsset.ImagePath),
-            FileTypeChoices = [new FilePickerFileType("PNG image") { Patterns = ["*.png"] }]
-        });
-
-        var savePath = file?.TryGetLocalPath();
-        if (savePath != null)
-        {
-            viewModel.ExportSelectedExtraAsset(savePath);
         }
     }
 
@@ -1064,9 +1028,9 @@ public sealed partial class MainWindow : Window, IDisposable
         _wallpaperBitmap?.Dispose();
         _wallpaperBitmap = null;
 
-        ExtraAssetPreviewImage.Source = null;
-        _extraAssetBitmap?.Dispose();
-        _extraAssetBitmap = null;
+        UnusedImagePreviewImage.Source = null;
+        _unusedImageBitmap?.Dispose();
+        _unusedImageBitmap = null;
     }
 
     protected override async void OnClosing(WindowClosingEventArgs e)

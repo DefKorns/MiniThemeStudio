@@ -170,7 +170,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         var draftResDir = Path.Combine(themeDraftPath, "resources");
         var baseResDir = baseUiPath != null ? Path.Combine(baseUiPath, "resources") : null;
 
-        var map = new Dictionary<string, (string ImagePath, string? JsonPath, bool IsBase)>(StringComparer.OrdinalIgnoreCase);
+        var map = new Dictionary<string, (string ImagePath, string? JsonPath, bool IsBase, bool OverridesBase)>(StringComparer.OrdinalIgnoreCase);
 
         // Scan Base UI first if available
         if (baseResDir != null && Directory.Exists(baseResDir))
@@ -203,7 +203,6 @@ public sealed class ThemeAssetManager : IThemeAssetManager
                 }
             }
 
-            var category = CategorizeExtraAsset(relPath);
             var displayName = Path.GetFileNameWithoutExtension(relPath);
 
             var jsonPath = info.JsonPath
@@ -211,21 +210,21 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             result.Add(new ExtraAsset(
                 relPath,
                 displayName,
-                category,
                 info.ImagePath,
                 jsonPath,
                 w,
                 h,
                 info.IsBase,
-                ReadTextureId(jsonPath)));
+                ReadTextureId(jsonPath),
+                info.OverridesBase));
         }
 
-        return result.OrderBy(a => a.Category).ThenBy(a => a.DisplayName).ToList();
+        return result.OrderBy(a => a.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
     private static void ScanDirectoryForExtraAssets(
         string resourcesDir,
-        Dictionary<string, (string ImagePath, string? JsonPath, bool IsBase)> map,
+        Dictionary<string, (string ImagePath, string? JsonPath, bool IsBase, bool OverridesBase)> map,
         bool isBase)
     {
         var candidates = Directory.EnumerateFiles(resourcesDir, "*.png", SearchOption.AllDirectories);
@@ -241,7 +240,8 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             var jsonCandidate = Path.ChangeExtension(file, ".json");
             var jsonPath = File.Exists(jsonCandidate) ? jsonCandidate : null;
 
-            map[rel] = (file, jsonPath, isBase);
+            var overridesBase = !isBase && map.TryGetValue(rel, out var existing) && existing.IsBase;
+            map[rel] = (file, jsonPath, isBase, overridesBase);
         }
     }
 
@@ -259,60 +259,6 @@ public sealed class ThemeAssetManager : IThemeAssetManager
                 .Where(root => root != null)
                 .Select(root => Path.Combine(root!, jsonRelativePath))
                 .Any(jsonPath => File.Exists(jsonPath) && TextureAtlasReader.IsAtlasDefinition(jsonPath));
-    }
-
-    private static string CategorizeExtraAsset(string relativePath)
-    {
-        var lower = relativePath.ToLowerInvariant();
-        if (lower.Contains("sampleasset") || lower.Contains("mario") || lower.Contains("luigi") || lower.Contains("goku"))
-        {
-            return "Characters";
-        }
-        if (lower.Contains("layout"))
-        {
-            return "Layout Sprites";
-        }
-        if (lower.Contains("frame_") || lower.Contains("dot_num"))
-        {
-            return "Frames & Numbers";
-        }
-        return "Extra Elements";
-    }
-
-    public void AddExtraAsset(
-        string themeDraftPath,
-        string relativeDestinationPath,
-        string sourceImagePath,
-        string? sourceJsonPath = null)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
-        ArgumentException.ThrowIfNullOrWhiteSpace(relativeDestinationPath);
-        ArgumentException.ThrowIfNullOrWhiteSpace(sourceImagePath);
-
-        if (!File.Exists(sourceImagePath))
-        {
-            throw new FileNotFoundException("Source image not found.", sourceImagePath);
-        }
-
-        using var bmp = SKBitmap.Decode(sourceImagePath)
-            ?? throw new InvalidDataException("Source file is not a valid PNG image.");
-
-        var fullDestinationPath = Path.Combine(themeDraftPath, relativeDestinationPath);
-        Directory.CreateDirectory(Path.GetDirectoryName(fullDestinationPath)!);
-
-        SaveBitmapToPng(bmp, fullDestinationPath);
-
-        var destJsonPath = Path.ChangeExtension(fullDestinationPath, ".json");
-        if (sourceJsonPath != null && File.Exists(sourceJsonPath))
-        {
-            File.Copy(sourceJsonPath, destJsonPath, true);
-        }
-        else
-        {
-            var textureJson = LoadTextureJson(destJsonPath, null);
-            ResizeTextureJson(textureJson, bmp.Width, bmp.Height, Path.GetFileName(fullDestinationPath));
-            WriteTextureJson(destJsonPath, textureJson);
-        }
     }
 
     public void ReplaceExtraAsset(string targetImagePath, string replacementImagePath, string? templateJsonPath = null)

@@ -72,6 +72,16 @@ public sealed class ThemeResourceIndexerTests : IDisposable
     }
 
     [Fact]
+    public void ResolvesTextureIdsByRegisteredImagePath()
+    {
+        var report = new ThemeResourceIndexer().Analyze(_themePath, _basePath);
+
+        Assert.Equal(GokuId, report.TextureIdOf("sprites/sampleasset/goku.png", "id-from-image-json"));
+        Assert.Equal(WallId, report.TextureIdOf(@"layout\asset\sprite\wallpaper\WALL.png"));
+        Assert.Equal("id-from-image-json", report.TextureIdOf("sprites/unregistered.png", "id-from-image-json"));
+    }
+
+    [Fact]
     public void ReportsUnregisteredTextureReferences()
     {
         WriteFile(_themePath, "resources/sprites/sampleasset/goku.png", "png");

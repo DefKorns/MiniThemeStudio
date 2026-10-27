@@ -16,8 +16,17 @@ public sealed record ThemeResourceReport(
         [],
         []);
 
+    // TextureResource ids registered in dependencies.json, keyed by image path relative to resources/
+    public IReadOnlyDictionary<string, string> TextureIdsByImagePath { get; init; } = new Dictionary<string, string>();
+
     public IReadOnlyList<string> UsageOf(string? textureId)
     {
         return textureId is not null && SceneUsageByTextureId.TryGetValue(textureId, out var usage) ? usage : [];
+    }
+
+    // the id the scenes use is the one registered for the path; the id inside the image .json may differ
+    public string? TextureIdOf(string imageRelativePath, string? fallbackTextureId = null)
+    {
+        return TextureIdsByImagePath.TryGetValue(imageRelativePath.Replace('\\', '/').TrimStart('/'), out var id) ? id : fallbackTextureId;
     }
 }

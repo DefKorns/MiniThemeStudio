@@ -92,7 +92,13 @@ public sealed class ThemeResourceIndexer : IThemeResourceIndexer
 
         CheckNodeSizes(references, sheetsByTextureId, resolver, issues);
 
-        return new ThemeResourceReport(usage, missing, issues);
+        var textureIdsByImagePath = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var texture in resources.Where(resource => resource.Type == "TextureResource" && resource.Path is not null))
+        {
+            textureIdsByImagePath.TryAdd(texture.Path!.TrimStart('/'), texture.Id);
+        }
+
+        return new ThemeResourceReport(usage, missing, issues) { TextureIdsByImagePath = textureIdsByImagePath };
     }
 
     private static void CheckNodeSizes(

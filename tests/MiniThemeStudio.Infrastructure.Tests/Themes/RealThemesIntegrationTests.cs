@@ -143,8 +143,7 @@ public sealed class RealThemesIntegrationTests
             var report = new ThemeResourceIndexer().Analyze(themePath, snesBase.LocalPath);
             var goku = Assert.Single(new ThemeAssetManager().GetExtraAssets(themePath, snesBase.LocalPath), asset => asset.DisplayName == "01_goku_48x48_v2");
 
-            Assert.Equal("Characters", goku.Category);
-            Assert.Equal(["bg.scn"], report.UsageOf(goku.TextureId));
+            Assert.Equal(["bg.scn"], report.UsageOf(report.TextureIdOf(goku.RelativePath, goku.TextureId)));
             Assert.Empty(report.MissingTextures);
         }
         finally

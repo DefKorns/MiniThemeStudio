@@ -256,6 +256,38 @@ public sealed class ThemeAssetManagerTests
     }
 
     [Fact]
+    public void ExtraAssetsTellBaseReplacedAndAddedImagesApart()
+    {
+        var themeDir = Directory.CreateTempSubdirectory().FullName;
+        var baseDir = Directory.CreateTempSubdirectory().FullName;
+        var themeSprites = Path.Combine(themeDir, "resources", "sprites");
+        var baseSprites = Path.Combine(baseDir, "resources", "sprites");
+        Directory.CreateDirectory(themeSprites);
+        Directory.CreateDirectory(baseSprites);
+        SaveSolidPng(Path.Combine(baseSprites, "inherited.png"), 4, 4, SKColors.Red);
+        SaveSolidPng(Path.Combine(baseSprites, "replaced.png"), 4, 4, SKColors.Red);
+        SaveSolidPng(Path.Combine(themeSprites, "replaced.png"), 4, 4, SKColors.Blue);
+        SaveSolidPng(Path.Combine(themeSprites, "added.png"), 4, 4, SKColors.Blue);
+
+        try
+        {
+            var assets = new ThemeAssetManager().GetExtraAssets(themeDir, baseDir).ToDictionary(asset => asset.DisplayName);
+
+            Assert.True(assets["inherited"].IsFromBaseUi);
+            Assert.False(assets["inherited"].OverridesBase);
+            Assert.False(assets["replaced"].IsFromBaseUi);
+            Assert.True(assets["replaced"].OverridesBase);
+            Assert.False(assets["added"].IsFromBaseUi);
+            Assert.False(assets["added"].OverridesBase);
+        }
+        finally
+        {
+            Directory.Delete(themeDir, true);
+            Directory.Delete(baseDir, true);
+        }
+    }
+
+    [Fact]
     public void ProvideMissingTextureKeepsReferencedTextureId()
     {
         var draftDir = Directory.CreateTempSubdirectory().FullName;

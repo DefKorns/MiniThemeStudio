@@ -11,7 +11,7 @@
         mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="780"
         x:Class="MiniThemeStudio.App.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/app-icon.ico"
         Title="Mini Theme Studio"
         Width="1250" Height="780"
         MinWidth="1250" MinHeight="780"

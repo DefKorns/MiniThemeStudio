@@ -24,6 +24,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly ICharacterAnimationEditor _characterEditor;
     private readonly IThemePaletteEditor _paletteEditor;
     private readonly ISavedDraftStore _savedDraftStore;
+    private readonly MiniThemeStudio.Core.Settings.IAppSettingsStore _settingsStore;
 
     private ThemeDraft? _draft;
     private string? _currentBaseUiPath;
@@ -41,7 +42,8 @@ public partial class MainWindowViewModel : ViewModelBase
         IThemeExporter? themeExporter = null,
         ICharacterAnimationEditor? characterEditor = null,
         ISavedDraftStore? savedDraftStore = null,
-        IThemePaletteEditor? paletteEditor = null)
+        IThemePaletteEditor? paletteEditor = null,
+        MiniThemeStudio.Core.Settings.IAppSettingsStore? settingsStore = null)
     {
         _metadataReader = metadataReader;
         _textureAtlasReader = textureAtlasReader;
@@ -55,6 +57,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _characterEditor = characterEditor ?? new CharacterAnimationEditor();
         _savedDraftStore = savedDraftStore ?? new SavedDraftStore();
         _paletteEditor = paletteEditor ?? new ThemePaletteEditor();
+        _settingsStore = settingsStore ?? new MiniThemeStudio.Infrastructure.Settings.JsonAppSettingsStore();
     }
 
     [ObservableProperty]
@@ -464,7 +467,12 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var previewPath = $"{Path.TrimEndingDirectorySeparator(_draft!.SavePath)}.png";
-            var result = _themeExporter.ExportPackage(_draft.DraftPath, outputDirectory, system, PackagingName, previewPath, _currentBaseUiPath);
+            var exportOptions = new ThemeExportOptions(
+                ConvertBgmAudio: ConvertBgmAudio,
+                FFmpegPath: _settingsStore.Current.FFmpegPath,
+                BgmChannels: BgmChannels,
+                IncludeBgm: IncludeBgm);
+            var result = _themeExporter.ExportPackage(_draft.DraftPath, outputDirectory, system, PackagingName, previewPath, _currentBaseUiPath, exportOptions);
             var summary = $"Exported {result.FileCount} changed files to {result.PackagePath} ({result.UnchangedFilesSkipped} unchanged Base files left out)";
             Status = result.IncludesPreview
                 ? $"{summary}."
@@ -498,7 +506,12 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private bool ValidateBeforeOutput(string action)
     {
-        var validation = _themeValidator.Validate(_draft!.DraftPath, _currentBaseUiPath);
+        var validationOptions = new ThemeValidationOptions(
+            ConvertBgmAudio: ConvertBgmAudio,
+            FFmpegPath: _settingsStore.Current.FFmpegPath,
+            BgmChannels: BgmChannels,
+            IncludeBgm: IncludeBgm);
+        var validation = _themeValidator.Validate(_draft!.DraftPath, _currentBaseUiPath, validationOptions);
         ValidationIssues = validation.Issues;
         IsThemeValid = validation.IsValid;
         if (!validation.HasErrors)
@@ -518,7 +531,12 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var result = _themeValidator.Validate(_draft.DraftPath, _currentBaseUiPath);
+        var validationOptions = new ThemeValidationOptions(
+            ConvertBgmAudio: ConvertBgmAudio,
+            FFmpegPath: _settingsStore.Current.FFmpegPath,
+            BgmChannels: BgmChannels,
+            IncludeBgm: IncludeBgm);
+        var result = _themeValidator.Validate(_draft.DraftPath, _currentBaseUiPath, validationOptions);
         ValidationIssues = result.Issues;
         IsThemeValid = result.IsValid;
         ValidationSummary = result.IsValid
@@ -607,6 +625,7 @@ public partial class MainWindowViewModel : ViewModelBase
             MissingTextures = [];
             Fonts = [];
             ReloadCharacters();
+            ReloadBgmTracks();
             SelectedWallpaper = null;
             SelectedExtraAsset = null;
             SelectedFont = null;
@@ -634,6 +653,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ReloadCharacters();
         ReloadFonts();
         ReloadPalettes();
+        ReloadBgmTracks();
     }
 
     public bool ProvideSelectedMissingTexture(string sourceImagePath)

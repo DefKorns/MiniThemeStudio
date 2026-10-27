@@ -37,12 +37,14 @@ public sealed partial class SettingsDialog : Window
         DraftRootTextBox.Text = settings.DraftRootPath;
         ThemeDestinationTextBox.Text = settings.DefaultThemeDestinationPath;
         FillFontTextBox.Text = settings.FillFontPath;
+        FFmpegTextBox.Text = settings.FFmpegPath;
         ThemeComboBox.SelectedItem = settings.Theme;
         ConsoleHostTextBox.Text = settings.ConsoleHost;
         UsbConnectionButton.IsChecked = !_usesNetwork;
         NetworkConnectionButton.IsChecked = _usesNetwork;
         UpdateConnectionControls();
         UpdatePathValidation();
+        _ = ValidateFFmpegAsync();
         _isInitialized = true;
 
         if (isInitialSetup)
@@ -137,6 +139,53 @@ public sealed partial class SettingsDialog : Window
         FillFontTextBox.Text = files.Count > 0 ? files[0].TryGetLocalPath() ?? FillFontTextBox.Text : FillFontTextBox.Text;
     }
 
+    private async void BrowseFFmpeg_Click(object? sender, RoutedEventArgs e)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Select FFmpeg executable",
+            AllowMultiple = false,
+            FileTypeFilter = [
+                new FilePickerFileType("Executables") { Patterns = ["ffmpeg.exe", "ffmpeg", "*.exe"] },
+                new FilePickerFileType("All files") { Patterns = ["*"] }
+            ],
+        });
+
+        if (files.Count > 0 && files[0].TryGetLocalPath() is { } path)
+        {
+            FFmpegTextBox.Text = path;
+        }
+    }
+
+    private void FFmpegTextBox_TextChanged(object? sender, TextChangedEventArgs e)
+    {
+        _ = ValidateFFmpegAsync();
+        MarkUnsaved();
+    }
+
+    private async System.Threading.Tasks.Task ValidateFFmpegAsync()
+    {
+        var path = FFmpegTextBox.Text?.Trim() ?? "";
+        if (string.IsNullOrEmpty(path))
+        {
+            FFmpegTextBox.Classes.Set("invalid-path", false);
+            FFmpegStatusText.Text = "Required only if BGM conversion is enabled. Converts audio into PCM 16-bit 44.1 kHz WAV.";
+            return;
+        }
+
+        var status = await new MiniThemeStudio.Infrastructure.Audio.FFmpegAudioConverter().GetStatusAsync(path);
+        if (status.IsAvailable)
+        {
+            FFmpegTextBox.Classes.Set("invalid-path", false);
+            FFmpegStatusText.Text = $"FFmpeg {status.Version} detected.";
+        }
+        else
+        {
+            FFmpegTextBox.Classes.Set("invalid-path", true);
+            FFmpegStatusText.Text = status.ErrorMessage ?? "FFmpeg executable is invalid.";
+        }
+    }
+
     private void PathTextBox_TextChanged(object? sender, TextChangedEventArgs e)
     {
         UpdatePathValidation();
@@ -213,6 +262,7 @@ public sealed partial class SettingsDialog : Window
                 : Path.GetFullPath(ThemeDestinationTextBox.Text.Trim()),
             Theme = theme,
             FillFontPath = string.IsNullOrWhiteSpace(FillFontTextBox.Text) ? "" : Path.GetFullPath(FillFontTextBox.Text.Trim()),
+            FFmpegPath = string.IsNullOrWhiteSpace(FFmpegTextBox.Text) ? "" : Path.GetFullPath(FFmpegTextBox.Text.Trim()),
             ConsoleHost = IPAddress.TryParse(_networkConsoleHost, out _)
                 ? _networkConsoleHost
                 : consoleHost,

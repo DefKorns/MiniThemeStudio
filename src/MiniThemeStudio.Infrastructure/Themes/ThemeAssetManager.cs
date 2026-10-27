@@ -789,4 +789,182 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             "s" or "small" => 3,
             _ => 10
         };
+
+    public IReadOnlyList<MiniThemeStudio.Core.Audio.BgmTrack> GetBgmTracks(string themeDraftPath, string? baseUiPath = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
+
+        var soundSubdir = FindSoundSubdirectory(themeDraftPath, baseUiPath) ?? "hvc";
+        var trackNames = new[]
+        {
+            ("bgm_home", "Home Menu Music (bgm_home)"),
+            ("bgm_boot", "Boot Music (bgm_boot)")
+        };
+
+        var tracks = new List<MiniThemeStudio.Core.Audio.BgmTrack>();
+
+        foreach (var (name, displayName) in trackNames)
+        {
+            var relativePath = $"resources/sounds/{soundSubdir}/{name}.wav";
+            var draftDir = Path.Combine(themeDraftPath, "resources", "sounds", soundSubdir);
+            var baseDir = baseUiPath != null ? Path.Combine(baseUiPath, "resources", "sounds", soundSubdir) : null;
+
+            string? draftFile = null;
+            if (Directory.Exists(draftDir))
+            {
+                draftFile = Directory.EnumerateFiles(draftDir, $"{name}.*")
+                    .FirstOrDefault(f => Audio.BgmAudioValidator.IsSupportedAudioFile(f));
+            }
+
+            string? baseFile = null;
+            if (baseDir != null && Directory.Exists(baseDir))
+            {
+                baseFile = Directory.EnumerateFiles(baseDir, $"{name}.*")
+                    .FirstOrDefault(f => Audio.BgmAudioValidator.IsSupportedAudioFile(f));
+            }
+
+            MiniThemeStudio.Core.Audio.WavAudioInfo? audioInfo = null;
+            string statusDesc;
+
+            var canMute = name.Equals("bgm_boot", StringComparison.OrdinalIgnoreCase);
+            var isMuted = false;
+
+            if (draftFile != null)
+            {
+                var ext = Path.GetExtension(draftFile);
+                if (ext.Equals(".wav", StringComparison.OrdinalIgnoreCase))
+                {
+                    audioInfo = Audio.WavAudioReader.Read(draftFile);
+                    isMuted = Audio.BgmAudioValidator.IsSilentPcm(draftFile);
+                    statusDesc = isMuted
+                        ? "Draft: Muted (Silence)"
+                        : $"Draft: {audioInfo.FormatDescription}";
+                }
+                else
+                {
+                    statusDesc = $"Draft: {Path.GetFileName(draftFile)} ({ext.ToUpperInvariant()}, needs conversion)";
+                }
+            }
+            else if (baseFile != null)
+            {
+                var ext = Path.GetExtension(baseFile);
+                if (ext.Equals(".wav", StringComparison.OrdinalIgnoreCase))
+                {
+                    audioInfo = Audio.WavAudioReader.Read(baseFile);
+                    statusDesc = $"Base: {audioInfo.FormatDescription}";
+                }
+                else
+                {
+                    statusDesc = $"Base: {Path.GetFileName(baseFile)}";
+                }
+            }
+            else
+            {
+                statusDesc = "Not present in theme or base";
+            }
+
+            tracks.Add(new MiniThemeStudio.Core.Audio.BgmTrack(
+                Name: name,
+                DisplayName: displayName,
+                RelativePath: relativePath,
+                DraftFilePath: draftFile,
+                BaseFilePath: baseFile,
+                ExistsInDraft: draftFile != null,
+                ExistsInBase: baseFile != null,
+                AudioInfo: audioInfo,
+                StatusDescription: statusDesc,
+                CanMute: canMute,
+                IsMuted: isMuted));
+        }
+
+        return tracks;
+    }
+
+    public void ReplaceBgmTrack(string themeDraftPath, string trackName, string sourceAudioFilePath, string? baseUiPath = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(trackName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceAudioFilePath);
+
+        if (!File.Exists(sourceAudioFilePath))
+        {
+            throw new FileNotFoundException("Source audio file not found.", sourceAudioFilePath);
+        }
+
+        var soundSubdir = FindSoundSubdirectory(themeDraftPath, baseUiPath) ?? "hvc";
+        var draftDir = Path.Combine(themeDraftPath, "resources", "sounds", soundSubdir);
+        Directory.CreateDirectory(draftDir);
+
+        var ext = Path.GetExtension(sourceAudioFilePath).ToLowerInvariant();
+        var targetPath = Path.Combine(draftDir, $"{trackName}{ext}");
+
+        foreach (var existing in Directory.EnumerateFiles(draftDir, $"{trackName}.*"))
+        {
+            if (!existing.Equals(targetPath, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Delete(existing);
+            }
+        }
+
+        File.Copy(sourceAudioFilePath, targetPath, overwrite: true);
+    }
+
+    public void MuteBgmTrack(string themeDraftPath, string trackName, string? baseUiPath = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(trackName);
+
+        var soundSubdir = FindSoundSubdirectory(themeDraftPath, baseUiPath) ?? "hvc";
+        var draftDir = Path.Combine(themeDraftPath, "resources", "sounds", soundSubdir);
+        Directory.CreateDirectory(draftDir);
+
+        foreach (var existing in Directory.EnumerateFiles(draftDir, $"{trackName}.*"))
+        {
+            File.Delete(existing);
+        }
+
+        var silentWav = Audio.WavAudioReader.CreateMinimalPcm16Wav(44100, 2, 4410);
+        var targetPath = Path.Combine(draftDir, $"{trackName}.wav");
+        File.WriteAllBytes(targetPath, silentWav);
+    }
+
+    public void RevertBgmTrack(string themeDraftPath, string trackName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(trackName);
+
+        var soundsDir = Path.Combine(themeDraftPath, "resources", "sounds");
+        if (!Directory.Exists(soundsDir))
+        {
+            return;
+        }
+
+        foreach (var file in Directory.EnumerateFiles(soundsDir, $"{trackName}.*", SearchOption.AllDirectories))
+        {
+            File.Delete(file);
+        }
+    }
+
+    private static string? FindSoundSubdirectory(string themeDraftPath, string? baseUiPath)
+    {
+        foreach (var root in new[] { themeDraftPath, baseUiPath })
+        {
+            if (root == null)
+            {
+                continue;
+            }
+
+            var sounds = Path.Combine(root, "resources", "sounds");
+            if (Directory.Exists(sounds))
+            {
+                var subdirs = Directory.GetDirectories(sounds);
+                if (subdirs.Length > 0)
+                {
+                    return Path.GetFileName(subdirs[0]);
+                }
+            }
+        }
+
+        return null;
+    }
 }

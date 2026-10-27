@@ -11,9 +11,10 @@ public sealed class ThemeValidator(IThemeResourceIndexer? resourceIndexer = null
 {
     private readonly IThemeResourceIndexer _resourceIndexer = resourceIndexer ?? new ThemeResourceIndexer();
 
-    public ThemeValidationResult Validate(string themeDraftPath, string? baseUiPath = null)
+    public ThemeValidationResult Validate(string themeDraftPath, string? baseUiPath = null, ThemeValidationOptions? options = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
+        options ??= new ThemeValidationOptions();
         var issues = new List<ThemeValidationIssue>();
 
         if (!Directory.Exists(themeDraftPath))
@@ -68,6 +69,26 @@ public sealed class ThemeValidator(IThemeResourceIndexer? resourceIndexer = null
         if (Directory.Exists(fontsDir))
         {
             ValidateFonts(fontsDir, issues);
+        }
+
+        // Validate sounds / BGM if present
+        var soundsDir = Path.Combine(themeDraftPath, "resources", "sounds");
+        if (Directory.Exists(soundsDir))
+        {
+            if (options.IncludeBgm)
+            {
+                ValidateSounds(soundsDir, issues, options);
+            }
+            else
+            {
+                var bgmFiles = Directory.EnumerateFiles(soundsDir, "*.*", SearchOption.AllDirectories)
+                    .Where(f => Path.GetFileName(f).StartsWith("bgm_", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                if (bgmFiles.Count > 0)
+                {
+                    issues.Add(new ThemeValidationIssue("Custom BGM audio is excluded from export (stock console audio will be preserved).", false));
+                }
+            }
         }
 
         // Check if delta package
@@ -169,6 +190,63 @@ public sealed class ThemeValidator(IThemeResourceIndexer? resourceIndexer = null
             catch (Exception ex)
             {
                 issues.Add(new ThemeValidationIssue($"Failed to read wallpaper {Path.GetFileName(png)}: {ex.Message}", true));
+            }
+        }
+    }
+
+    private static void ValidateSounds(string soundsDir, List<ThemeValidationIssue> issues, ThemeValidationOptions options)
+    {
+        var soundFiles = Directory.EnumerateFiles(soundsDir, "*.*", SearchOption.AllDirectories)
+            .Where(f => Path.GetFileName(f).StartsWith("bgm_", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        var ffmpegConfigured = !string.IsNullOrWhiteSpace(options.FFmpegPath) && File.Exists(options.FFmpegPath);
+
+        foreach (var file in soundFiles)
+        {
+            var fileName = Path.GetFileName(file);
+            var isBgm = true;
+
+            if (!Audio.BgmAudioValidator.IsSupportedAudioFile(file))
+            {
+                continue;
+            }
+
+            var validation = Audio.BgmAudioValidator.Validate(file, isBgm ? options.BgmChannels : null);
+
+            if (validation.IsValid)
+            {
+                foreach (var warning in validation.Warnings)
+                {
+                    issues.Add(new ThemeValidationIssue(warning, false));
+                }
+                continue;
+            }
+
+            if (isBgm && options.ConvertBgmAudio)
+            {
+                if (!ffmpegConfigured)
+                {
+                    issues.Add(new ThemeValidationIssue(
+                        $"Convert BGM audio is enabled for '{fileName}', but FFmpeg is not configured in Settings.",
+                        true));
+                }
+                else
+                {
+                    issues.Add(new ThemeValidationIssue(
+                        $"'{fileName}' will be converted to PCM 16-bit 44.1 kHz {(options.BgmChannels == Core.Audio.BgmAudioChannels.Mono ? "mono" : "stereo")} WAV using FFmpeg.",
+                        false));
+                }
+            }
+            else
+            {
+                foreach (var error in validation.Errors)
+                {
+                    issues.Add(new ThemeValidationIssue(error, true));
+                }
+                foreach (var warning in validation.Warnings)
+                {
+                    issues.Add(new ThemeValidationIssue(warning, false));
+                }
             }
         }
     }

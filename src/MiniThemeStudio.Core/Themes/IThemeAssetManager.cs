@@ -29,4 +29,9 @@ public interface IThemeAssetManager
     void ImportTrueTypeFont(string themeDraftPath, MiniThemeStudio.Core.Fonts.FontAsset targetFont, string ttfOrZipPath, int? fontSize = null, bool antiAlias = false,
         MiniThemeStudio.Core.Fonts.ExtraScripts extraScripts = MiniThemeStudio.Core.Fonts.ExtraScripts.None, string? fillFontPath = null);
     void CompleteFont(string themeDraftPath, MiniThemeStudio.Core.Fonts.FontAsset font, MiniThemeStudio.Core.Fonts.ExtraScripts extraScripts, string? fillFontPath = null);
+
+    IReadOnlyList<MiniThemeStudio.Core.Audio.BgmTrack> GetBgmTracks(string themeDraftPath, string? baseUiPath = null);
+    void ReplaceBgmTrack(string themeDraftPath, string trackName, string sourceAudioFilePath, string? baseUiPath = null);
+    void MuteBgmTrack(string themeDraftPath, string trackName, string? baseUiPath = null);
+    void RevertBgmTrack(string themeDraftPath, string trackName);
 }

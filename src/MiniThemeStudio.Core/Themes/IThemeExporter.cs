@@ -4,5 +4,5 @@ public sealed record ThemePackageResult(string PackagePath, int FileCount, bool 
 
 public interface IThemeExporter
 {
-    ThemePackageResult ExportPackage(string themePath, string outputDirectory, string system, string name, string? previewPath, string? baseUiPath);
+    ThemePackageResult ExportPackage(string themePath, string outputDirectory, string system, string name, string? previewPath, string? baseUiPath, ThemeExportOptions? options = null);
 }

@@ -61,7 +61,8 @@ public partial class App : Application
                     themeAssetManager,
                     themeValidator,
                     baseFirmwareManager,
-                    savedDraftStore: new SavedDraftStore(null, () => settingsStore.Current.DraftRootPath)),
+                    savedDraftStore: new SavedDraftStore(null, () => settingsStore.Current.DraftRootPath),
+                    settingsStore: settingsStore),
             };
         }
 

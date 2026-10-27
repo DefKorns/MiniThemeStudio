@@ -6,24 +6,33 @@ using MiniThemeStudio.Infrastructure.Firmware;
 
 namespace MiniThemeStudio.Infrastructure.Themes;
 
-public sealed partial class ThemeExporter : IThemeExporter
+public sealed partial class ThemeExporter(MiniThemeStudio.Core.Audio.IFFmpegAudioConverter? ffmpegAudioConverter = null) : IThemeExporter
 {
+    private readonly MiniThemeStudio.Core.Audio.IFFmpegAudioConverter _ffmpegAudioConverter = ffmpegAudioConverter ?? new MiniThemeStudio.Infrastructure.Audio.FFmpegAudioConverter();
+
     private static readonly string[] PackagingOnlyFiles = ["info", "author.txt", "title.txt", "note.txt"];
 
     private const UnixFileMode FileMode = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead;
 
     private const UnixFileMode DirectoryMode = FileMode | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute;
 
-    public ThemePackageResult ExportPackage(string themePath, string outputDirectory, string system, string name, string? previewPath, string? baseUiPath)
+    public ThemePackageResult ExportPackage(string themePath, string outputDirectory, string system, string name, string? previewPath, string? baseUiPath, ThemeExportOptions? options = null)
     {
         ValidateArguments(themePath, system, name);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputDirectory);
+        options ??= new ThemeExportOptions();
+
+        if (options.ConvertBgmAudio && options.IncludeBgm)
+        {
+            ConvertBgmFiles(themePath, options, baseUiPath);
+        }
+
         Directory.CreateDirectory(outputDirectory);
 
         var packagePath = Path.Combine(outputDirectory, $"{system.ToUpperInvariant()}.{name}.tar.gz");
         var temporaryPath = $"{packagePath}.{Guid.NewGuid():N}.tmp";
         var includesPreview = previewPath is not null && File.Exists(previewPath);
-        var (files, skipped) = SelectFiles(themePath, baseUiPath);
+        var (files, skipped) = SelectFiles(themePath, baseUiPath, options);
         var needsOverlay = baseUiPath is not null
             && !files.Contains("needs_overlay")
             && files.Any(relativePath => !File.Exists(Path.Combine(baseUiPath, relativePath)) && relativePath.StartsWith("resources/", StringComparison.Ordinal));
@@ -67,7 +76,7 @@ public sealed partial class ThemeExporter : IThemeExporter
         }
     }
 
-    private static (List<string> Files, int Skipped) SelectFiles(string themePath, string? baseUiPath)
+    private static (List<string> Files, int Skipped) SelectFiles(string themePath, string? baseUiPath, ThemeExportOptions options)
     {
         var files = new List<string>();
         var skipped = 0;
@@ -78,6 +87,24 @@ public sealed partial class ThemeExporter : IThemeExporter
                 || PackagingOnlyFiles.Contains(relativePath, StringComparer.OrdinalIgnoreCase))
             {
                 continue;
+            }
+
+            var isBgm = relativePath.StartsWith("resources/sounds/", StringComparison.OrdinalIgnoreCase)
+                && Path.GetFileName(relativePath).StartsWith("bgm_", StringComparison.OrdinalIgnoreCase);
+
+            if (!options.IncludeBgm && isBgm)
+            {
+                skipped++;
+                continue;
+            }
+
+            if (options.ConvertBgmAudio && relativePath.StartsWith("resources/sounds/", StringComparison.OrdinalIgnoreCase))
+            {
+                var ext = Path.GetExtension(filePath);
+                if (!ext.Equals(".wav", StringComparison.OrdinalIgnoreCase) && File.Exists(Path.ChangeExtension(filePath, ".wav")))
+                {
+                    continue;
+                }
             }
 
             if (baseUiPath is not null && IsUnchanged(filePath, Path.Combine(baseUiPath, relativePath)))
@@ -101,6 +128,80 @@ public sealed partial class ThemeExporter : IThemeExporter
         }
 
         return File.ReadAllBytes(themeFile).AsSpan().SequenceEqual(File.ReadAllBytes(baseFile));
+    }
+
+    private void ConvertBgmFiles(string themePath, ThemeExportOptions options, string? baseUiPath = null)
+    {
+        if (!options.IncludeBgm)
+        {
+            return;
+        }
+
+        var soundsDir = Path.Combine(themePath, "resources", "sounds");
+        if (!Directory.Exists(soundsDir))
+        {
+            return;
+        }
+
+        var audioFiles = Directory.EnumerateFiles(soundsDir, "*.*", SearchOption.AllDirectories)
+            .Where(f => Path.GetFileName(f).StartsWith("bgm_", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (audioFiles.Count == 0)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(options.FFmpegPath) || !File.Exists(options.FFmpegPath))
+        {
+            throw new InvalidOperationException("Convert BGM audio is enabled, but the FFmpeg executable path is not configured or does not exist.");
+        }
+
+        foreach (var audioFile in audioFiles)
+        {
+            if (baseUiPath is not null)
+            {
+                var relativePath = ToArchivePath(themePath, audioFile);
+                var baseFile = Path.Combine(baseUiPath, relativePath);
+                if (IsUnchanged(audioFile, baseFile))
+                {
+                    // Untouched base file: do not convert so delta export can omit it
+                    continue;
+                }
+            }
+            var ext = Path.GetExtension(audioFile);
+            var isWav = ext.Equals(".wav", StringComparison.OrdinalIgnoreCase);
+            var targetWavPath = isWav ? audioFile : Path.ChangeExtension(audioFile, ".wav");
+
+            var needsConversion = false;
+            if (!isWav)
+            {
+                needsConversion = true;
+            }
+            else
+            {
+                var info = Audio.WavAudioReader.Read(audioFile);
+                var expectedChannels = options.BgmChannels == Core.Audio.BgmAudioChannels.Mono ? 1 : 2;
+                if (!info.IsValidWav || !info.IsConsoleStandard || info.Channels != expectedChannels)
+                {
+                    needsConversion = true;
+                }
+            }
+
+            if (needsConversion)
+            {
+                var result = _ffmpegAudioConverter.ConvertToConsoleWavAsync(
+                    options.FFmpegPath,
+                    audioFile,
+                    targetWavPath,
+                    options.BgmChannels).GetAwaiter().GetResult();
+
+                if (!result.Success)
+                {
+                    throw new InvalidOperationException($"Failed to convert '{Path.GetFileName(audioFile)}': {result.ErrorMessage}");
+                }
+            }
+        }
     }
 
     private static SortedSet<string> ParentDirectories(IEnumerable<string> files)

@@ -73,6 +73,15 @@
                 <lucide:LucideIcon Kind="FolderOpen" Size="18" />
               </Button>
             </Grid>
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+              <TextBlock Grid.ColumnSpan="2" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="FFmpeg executable" />
+              <TextBox x:Name="FFmpegTextBox" Grid.Row="1" Height="40" Classes="path-input" Watermark="Optional path to ffmpeg.exe" TextChanged="FFmpegTextBox_TextChanged" />
+              <Button Grid.Row="1" Grid.Column="1" Width="40" Height="40" Margin="8,0,0,0" Padding="0" Click="BrowseFFmpeg_Click" ToolTip.Tip="Select FFmpeg executable">
+                <lucide:LucideIcon Kind="FolderOpen" Size="18" />
+              </Button>
+              <TextBlock x:Name="FFmpegStatusText" Grid.Row="2" Grid.ColumnSpan="2" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
+                         Text="Required only if BGM conversion is enabled. Converts audio into PCM 16-bit 44.1 kHz WAV." />
+            </Grid>
           </StackPanel>
 
           <StackPanel Spacing="10">

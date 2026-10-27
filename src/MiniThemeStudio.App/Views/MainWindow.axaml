@@ -3,6 +3,7 @@
         xmlns:vm="using:MiniThemeStudio.App.ViewModels"
         xmlns:themes="using:MiniThemeStudio.Core.Themes"
         xmlns:fonts="using:MiniThemeStudio.Core.Fonts"
+        xmlns:audio="using:MiniThemeStudio.Core.Audio"
         xmlns:lucide="using:Lucide.Avalonia"
         xmlns:controls="using:MiniThemeStudio.App.Controls"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -715,23 +716,79 @@
       <!-- TAB 5: METADATA & VALIDATION -->
       <TabItem Header="Theme Details &amp; Validation">
         <Grid ColumnDefinitions="*,*" Margin="24">
-          <Border Margin="0,0,12,0" Padding="20" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+          <ScrollViewer Margin="0,0,12,0" VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="16">
-              <TextBlock FontFamily="Georgia, serif" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Metadata" />
-              <StackPanel Spacing="6">
-                <TextBlock Foreground="{DynamicResource SecondaryTextBrush}" Text="Theme Name" />
-                <TextBox Height="36" Text="{Binding ThemeName}" />
-              </StackPanel>
-              <StackPanel Spacing="6">
-                <TextBlock Foreground="{DynamicResource SecondaryTextBrush}" Text="Author" />
-                <TextBox Height="36" Text="{Binding Author}" />
-              </StackPanel>
-              <CheckBox IsChecked="{Binding RequiresOverlay}" Content="Requires CRT overlay (needs_overlay)" />
-              <Border Height="1" Background="{DynamicResource BorderBrush}" />
-              <TextBlock Foreground="{DynamicResource SecondaryTextBrush}" Text="Draft working location:" />
-              <TextBlock FontSize="12" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding CurrentDraftPath}" TextWrapping="Wrap" />
+              <Border Padding="20" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+                <StackPanel Spacing="16">
+                  <TextBlock FontFamily="Georgia, serif" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Metadata" />
+                  <StackPanel Spacing="6">
+                    <TextBlock Foreground="{DynamicResource SecondaryTextBrush}" Text="Theme Name" />
+                    <TextBox Height="36" Text="{Binding ThemeName}" />
+                  </StackPanel>
+                  <StackPanel Spacing="6">
+                    <TextBlock Foreground="{DynamicResource SecondaryTextBrush}" Text="Author" />
+                    <TextBox Height="36" Text="{Binding Author}" />
+                  </StackPanel>
+                  <CheckBox IsChecked="{Binding RequiresOverlay}" Content="Requires CRT overlay (needs_overlay)" />
+                  <Border Height="1" Background="{DynamicResource BorderBrush}" />
+                  <TextBlock Foreground="{DynamicResource SecondaryTextBrush}" Text="Draft working location:" />
+                  <TextBlock FontSize="12" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding CurrentDraftPath}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Border>
+
+              <!-- Background Music (BGM) -->
+              <Border Padding="20" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+                <StackPanel Spacing="14">
+                  <TextBlock FontFamily="Georgia, serif" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Background Music (BGM)" />
+                  <CheckBox x:Name="IncludeBgmCheckBox" IsChecked="{Binding IncludeBgm}" Content="Include custom BGM in exported theme package" ToolTip.Tip="When unchecked, custom BGM audio is omitted from the exported package, allowing the console to play its original stock audio." />
+
+                  <StackPanel Spacing="14" IsVisible="{Binding IncludeBgm}">
+                    <CheckBox x:Name="ConvertBgmCheckBox" IsChecked="{Binding ConvertBgmAudio}" Content="Convert BGM audio to the required format" ToolTip.Tip="When enabled, custom audio (MP3, OGG, FLAC, WAV) is converted into console-compliant PCM 16-bit 44.1 kHz WAV using FFmpeg." />
+
+                    <StackPanel Margin="24,0,0,0" Spacing="8" IsVisible="{Binding ConvertBgmAudio}">
+                      <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Text="Export channel format:" />
+                      <StackPanel Orientation="Horizontal" Spacing="20">
+                        <RadioButton GroupName="BgmChannels" IsChecked="{Binding IsBgmStereo}" Content="Stereo (original audio)" />
+                        <RadioButton GroupName="BgmChannels" IsChecked="{Binding IsBgmMono}" Content="Mono (smaller file size)" ToolTip.Tip="Reduces WAV file size by 50% for smaller themes and faster loading." />
+                      </StackPanel>
+                    </StackPanel>
+                  </StackPanel>
+
+                  <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" IsVisible="{Binding !IncludeBgm}" Text="Custom BGM is excluded from export. The console will retain its default background music." />
+
+                  <Border Height="1" Background="{DynamicResource BorderBrush}" />
+
+                  <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Text="Console BGM Tracks:" />
+
+                  <ItemsControl ItemsSource="{Binding BgmTracks}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="audio:BgmTrack">
+                        <Border Margin="0,4" Padding="12" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                          <Grid ColumnDefinitions="*,Auto">
+                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                              <TextBlock FontWeight="SemiBold" Text="{Binding DisplayName}" />
+                              <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding StatusDescription}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                              <Button Padding="10,6" Content="Replace..." Tag="{Binding Name}" Click="ReplaceBgm_Click" ToolTip.Tip="Replace with custom MP3, OGG, FLAC, or WAV" />
+                              <Button Padding="10,6" Content="Mute" Tag="{Binding Name}" Click="MuteBgm_Click"
+                                      IsVisible="{Binding CanMute}"
+                                      IsEnabled="{Binding !IsMuted}"
+                                      ToolTip.Tip="Mute boot music with a minimal silent WAV" />
+                              <Button Padding="10,6" Content="Convert now" Tag="{Binding Name}" Click="ConvertBgmNow_Click"
+                                      IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ConvertBgmAudio, FallbackValue=false}"
+                                      IsEnabled="{Binding ExistsInDraft}" ToolTip.Tip="Convert immediately using FFmpeg" />
+                              <Button Padding="10,6" Content="Revert" Tag="{Binding Name}" Click="RevertBgm_Click" IsVisible="{Binding ExistsInDraft}" ToolTip.Tip="Revert to base track / unmute" />
+                            </StackPanel>
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Border>
             </StackPanel>
-          </Border>
+          </ScrollViewer>
 
           <Border Grid.Column="1" Margin="12,0,0,0" Padding="20" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid RowDefinitions="Auto,Auto,*">

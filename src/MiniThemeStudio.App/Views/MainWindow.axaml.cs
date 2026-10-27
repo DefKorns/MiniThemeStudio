@@ -343,6 +343,62 @@ public sealed partial class MainWindow : Window, IDisposable
         }
     }
 
+    private async void ReplaceBgm_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string trackName } || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = $"Select audio file for {trackName}",
+            AllowMultiple = false,
+            FileTypeFilter = [
+                new FilePickerFileType("Audio files (*.wav, *.mp3, *.ogg, *.flac, *.m4a)")
+                {
+                    Patterns = ["*.wav", "*.mp3", "*.ogg", "*.flac", "*.m4a", "*.aac", "*.wma"]
+                },
+                new FilePickerFileType("All files") { Patterns = ["*"] }
+            ],
+        });
+
+        if (files.Count > 0 && files[0].TryGetLocalPath() is { } path)
+        {
+            viewModel.ReplaceBgmTrack(trackName, path);
+        }
+    }
+
+    private async void ConvertBgmNow_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string trackName } || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        await viewModel.ConvertBgmTrackNowAsync(trackName);
+    }
+
+    private void RevertBgm_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string trackName } || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        viewModel.RevertBgmTrack(trackName);
+    }
+
+    private void MuteBgm_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string trackName } || DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        viewModel.MuteBgmTrack(trackName);
+    }
+
     private async void CreateTheme_Click(object? sender, RoutedEventArgs e)
     {
         if (!await ConfirmDiscardDraftAsync())

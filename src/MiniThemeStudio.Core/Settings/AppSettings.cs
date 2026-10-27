@@ -7,4 +7,8 @@ public sealed record AppSettings(
     string ConsoleHost,
     bool InitialSetupCompleted = false,
     ConsoleConnectionMode ConsoleConnectionMode = ConsoleConnectionMode.Usb,
-    string FillFontPath = "");
+    string FillFontPath = "",
+    string FFmpegPath = "",
+    bool ConvertBgmAudio = false,
+    MiniThemeStudio.Core.Audio.BgmAudioChannels BgmChannels = MiniThemeStudio.Core.Audio.BgmAudioChannels.Stereo,
+    bool IncludeBgm = true);

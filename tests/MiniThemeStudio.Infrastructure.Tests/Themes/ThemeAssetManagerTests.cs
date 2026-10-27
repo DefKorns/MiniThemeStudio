@@ -431,4 +431,48 @@ public sealed class ThemeAssetManagerTests
             }
         }
     }
+
+    [Fact]
+    public void MuteBgmTrackCreatesSilentAudioAndCanBeReverted()
+    {
+        var tempDraft = Directory.CreateTempSubdirectory().FullName;
+        var tempBase = Directory.CreateTempSubdirectory().FullName;
+
+        try
+        {
+            var manager = new ThemeAssetManager();
+
+            // Initial state: not in draft
+            var tracksBefore = manager.GetBgmTracks(tempDraft, tempBase);
+            var bootTrack = tracksBefore.First(t => t.Name == "bgm_boot");
+            Assert.True(bootTrack.CanMute);
+            Assert.False(bootTrack.IsMuted);
+            Assert.False(bootTrack.ExistsInDraft);
+
+            var homeTrack = tracksBefore.First(t => t.Name == "bgm_home");
+            Assert.False(homeTrack.CanMute);
+
+            // Mute bgm_boot
+            manager.MuteBgmTrack(tempDraft, "bgm_boot", tempBase);
+
+            var tracksMuted = manager.GetBgmTracks(tempDraft, tempBase);
+            var mutedBoot = tracksMuted.First(t => t.Name == "bgm_boot");
+            Assert.True(mutedBoot.ExistsInDraft);
+            Assert.True(mutedBoot.IsMuted);
+            Assert.Contains("Muted", mutedBoot.StatusDescription);
+
+            // Revert bgm_boot
+            manager.RevertBgmTrack(tempDraft, "bgm_boot");
+
+            var tracksReverted = manager.GetBgmTracks(tempDraft, tempBase);
+            var revertedBoot = tracksReverted.First(t => t.Name == "bgm_boot");
+            Assert.False(revertedBoot.ExistsInDraft);
+            Assert.False(revertedBoot.IsMuted);
+        }
+        finally
+        {
+            Directory.Delete(tempDraft, true);
+            Directory.Delete(tempBase, true);
+        }
+    }
 }

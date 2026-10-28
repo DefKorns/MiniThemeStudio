@@ -73,70 +73,6 @@ public sealed partial class MainWindow : Window, IDisposable
         }
     }
 
-    private async void ReplaceSprite_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel viewModel)
-        {
-            return;
-        }
-
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "Select replacement PNG",
-            AllowMultiple = false,
-            FileTypeFilter =
-            [
-                new FilePickerFileType("PNG image")
-                {
-                    Patterns = ["*.png"],
-                    MimeTypes = ["image/png"],
-                },
-            ],
-        });
-
-        var replacementPath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
-        if (replacementPath is null)
-        {
-            return;
-        }
-
-        DisposePreview();
-        var replaced = viewModel.ReplaceSelectedSprite(replacementPath);
-        LoadAtlasImage(viewModel.AtlasImagePath);
-        ShowSpritePreview(viewModel.SelectedSprite);
-
-        if (!replaced)
-        {
-            await ShowErrorAsync("Cannot replace sprite",
-                viewModel.Status);
-        }
-    }
-
-    private async void ExportSprite_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel viewModel || viewModel.SelectedSprite is null)
-        {
-            return;
-        }
-
-        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-        {
-            Title = "Export sprite to PNG",
-            DefaultExtension = "png",
-            SuggestedFileName = $"{viewModel.SelectedSprite.Name}.png",
-            FileTypeChoices =
-            [
-                new FilePickerFileType("PNG image") { Patterns = ["*.png"] }
-            ]
-        });
-
-        var savePath = file?.TryGetLocalPath();
-        if (savePath != null)
-        {
-            viewModel.ExportSelectedSprite(savePath);
-        }
-    }
-
     private async void ReplaceBgm_Click(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: string trackName } || DataContext is not MainWindowViewModel viewModel)
@@ -348,13 +284,10 @@ public sealed partial class MainWindow : Window, IDisposable
     private void Zoom4x_Click(object? sender, RoutedEventArgs e) => SetSpriteZoom(4);
     private void ZoomFit_Click(object? sender, RoutedEventArgs e) => SetSpriteZoom(0);
 
+    // 0 fits the sprite in the preview
     private void SetSpriteZoom(int zoomLevel)
     {
-        if (DataContext is MainWindowViewModel viewModel)
-        {
-            viewModel.SpriteZoom = zoomLevel;
-            SpritePreviewImage.Stretch = zoomLevel == 0 ? Avalonia.Media.Stretch.Uniform : Avalonia.Media.Stretch.None;
-        }
+        SpritePreviewImage.Stretch = zoomLevel == 0 ? Avalonia.Media.Stretch.Uniform : Avalonia.Media.Stretch.None;
     }
 
     private void ThemeMode_Click(object? sender, RoutedEventArgs e)
@@ -386,14 +319,6 @@ public sealed partial class MainWindow : Window, IDisposable
             : LucideIconKind.Moon;
     }
 
-    private void SpriteList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (sender is ListBox { SelectedItem: SpriteRegion sprite })
-        {
-            ShowSpritePreview(sprite);
-        }
-    }
-
     private void LoadAtlasImage(string path)
     {
         DisposeAtlasPreview();
@@ -421,6 +346,7 @@ public sealed partial class MainWindow : Window, IDisposable
         if (DataContext is MainWindowViewModel viewModel)
         {
             viewModel.PropertyChanged += ViewModel_PropertyChanged;
+            viewModel.SpritesTab.PropertyChanged += SpritesTab_PropertyChanged;
         }
     }
 
@@ -436,19 +362,28 @@ public sealed partial class MainWindow : Window, IDisposable
             DisposePreview();
             _atlasImagePath = "";
         }
-        else if (e.PropertyName == nameof(MainWindowViewModel.AtlasImagePath) && viewModel.AtlasImagePath != _atlasImagePath)
-        {
-            LoadAtlasImage(viewModel.AtlasImagePath);
-            ShowSpritePreview(viewModel.SelectedSprite);
-        }
-        else if (e.PropertyName == nameof(MainWindowViewModel.SelectedSprite))
-        {
-            ShowSpritePreview(viewModel.SelectedSprite);
-        }
         else if (e.PropertyName == nameof(MainWindowViewModel.AnimationFrames))
         {
             AnimationPreviewImage.Source = null;
             _animationClock.Restart();
+        }
+    }
+
+    private void SpritesTab_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (sender is not SpritesViewModel sprites)
+        {
+            return;
+        }
+
+        if (e.PropertyName is nameof(SpritesViewModel.AtlasImagePath) or nameof(SpritesViewModel.AtlasRevision))
+        {
+            LoadAtlasImage(sprites.AtlasImagePath);
+            ShowSpritePreview(sprites.SelectedSprite);
+        }
+        else if (e.PropertyName == nameof(SpritesViewModel.SelectedSprite))
+        {
+            ShowSpritePreview(sprites.SelectedSprite);
         }
     }
 

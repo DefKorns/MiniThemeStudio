@@ -141,7 +141,7 @@
     <TabControl x:Name="WorkspaceTabs" Grid.Row="1" Grid.Column="1" IsVisible="{Binding IsThemeOpen}" SelectedIndex="{Binding SelectedTabIndex}">
       <!-- TAB 1: PACKED ATLAS SPRITES -->
       <TabItem Header="Sprites">
-        <Grid ColumnDefinitions="270,*,320" Margin="16,12">
+        <Grid ColumnDefinitions="270,*,320" Margin="16,12" DataContext="{Binding SpritesTab}" x:DataType="vm:SpritesViewModel">
           <!-- Atlas and sprite list -->
           <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid RowDefinitions="Auto,*">
@@ -163,7 +163,7 @@
                 </Grid>
               </StackPanel>
 
-              <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding FilteredSprites}" SelectedItem="{Binding SelectedSprite}" SelectionChanged="SpriteList_SelectionChanged">
+              <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding FilteredSprites}" SelectedItem="{Binding SelectedSprite}">
                 <ListBox.Styles>
                   <Style Selector="ListBoxItem">
                     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -227,8 +227,8 @@
                 <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedSprite.Name}" TextWrapping="Wrap" />
 
                 <Grid ColumnDefinitions="*,*" Margin="0,4">
-                  <Button Margin="0,0,4,0" Padding="12,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" IsEnabled="{Binding CanReplaceSprite}" Click="ReplaceSprite_Click" Content="Replace PNG" />
-                  <Button Grid.Column="1" Margin="4,0,0,0" Padding="12,8" HorizontalAlignment="Stretch" IsEnabled="{Binding CanReplaceSprite}" Click="ExportSprite_Click" Content="Export PNG" />
+                  <Button Margin="0,0,4,0" Padding="12,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Command="{Binding ReplaceSpriteCommand}" Content="Replace PNG" />
+                  <Button Grid.Column="1" Margin="4,0,0,0" Padding="12,8" HorizontalAlignment="Stretch" Command="{Binding ExportSpriteCommand}" Content="Export PNG" />
                 </Grid>
 
                 <Border Height="1" Background="{DynamicResource BorderBrush}" />
@@ -317,7 +317,7 @@
 
       <!-- TAB 3: SCENES -->
       <TabItem Header="Scenes">
-        <Grid ColumnDefinitions="290,*,320" Margin="16,12" DataContext="{Binding Scenes}" x:DataType="vm:ScenesViewModel">
+        <Grid ColumnDefinitions="290,*,320" Margin="16,12" DataContext="{Binding ScenesTab}" x:DataType="vm:ScenesViewModel">
           <!-- Scene and node tree -->
           <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid RowDefinitions="Auto,*">

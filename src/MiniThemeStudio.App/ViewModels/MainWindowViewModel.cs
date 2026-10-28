@@ -17,9 +17,7 @@ namespace MiniThemeStudio.App.ViewModels;
 public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly IThemeMetadataReader _metadataReader;
-    private readonly ITextureAtlasReader _textureAtlasReader;
     private readonly IThemeDraftService _themeDraftService;
-    private readonly ITextureAtlasEditor _textureAtlasEditor;
     private readonly IThemeAssetManager _assetManager;
     private readonly IThemeValidator _themeValidator;
     private readonly IBaseFirmwareManager _baseFirmwareManager;
@@ -40,9 +38,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public MainWindowViewModel(
         IThemeMetadataReader metadataReader,
-        ITextureAtlasReader textureAtlasReader,
         IThemeDraftService themeDraftService,
-        ITextureAtlasEditor textureAtlasEditor,
         IThemeAssetManager assetManager,
         IThemeValidator themeValidator,
         IBaseFirmwareManager baseFirmwareManager,
@@ -58,12 +54,11 @@ public partial class MainWindowViewModel : ViewModelBase
         IAppearanceService appearance,
         IErrorHandler errorHandler,
         ThemeSession session,
-        ScenesViewModel scenes)
+        ScenesViewModel scenesTab,
+        SpritesViewModel spritesTab)
     {
         _metadataReader = metadataReader;
-        _textureAtlasReader = textureAtlasReader;
         _themeDraftService = themeDraftService;
-        _textureAtlasEditor = textureAtlasEditor;
         _assetManager = assetManager;
         _themeValidator = themeValidator;
         _baseFirmwareManager = baseFirmwareManager;
@@ -79,8 +74,15 @@ public partial class MainWindowViewModel : ViewModelBase
         _appearance = appearance;
         _errorHandler = errorHandler;
         _session = session;
-        Scenes = scenes;
-        Scenes.SpriteRequested += (_, request) => ShowSpriteInAtlas(request);
+        ScenesTab = scenesTab;
+        SpritesTab = spritesTab;
+        ScenesTab.SpriteRequested += (_, request) =>
+        {
+            if (SpritesTab.ShowSprite(request))
+            {
+                SelectedTabIndex = 0;
+            }
+        };
 
         // the session holds the state the window binds to; its changes are raised here too
         _session.PropertyChanged += (_, e) =>
@@ -100,7 +102,9 @@ public partial class MainWindowViewModel : ViewModelBase
         };
     }
 
-    public ScenesViewModel Scenes { get; }
+    public ScenesViewModel ScenesTab { get; }
+
+    public SpritesViewModel SpritesTab { get; }
 
     // the workspace tab shown; 0 is Sprites
     [ObservableProperty]
@@ -132,39 +136,6 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private string currentBaseLabel = "No Base";
-
-    [ObservableProperty]
-    private string atlasSummary = "No packed atlas";
-
-    [ObservableProperty]
-    private string atlasImageStatus = "Not available";
-
-    [ObservableProperty]
-    private string atlasImagePath = "";
-
-    [ObservableProperty]
-    private IReadOnlyList<TextureAtlas> atlases = [];
-
-    [ObservableProperty]
-    private TextureAtlas? selectedAtlas;
-
-    [ObservableProperty]
-    private IReadOnlyList<SpriteRegion> sprites = [];
-
-    [ObservableProperty]
-    private IReadOnlyList<SpriteRegion> filteredSprites = [];
-
-    [ObservableProperty]
-    private SpriteRegion? selectedSprite;
-
-    [ObservableProperty]
-    private string spriteSearchText = "";
-
-    [ObservableProperty]
-    private int spriteZoom = 1; // 1, 2, 4, 0 (fit)
-
-    [ObservableProperty]
-    private bool canReplaceSprite;
 
     // Wallpapers
     [ObservableProperty]
@@ -250,7 +221,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _session.BaseUiPath = baseUiPath;
         LoadDraft(_session.Draft);
         HasUnsavedChanges = hadUnsavedChanges;
-        Status = $"Using {CurrentBaseLabel} - {Sprites.Count} sprites, {Wallpapers.Count} wallpapers.";
+        Status = $"Using {CurrentBaseLabel} - {SpritesTab.Sprites.Count} sprites, {Wallpapers.Count} wallpapers.";
     }
 
     private static bool PathsEqual(string first, string? second)
@@ -281,68 +252,6 @@ public partial class MainWindowViewModel : ViewModelBase
             ? $"Saved to {_session.Draft.SavePath}"
             : $"Saved to {_session.Draft.SavePath} (previous version backed up to {_session.Draft.LastBackupPath})";
         ForgetSavedDraftAfterSave();
-    }
-
-    public bool ReplaceSelectedSprite(string replacementImagePath)
-    {
-        if (SelectedSprite is not { } sprite || SelectedAtlas is not { } atlas || _session.Draft is null)
-        {
-            Status = "Select a packed sprite first.";
-            return false;
-        }
-
-        try
-        {
-            var draftImagePath = _assetManager.EnsureDraftCopy(
-                _session.Draft.DraftPath,
-                atlas.RelativeImagePath,
-                atlas.ImagePath);
-            if (draftImagePath != atlas.ImagePath)
-            {
-                var draftAtlas = atlas with { ImagePath = draftImagePath };
-                Atlases = Atlases.Select(candidate => candidate == atlas ? draftAtlas : candidate).ToList();
-                SelectedAtlas = draftAtlas;
-                SelectedSprite = sprite;
-            }
-
-            _textureAtlasEditor.ReplaceSprite(new SpriteReplacementRequest(
-                draftImagePath,
-                sprite,
-                replacementImagePath));
-            MarkChanged();
-            Status = $"Replaced {sprite.Name} in draft.";
-            return true;
-        }
-        catch (Exception exception) when (
-            exception is IOException
-                or InvalidDataException
-                or UnauthorizedAccessException
-                or ArgumentException)
-        {
-            Status = exception.Message;
-            return false;
-        }
-    }
-
-    public bool ExportSelectedSprite(string destinationPath)
-    {
-        if (SelectedSprite is null || AtlasImagePath.Length == 0)
-        {
-            Status = "Select a packed sprite first.";
-            return false;
-        }
-
-        try
-        {
-            _assetManager.ExportPackedSprite(AtlasImagePath, SelectedSprite, destinationPath);
-            Status = $"Exported {SelectedSprite.Name} to {Path.GetFileName(destinationPath)}.";
-            return true;
-        }
-        catch (Exception exception)
-        {
-            Status = exception.Message;
-            return false;
-        }
     }
 
     public bool ReplaceSelectedWallpaper(string replacementImagePath)
@@ -508,8 +417,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public void ShowHome()
     {
         DiscardTheme();
-        Atlases = [];
-        SelectedAtlas = null;
+        ReloadAssets();
         IsThemeOpen = false;
         IsHomeVisible = true;
         Status = "Draft discarded";
@@ -559,17 +467,10 @@ public partial class MainWindowViewModel : ViewModelBase
             .FirstOrDefault(info => info.Status == BaseInstallStatus.Valid && PathsEqual(info.LocalPath, _session.BaseUiPath))?
             .Definition;
         CurrentBaseLabel = _currentBase is null ? "No Base" : ConsoleFamilies.ShortLabel(_currentBase);
-        Atlases = _textureAtlasReader.ReadAll(draft.DraftPath, _session.BaseUiPath);
-        SelectedAtlas = Atlases.Count > 0 ? Atlases[0] : null;
-        if (SelectedAtlas is null)
-        {
-            OnSelectedAtlasChanged(null);
-        }
-
         ReloadAssets();
         RunValidation();
         ShowWorkspace();
-        Status = $"Draft opened - {Sprites.Count} sprites, {Wallpapers.Count} wallpapers.";
+        Status = $"Draft opened - {SpritesTab.Sprites.Count} sprites, {Wallpapers.Count} wallpapers.";
     }
 
     private void ReloadAssets()
@@ -646,78 +547,10 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    private void ShowSpriteInAtlas(SceneSpriteRequest request)
-    {
-        var atlas = Atlases.FirstOrDefault(candidate => candidate.TextureId == request.TextureId)
-            ?? Atlases.FirstOrDefault(candidate => request.ImagePath is not null && PathsEqual(candidate.ImagePath, request.ImagePath));
-        if (atlas?.Sprites.FirstOrDefault(sprite => sprite.Name == request.SpriteName) is not { } sprite)
-        {
-            Status = $"Sprite {request.SpriteName} was not found in the atlases.";
-            return;
-        }
-
-        SelectedAtlas = atlas;
-        SpriteSearchText = "";
-        SelectedSprite = sprite;
-        SelectedTabIndex = 0;
-    }
-
-    private void ApplySpriteFilter()
-    {
-        if (string.IsNullOrWhiteSpace(SpriteSearchText))
-        {
-            FilteredSprites = Sprites;
-        }
-        else
-        {
-            FilteredSprites = Sprites
-                .Where(s => s.Name.Contains(SpriteSearchText, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-        }
-    }
-
     private void ShowWorkspace()
     {
         IsHomeVisible = false;
         IsThemeOpen = true;
-    }
-
-    partial void OnSpriteSearchTextChanged(string value)
-    {
-        ApplySpriteFilter();
-    }
-
-    partial void OnSelectedAtlasChanged(TextureAtlas? value)
-    {
-        if (value is null)
-        {
-            AtlasSummary = "No sprite atlas";
-            AtlasImageStatus = "Not available";
-            AtlasImagePath = "";
-            Sprites = [];
-            FilteredSprites = [];
-            SelectedSprite = null;
-            return;
-        }
-
-        var previousName = SelectedSprite?.Name;
-        AtlasSummary = $"{value.Size.Width} x {value.Size.Height}";
-        AtlasImageStatus = File.Exists(value.ImagePath) ? "Image found" : "Image missing";
-        AtlasImagePath = value.ImagePath;
-        Sprites = value.Sprites;
-        ApplySpriteFilter();
-        SelectedSprite = value.Sprites.FirstOrDefault(sprite => sprite.Name == previousName)
-            ?? (value.Sprites.Count > 0 ? value.Sprites[0] : null);
-    }
-
-    partial void OnSelectedSpriteChanged(SpriteRegion? value)
-    {
-        CanReplaceSprite = value is not null && AtlasImagePath.Length > 0;
-    }
-
-    partial void OnAtlasImagePathChanged(string value)
-    {
-        CanReplaceSprite = SelectedSprite is not null && value.Length > 0;
     }
 
     partial void OnSelectedWallpaperChanged(WallpaperAsset? value)

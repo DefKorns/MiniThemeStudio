@@ -69,6 +69,7 @@ public static class ServiceRegistration
         services.AddSingleton<GlobalExceptionHandler>();
         services.AddSingleton<ThemeSession>();
         services.AddSingleton<ScenesViewModel>();
+        services.AddSingleton<SpritesViewModel>();
         services.AddSingleton<MainWindowViewModel>();
         services.AddSingleton<MainWindow>();
 

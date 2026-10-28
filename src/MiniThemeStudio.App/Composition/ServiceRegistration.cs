@@ -56,6 +56,7 @@ public static class ServiceRegistration
         services.AddSingleton<IThemePaletteEditor, ThemePaletteEditor>();
         services.AddSingleton<ISceneEditor, SceneEditor>();
         services.AddSingleton<IParallaxEditor, ParallaxEditor>();
+        services.AddSingleton<ICharacterSheetEditor, CharacterSheetEditor>();
 
         // audio
         services.AddSingleton<IProcessRunner, DefaultProcessRunner>();

@@ -12,6 +12,7 @@ using MiniThemeStudio.App.Dialogs;
 using MiniThemeStudio.App.Errors;
 using MiniThemeStudio.App.Services;
 using MiniThemeStudio.Core.Themes;
+using SkiaSharp;
 
 namespace MiniThemeStudio.App.ViewModels;
 
@@ -28,8 +29,16 @@ public sealed record CharacterFrameRow(CharacterTexture Texture, string Label, B
     public string SizeText => string.Create(CultureInfo.InvariantCulture, $"{Texture.Width} × {Texture.Height}");
 }
 
+// one picture of the character sheet of the NES and Famicom UIs, cut from the sheet for its tile
+public sealed record SheetFrameView(CharacterSheetFrame Frame, string Label, Bitmap? Thumbnail)
+{
+    public string SizeText => string.Create(CultureInfo.InvariantCulture, $"{Frame.Width} × {Frame.Height}");
+}
+
+public sealed record SheetRowView(string Label, IReadOnlyList<SheetFrameView> Frames);
+
 // The Characters tab: the animations of the characters running in the menu, their frames and timing.
-public sealed partial class CharactersViewModel : ViewModelBase
+public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
 {
     private readonly ThemeSession _session;
     private readonly ICharacterAnimationEditor _characterEditor;
@@ -37,6 +46,13 @@ public sealed partial class CharactersViewModel : ViewModelBase
     private readonly IAppDialogs _appDialogs;
     private readonly IDialogService _dialogService;
     private readonly IFileDialogService _fileDialogs;
+    private readonly ICharacterSheetEditor _sheetEditor;
+
+    // what the rows of the NES and Famicom sheet show, from the top
+    private static readonly string[] SheetRowNames = ["Mario", "Luigi", "Block"];
+
+    private Bitmap? _sheetBitmap;
+    private List<Bitmap> _sheetThumbnails = [];
     private readonly IErrorHandler _errorHandler;
 
     // the words of the console's frame names, as people say them
@@ -53,17 +69,20 @@ public sealed partial class CharactersViewModel : ViewModelBase
         IAppDialogs appDialogs,
         IDialogService dialogService,
         IFileDialogService fileDialogs,
+        ICharacterSheetEditor sheetEditor,
         IErrorHandler errorHandler,
         EditingMode mode)
     {
-        _fileDialogs = fileDialogs;
-        Mode = mode;
         _session = session;
         _characterEditor = characterEditor;
         _assetManager = assetManager;
         _appDialogs = appDialogs;
         _dialogService = dialogService;
+        _fileDialogs = fileDialogs;
+        _sheetEditor = sheetEditor;
         _errorHandler = errorHandler;
+        Mode = mode;
+        Mode.PropertyChanged += (_, _) => NotifyLayout();
         _session.Reloaded += (_, _) => Reload();
     }
 
@@ -71,6 +90,24 @@ public sealed partial class CharactersViewModel : ViewModelBase
     private readonly Dictionary<string, Bitmap?> _thumbnails = [];
 
     public EditingMode Mode { get; }
+
+    // the NES and Famicom UIs draw their characters from one sheet instead of scene animations
+    [ObservableProperty]
+    private CharacterSheet? sheet;
+
+    [ObservableProperty]
+    private IReadOnlyList<SheetRowView> sheetRows = [];
+
+    [ObservableProperty]
+    private Bitmap? sheetImage;
+
+    public bool ShowSheet => Sheet is not null && Characters.Count == 0;
+
+    public bool ShowAnimations => !ShowSheet;
+
+    public bool ShowSimpleFrames => ShowAnimations && Mode.IsSimple;
+
+    public bool ShowAdvancedFrames => ShowAnimations && Mode.IsAdvanced;
 
     // the images of the selected character: the same frames as the official theme, replaced in place
     [ObservableProperty]
@@ -177,6 +214,53 @@ public sealed partial class CharactersViewModel : ViewModelBase
         var frameTimeMilliseconds = FrameTimeMilliseconds;
         AfterChange(animation.Name);
         _session.Status = string.Create(CultureInfo.InvariantCulture, $"{character} {animation.Name}: {frameCount} frames at {frameTimeMilliseconds} ms. Other animations of {character} still use their own frames.");
+    }
+
+    [RelayCommand]
+    private async Task ReplaceSheetFrameAsync(SheetFrameView? frame)
+    {
+        if (_session.Draft is not { } draft || frame is null
+            || await _fileDialogs.OpenFileAsync($"Select the new {frame.Label}", new FileType("PNG image", "*.png")) is not { } imagePath)
+        {
+            return;
+        }
+
+        if (await RunAsync($"Cannot replace {frame.Label}", () => _sheetEditor.ReplaceFrame(draft.DraftPath, _session.BaseUiPath, frame.Frame, imagePath)))
+        {
+            _session.NotifyContentChanged();
+            _session.Status = $"Replaced {frame.Label}.";
+        }
+    }
+
+    [RelayCommand]
+    private async Task ReplaceSheetAsync()
+    {
+        if (_session.Draft is not { } draft || Sheet is not { } current
+            || await _fileDialogs.OpenFileAsync(string.Create(CultureInfo.InvariantCulture, $"Select the character sheet ({current.Width} × {current.Height} PNG)"), new FileType("PNG image", "*.png")) is not { } imagePath)
+        {
+            return;
+        }
+
+        if (await RunAsync("Cannot replace the character sheet", () => _sheetEditor.ReplaceSheet(draft.DraftPath, _session.BaseUiPath, imagePath)))
+        {
+            _session.NotifyContentChanged();
+            _session.Status = "Replaced the character sheet.";
+        }
+    }
+
+    [RelayCommand]
+    private async Task ExportSheetAsync()
+    {
+        if (Sheet is not { } current
+            || await _fileDialogs.SaveFileAsync("Export the character sheet", Path.GetFileName(current.RelativePath), "png", new FileType("PNG image", "*.png")) is not { } savePath)
+        {
+            return;
+        }
+
+        if (await RunAsync("Cannot export the character sheet", () => File.Copy(current.ImagePath, savePath, true)))
+        {
+            _session.Status = $"Exported the character sheet to {Path.GetFileName(savePath)}.";
+        }
     }
 
     // a new picture for one frame; it keeps the size of the frame, which the scenes draw it at
@@ -307,6 +391,7 @@ public sealed partial class CharactersViewModel : ViewModelBase
         _characterTextures = _characterEditor.GetTextures(_session.Draft.DraftPath, _session.BaseUiPath);
         DisposeThumbnails();
         Characters = _characterEditor.GetCharacters(_session.Draft.DraftPath, _session.BaseUiPath);
+        LoadSheet();
         SelectedCharacter = null;
         SelectedCharacter = Characters.Contains(previous) ? previous : (Characters.Count > 0 ? Characters[0] : null);
     }
@@ -364,6 +449,84 @@ public sealed partial class CharactersViewModel : ViewModelBase
         {
             FrameTimeMilliseconds = Math.Round((decimal)(value.Duration / loopFrames * 1000), 1);
         }
+    }
+
+    private void LoadSheet()
+    {
+        var previous = _sheetBitmap;
+        var previousThumbnails = _sheetThumbnails;
+        Sheet = _session.Draft is { } draft ? _sheetEditor.GetSheet(draft.DraftPath, _session.BaseUiPath) : null;
+        _sheetBitmap = null;
+        _sheetThumbnails = [];
+        using var pixels = Sheet is { } current ? SKBitmap.Decode(current.ImagePath) : null;
+        if (pixels is not null)
+        {
+            _sheetBitmap = ToBitmap(pixels);
+        }
+
+        SheetImage = _sheetBitmap;
+        SheetRows = Sheet is null
+            ? []
+            : Sheet.Frames
+                .GroupBy(frame => frame.Row)
+                .Select(row =>
+                {
+                    var name = row.Key < SheetRowNames.Length ? SheetRowNames[row.Key] : $"Row {row.Key + 1}";
+                    return new SheetRowView(name, row
+                        .Select(frame => new SheetFrameView(frame, $"{name} {frame.Index + 1}", Cut(pixels, frame)))
+                        .ToList());
+                })
+                .ToList();
+
+        previous?.Dispose();
+        foreach (var thumbnail in previousThumbnails)
+        {
+            thumbnail.Dispose();
+        }
+
+        NotifyLayout();
+    }
+
+    // the frame's own pixels, for its tile
+    private Bitmap? Cut(SKBitmap? sheet, CharacterSheetFrame frame)
+    {
+        using var subset = new SKBitmap();
+        if (sheet is null || !sheet.ExtractSubset(subset, new SKRectI(frame.X, frame.Y, frame.X + frame.Width, frame.Y + frame.Height)))
+        {
+            return null;
+        }
+
+        var thumbnail = ToBitmap(subset);
+        _sheetThumbnails.Add(thumbnail);
+        return thumbnail;
+    }
+
+    private static Bitmap ToBitmap(SKBitmap pixels)
+    {
+        using var png = pixels.Encode(SKEncodedImageFormat.Png, 100);
+        using var stream = new MemoryStream(png.ToArray());
+        return new Bitmap(stream);
+    }
+
+    public void Dispose()
+    {
+        DisposeThumbnails();
+        _sheetBitmap?.Dispose();
+        _sheetBitmap = null;
+        foreach (var thumbnail in _sheetThumbnails)
+        {
+            thumbnail.Dispose();
+        }
+
+        _sheetThumbnails = [];
+    }
+
+    private void NotifyLayout()
+    {
+        OnPropertyChanged(nameof(ShowSheet));
+        OnPropertyChanged(nameof(ShowAnimations));
+        OnPropertyChanged(nameof(ShowSimpleFrames));
+        OnPropertyChanged(nameof(ShowAdvancedFrames));
     }
 
     // mario_run01 is "Run 1", mario_look "Look up"

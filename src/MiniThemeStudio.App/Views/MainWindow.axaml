@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:MiniThemeStudio.App.ViewModels"
         xmlns:themes="using:MiniThemeStudio.Core.Themes"
+        xmlns:scenes="using:MiniThemeStudio.Core.Scenes"
         xmlns:fonts="using:MiniThemeStudio.Core.Fonts"
         xmlns:audio="using:MiniThemeStudio.Core.Audio"
         xmlns:lucide="using:Lucide.Avalonia"
@@ -309,6 +310,58 @@
                 </Grid>
                 <Border Height="1" Background="{DynamicResource BorderBrush}" />
                 <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="Wallpapers define the main background, near foreground parallax layer, and far distant layer. Dimensions are automatically preserved or updated in JSON." TextWrapping="Wrap" />
+
+                <!-- Scrolling layers -->
+                <StackPanel Spacing="10" Margin="0,8,0,0" DataContext="{Binding Parallax}" x:DataType="vm:ParallaxViewModel">
+                  <TextBlock FontFamily="Georgia, serif" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Scrolling Layers" />
+                  <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" IsVisible="{Binding !HasBackgrounds}"
+                             Text="This Base draws its background from a script, so its layers cannot be changed here." />
+                  <StackPanel Spacing="10" IsVisible="{Binding HasBackgrounds}">
+                    <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding Backgrounds}" SelectedItem="{Binding SelectedBackground}" ToolTip.Tip="The background and the animation that scrolls it">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="scenes:ParallaxBackground">
+                          <TextBlock Text="{Binding DisplayName}" />
+                        </DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Text="{Binding CycleText}" />
+                    <ListBox MaxHeight="180" ItemsSource="{Binding Layers}" SelectedItem="{Binding SelectedLayer}">
+                      <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ParallaxLayerRow">
+                          <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="1" Margin="8,0,0,0" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Detail}" />
+                          </Grid>
+                        </DataTemplate>
+                      </ListBox.ItemTemplate>
+                    </ListBox>
+                    <Grid ColumnDefinitions="110,*,Auto" ColumnSpacing="8" IsEnabled="{Binding HasSelectedLayer}">
+                      <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Loops per cycle" />
+                      <NumericUpDown Grid.Column="1" Value="{Binding LayerLoops}" Increment="1" FormatString="0" Minimum="-16" Maximum="16"
+                                     ToolTip.Tip="Whole loops keep the cycle seamless; negative ones scroll the other way, 0 stops the layer" />
+                      <Button Grid.Column="2" Padding="10,6" Command="{Binding ApplySpeedCommand}" Content="Apply" />
+                    </Grid>
+                    <Button Padding="10,6" HorizontalAlignment="Stretch" Command="{Binding RemoveLayerCommand}" Content="Remove layer..." />
+
+                    <Border Height="1" Background="{DynamicResource BorderBrush}" />
+                    <TextBlock FontWeight="Bold" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="NEW LAYER" />
+                    <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+                      <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Name" />
+                      <TextBox Grid.Column="1" Text="{Binding NewLayerName}" />
+                      <TextBlock Grid.Row="1" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Y" />
+                      <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding NewLayerY}" Increment="1" FormatString="0" ToolTip.Tip="Pixels above the centre of the screen: Y points up" />
+                      <TextBlock Grid.Row="2" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Layer" />
+                      <NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding NewLayerZIndex}" Increment="1" FormatString="0" ToolTip.Tip="Higher layers are drawn over lower ones: the far wall is -1, the near wall 0" />
+                      <TextBlock Grid.Row="3" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Scale" />
+                      <NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding NewLayerScale}" Increment="1" FormatString="0" Minimum="1" Maximum="8" ToolTip.Tip="Screen pixels per image pixel: the console's layers use 3" />
+                      <TextBlock Grid.Row="4" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Loops per cycle" />
+                      <NumericUpDown Grid.Row="4" Grid.Column="1" Value="{Binding NewLayerLoops}" Increment="1" FormatString="0" Minimum="-16" Maximum="16" />
+                    </Grid>
+                    <Button Padding="10,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold"
+                            Command="{Binding AddLayerCommand}" Content="Choose PNG and add layer..."
+                            ToolTip.Tip="The image is repeated side by side until it covers the screen, so it scrolls without a seam" />
+                  </StackPanel>
+                </StackPanel>
               </StackPanel>
             </ScrollViewer>
           </Border>

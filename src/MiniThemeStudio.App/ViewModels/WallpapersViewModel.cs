@@ -20,14 +20,18 @@ public sealed partial class WallpapersViewModel : ViewModelBase
     private readonly IFileDialogService _fileDialogs;
     private readonly IErrorHandler _errorHandler;
 
-    public WallpapersViewModel(ThemeSession session, IThemeAssetManager assetManager, IFileDialogService fileDialogs, IErrorHandler errorHandler)
+    public WallpapersViewModel(ThemeSession session, IThemeAssetManager assetManager, IFileDialogService fileDialogs, IErrorHandler errorHandler, ParallaxViewModel parallax)
     {
         _session = session;
+        Parallax = parallax;
         _assetManager = assetManager;
         _fileDialogs = fileDialogs;
         _errorHandler = errorHandler;
         _session.Reloaded += (_, _) => Reload();
     }
+
+    // the scrolling layers of the background, shown in the same tab
+    public ParallaxViewModel Parallax { get; }
 
     [ObservableProperty]
     private IReadOnlyList<WallpaperAsset> wallpapers = [];

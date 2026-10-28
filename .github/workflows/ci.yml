@@ -34,7 +34,13 @@ jobs:
     # the same hooks as .pre-commit-config.yaml, for commits made without them installed;
     # pinned so the ubuntu-latest migrations do not change the job unnoticed
     runs-on: ubuntu-24.04
+    env:
+      # .NET keeps its named mutexes in XDG_RUNTIME_DIR, which the runner points at a folder that does not exist
+      XDG_RUNTIME_DIR: /tmp/xdg-runtime
     steps:
+      - name: Create the runtime folder
+        run: mkdir -m 700 -p "$XDG_RUNTIME_DIR"
+
       - uses: actions/checkout@v7
 
       - uses: actions/setup-dotnet@v6

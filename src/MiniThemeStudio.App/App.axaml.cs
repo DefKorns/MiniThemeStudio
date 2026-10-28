@@ -1,8 +1,10 @@
 using System.Linq;
 using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
+using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MiniThemeStudio.App.Composition;
@@ -36,7 +38,9 @@ public partial class App : Application
 
             services.GetRequiredService<IAppearanceService>().Apply(services.GetRequiredService<IAppSettingsStore>().Current.Theme);
 
-            desktop.MainWindow = services.GetRequiredService<MainWindow>();
+            var mainWindow = services.GetRequiredService<MainWindow>();
+            desktop.MainWindow = mainWindow;
+            Program.Instance?.ListenForActivation(() => Dispatcher.UIThread.Post(() => BringToFront(mainWindow)));
         }
 
         base.OnFrameworkInitializationCompleted();
@@ -44,6 +48,18 @@ public partial class App : Application
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Mini Theme Studio {Version} starting")]
     private static partial void LogStarting(ILogger logger, string version);
+
+    // the app was started again: its window comes back instead of a second one
+    private static void BringToFront(Window window)
+    {
+        if (window.WindowState == WindowState.Minimized)
+        {
+            window.WindowState = WindowState.Normal;
+        }
+
+        window.Show();
+        window.Activate();
+    }
 
     private static void DisableAvaloniaDataAnnotationValidation()
     {

@@ -67,6 +67,51 @@ public sealed class ThemeLayerTests : IDisposable
         Assert.Equal(["/scripts/env/colors_jpn.lua", "/scripts/env/colors_usa.lua"], resources);
     }
 
+    [Fact]
+    public void ListsEachFileOnceAndTellsWhereItComesFrom()
+    {
+        WriteFile(_basePath, "resources/fonts/l.fnt", "base");
+        WriteFile(_basePath, "resources/fonts/s.fnt", "base");
+        WriteFile(_themePath, "resources/fonts/l.fnt", "theme");
+        WriteFile(_themePath, "resources/fonts/m.fnt", "theme");
+        WriteFile(_themePath, "resources/fonts/extra/x.fnt", "theme");
+
+        var files = new ThemeLayer(_themePath, _basePath).ListFiles("fonts", "*.fnt", recursive: false);
+
+        Assert.Equal(["/fonts/l.fnt", "/fonts/m.fnt", "/fonts/s.fnt"], files.Select(file => file.ResourcePath));
+        var replaced = files[0];
+        Assert.Equal("theme", File.ReadAllText(replaced.FilePath));
+        Assert.False(replaced.IsFromBase);
+        Assert.True(replaced.OverridesBase);
+        Assert.False(files[1].IsFromBase);
+        Assert.False(files[1].OverridesBase);
+        Assert.True(files[2].IsFromBase);
+    }
+
+    [Fact]
+    public void FindsTheFilesOfOneLayer()
+    {
+        WriteFile(_basePath, "resources/sounds/hvc/bgm_home.wav", "base");
+        WriteFile(_themePath, "resources/sounds/hvc/bgm_home.mp3", "theme");
+        var layer = new ThemeLayer(_themePath, _basePath);
+
+        Assert.Equal([Path.Combine(_themePath, "resources", "sounds", "hvc", "bgm_home.mp3")], layer.FindFiles("sounds/hvc", "bgm_home.*", inBase: false));
+        Assert.Equal([Path.Combine(_basePath, "resources", "sounds", "hvc", "bgm_home.wav")], layer.FindFiles("sounds/hvc", "bgm_home.*", inBase: true));
+        Assert.Empty(new ThemeLayer(_themePath, null).FindFiles("sounds/hvc", "*.*", inBase: true));
+    }
+
+    [Fact]
+    public void FindsTheFirstSubfolderInTheThemeThenInTheBase()
+    {
+        WriteFile(_basePath, "resources/sounds/sfc/bgm_home.wav", "");
+        var layer = new ThemeLayer(_themePath, _basePath);
+        Assert.Equal("sfc", layer.FirstSubfolder("sounds"));
+
+        WriteFile(_themePath, "resources/sounds/hvc/bgm_home.wav", "");
+        Assert.Equal("hvc", layer.FirstSubfolder("sounds"));
+        Assert.Null(layer.FirstSubfolder("missing"));
+    }
+
     [Theory]
     [InlineData("../outside.png")]
     [InlineData("resources/../../outside.png")]

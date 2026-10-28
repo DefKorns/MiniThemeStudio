@@ -218,7 +218,7 @@
                   <Button Padding="6,2" Content="3x" Click="AtlasZoom3x_Click" ToolTip.Tip="Atlas at 300%" />
                 </StackPanel>
               </Grid>
-              <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+              <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" AllowAutoHide="False" controls:DragToScroll.IsEnabled="True">
                 <controls:AtlasView x:Name="AtlasCanvas" Margin="12" HorizontalAlignment="Left" VerticalAlignment="Top"
                                     Sprites="{Binding Sprites}" SelectedSprite="{Binding SelectedSprite}" />
               </ScrollViewer>
@@ -888,16 +888,22 @@
               <Grid Grid.Row="3" RowDefinitions="Auto,*">
                 <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,8">
                   <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Glyph Texture Atlas" />
-                  <TextBlock Grid.Column="1" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}">
-                    <Run Text="{Binding SelectedFont.TextureWidth}" />
-                    <Run Text="×" />
-                    <Run Text="{Binding SelectedFont.TextureHeight}" />
-                    <Run Text="px" />
-                  </TextBlock>
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                    <TextBlock Margin="0,0,8,0" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}">
+                      <Run Text="{Binding SelectedFont.TextureWidth}" />
+                      <Run Text="×" />
+                      <Run Text="{Binding SelectedFont.TextureHeight}" />
+                      <Run Text="px" />
+                    </TextBlock>
+                    <Button Padding="6,2" Content="1x" Click="GlyphAtlasZoom1x_Click" ToolTip.Tip="Atlas at 100%" />
+                    <Button Padding="6,2" Content="2x" Click="GlyphAtlasZoom2x_Click" ToolTip.Tip="Atlas at 200%" />
+                    <Button Padding="6,2" Content="3x" Click="GlyphAtlasZoom3x_Click" ToolTip.Tip="Atlas at 300%" />
+                  </StackPanel>
                 </Grid>
                 <Border Grid.Row="1" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
-                  <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-                    <Image Source="{Binding FontTexturePreview}" Margin="8" Stretch="None" RenderOptions.BitmapInterpolationMode="None" />
+                  <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" AllowAutoHide="False" controls:DragToScroll.IsEnabled="True"
+                                ToolTip.Tip="Drag to look around; the wheel scrolls, Shift+wheel sideways">
+                    <controls:AtlasView x:Name="GlyphAtlasCanvas" Margin="8" HorizontalAlignment="Left" VerticalAlignment="Top" Source="{Binding FontTexturePreview}" IsSelectionEnabled="False" />
                   </ScrollViewer>
                 </Border>
               </Grid>

@@ -203,6 +203,12 @@ public sealed partial class MainWindow : Window, IDisposable
     private void AtlasZoom2x_Click(object? sender, RoutedEventArgs e) => AtlasCanvas.Zoom = 2;
     private void AtlasZoom3x_Click(object? sender, RoutedEventArgs e) => AtlasCanvas.Zoom = 3;
 
+    private void GlyphAtlasZoom1x_Click(object? sender, RoutedEventArgs e) => GlyphAtlasCanvas.Zoom = 1;
+
+    private void GlyphAtlasZoom2x_Click(object? sender, RoutedEventArgs e) => GlyphAtlasCanvas.Zoom = 2;
+
+    private void GlyphAtlasZoom3x_Click(object? sender, RoutedEventArgs e) => GlyphAtlasCanvas.Zoom = 3;
+
     private void ShowSpritePreview(SpriteRegion? sprite)
     {
         SpritePreviewImage.Source = null;

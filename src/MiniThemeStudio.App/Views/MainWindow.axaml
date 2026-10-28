@@ -659,7 +659,7 @@
       </TabItem>
 
       <TabItem Header="Colors">
-        <Grid ColumnDefinitions="280,*,400" Margin="16,12">
+        <Grid ColumnDefinitions="280,*,400" Margin="16,12" DataContext="{Binding ColorsTab}" x:DataType="vm:ColorsViewModel">
           <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid RowDefinitions="Auto,*">
               <TextBlock Margin="16,12" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Palettes (colors_*.lua)" />
@@ -717,7 +717,7 @@
               <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedPaletteColor.Name}" />
               <ColorView Color="{Binding EditColor}" IsAlphaEnabled="True" IsColorPaletteVisible="False" />
               <CheckBox IsChecked="{Binding ApplyColorToAllRegions}" Content="Apply to all regions" />
-              <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Classes="accent" Click="ApplyPaletteColor_Click" Content="Apply" />
+              <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Classes="accent" Command="{Binding ApplyColorCommand}" Content="Apply" />
               <TextBlock Margin="0,8,0,0" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding ColorUsageSummary}" />
               <ItemsControl ItemsSource="{Binding ColorUsages}">
                 <ItemsControl.ItemTemplate>

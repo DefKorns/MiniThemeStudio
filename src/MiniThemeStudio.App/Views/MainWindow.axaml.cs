@@ -332,14 +332,6 @@ public sealed partial class MainWindow : Window, IDisposable
         }
     }
 
-    private async void ApplyPaletteColor_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainWindowViewModel viewModel && !viewModel.ApplyPaletteColor())
-        {
-            await ShowErrorAsync("Cannot change the colour", viewModel.Status);
-        }
-    }
-
     private void MirrorPreview_IsCheckedChanged(object? sender, RoutedEventArgs e)
     {
         AnimationPreviewImage.RenderTransform = MirrorPreviewCheckBox.IsChecked == true ? new ScaleTransform(-1, 1) : null;

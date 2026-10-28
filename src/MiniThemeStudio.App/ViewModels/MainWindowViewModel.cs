@@ -23,7 +23,6 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly IBaseFirmwareManager _baseFirmwareManager;
     private readonly IThemeExporter _themeExporter;
     private readonly ICharacterAnimationEditor _characterEditor;
-    private readonly IThemePaletteEditor _paletteEditor;
     private readonly ISavedDraftStore _savedDraftStore;
     private readonly IAppSettingsStore _settingsStore;
     private readonly IFFmpegAudioConverter _audioConverter;
@@ -45,7 +44,6 @@ public partial class MainWindowViewModel : ViewModelBase
         IThemeExporter themeExporter,
         ICharacterAnimationEditor characterEditor,
         ISavedDraftStore savedDraftStore,
-        IThemePaletteEditor paletteEditor,
         IAppSettingsStore settingsStore,
         IFFmpegAudioConverter audioConverter,
         IDialogService dialogService,
@@ -58,7 +56,8 @@ public partial class MainWindowViewModel : ViewModelBase
         SpritesViewModel spritesTab,
         WallpapersViewModel wallpapersTab,
         CharactersViewModel charactersTab,
-        FontsViewModel fontsTab)
+        FontsViewModel fontsTab,
+        ColorsViewModel colorsTab)
     {
         _metadataReader = metadataReader;
         _themeDraftService = themeDraftService;
@@ -68,7 +67,6 @@ public partial class MainWindowViewModel : ViewModelBase
         _themeExporter = themeExporter;
         _characterEditor = characterEditor;
         _savedDraftStore = savedDraftStore;
-        _paletteEditor = paletteEditor;
         _settingsStore = settingsStore;
         _audioConverter = audioConverter;
         _dialogService = dialogService;
@@ -82,6 +80,7 @@ public partial class MainWindowViewModel : ViewModelBase
         WallpapersTab = wallpapersTab;
         CharactersTab = charactersTab;
         FontsTab = fontsTab;
+        ColorsTab = colorsTab;
         ScenesTab.SpriteRequested += (_, request) =>
         {
             if (SpritesTab.ShowSprite(request))
@@ -117,6 +116,8 @@ public partial class MainWindowViewModel : ViewModelBase
     public CharactersViewModel CharactersTab { get; }
 
     public FontsViewModel FontsTab { get; }
+
+    public ColorsViewModel ColorsTab { get; }
 
     // the workspace tab shown; 0 is Sprites
     [ObservableProperty]
@@ -450,7 +451,6 @@ public partial class MainWindowViewModel : ViewModelBase
 
         MissingTextures = report.MissingTextures;
         SelectedMissingTexture = MissingTextures.Count > 0 ? MissingTextures[0] : null;
-        ReloadPalettes();
         ReloadBgmTracks();
     }
 

@@ -75,6 +75,7 @@ public static class ServiceRegistration
         services.AddSingleton<ScenesViewModel>();
         services.AddSingleton<SpritesViewModel>();
         services.AddSingleton<ParallaxViewModel>();
+        services.AddSingleton<PixelBackgroundViewModel>();
         services.AddSingleton<WallpapersViewModel>();
         services.AddSingleton<CharactersViewModel>();
         services.AddSingleton<FontsViewModel>();

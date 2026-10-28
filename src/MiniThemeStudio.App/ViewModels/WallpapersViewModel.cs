@@ -29,8 +29,10 @@ public sealed partial class WallpapersViewModel : ViewModelBase
         IDialogService dialogs,
         IErrorHandler errorHandler,
         ParallaxViewModel parallax,
+        PixelBackgroundViewModel pixelBackground,
         EditingMode mode)
     {
+        PixelBackground = pixelBackground;
         Mode = mode;
         Mode.PropertyChanged += (_, _) => Reload();
         _dialogs = dialogs;
@@ -56,6 +58,11 @@ public sealed partial class WallpapersViewModel : ViewModelBase
 
     // simple editing lists wall, wall_near and wall_far; advanced editing every image of the folder
     public EditingMode Mode { get; }
+
+    // the NES and Famicom background, drawn by a script with colours instead of wallpaper images
+    public PixelBackgroundViewModel PixelBackground { get; }
+
+    public bool HasWallpaperImages => !PixelBackground.HasPixelBackground;
 
     [ObservableProperty]
     private IReadOnlyList<WallpaperAsset> wallpapers = [];
@@ -156,6 +163,7 @@ public sealed partial class WallpapersViewModel : ViewModelBase
 
     private void Reload()
     {
+        OnPropertyChanged(nameof(HasWallpaperImages));
         var selectedName = SelectedWallpaper?.Name;
         var report = _session.Report;
         Wallpapers = _session.Draft is { } draft

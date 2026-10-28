@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace MiniThemeStudio.Core.Fonts;
 
 public sealed class MiniFont

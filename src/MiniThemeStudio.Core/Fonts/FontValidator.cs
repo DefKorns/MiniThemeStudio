@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace MiniThemeStudio.Core.Fonts;
 
 public static class FontValidator

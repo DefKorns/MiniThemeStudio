@@ -1,8 +1,4 @@
-using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using MiniThemeStudio.Core.Fonts;
 using SkiaSharp;
 
@@ -28,6 +24,8 @@ public static class MiniFontCompleter
     private static readonly ConcurrentDictionary<int, SKTypeface?> SystemFaces = new();
     private static readonly ConcurrentDictionary<string, SKTypeface?> UserFaces = new();
 
+    /// <param name="font">the console font to complete</param>
+    /// <param name="scripts">the scripts to add besides the missing Latin characters</param>
     /// <param name="fillFontPath">the user's own font file, tried before the system's and the built-in ones</param>
     public static MiniFont Complete(MiniFont font, ExtraScripts scripts, string? fillFontPath = null)
     {

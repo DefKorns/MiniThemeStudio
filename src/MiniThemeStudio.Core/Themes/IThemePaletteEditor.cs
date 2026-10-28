@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace MiniThemeStudio.Core.Themes;
 
 public interface IThemePaletteEditor

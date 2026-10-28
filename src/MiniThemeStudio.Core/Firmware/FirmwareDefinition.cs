@@ -1,5 +1,3 @@
-using System.IO;
-
 namespace MiniThemeStudio.Core.Firmware;
 
 public sealed record FirmwareSource(

@@ -1,5 +1,3 @@
-using System;
-
 namespace MiniThemeStudio.Infrastructure.Tests.Themes;
 
 internal static class PaletteFixtures

@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using MiniThemeStudio.Core.Fonts;
 
 namespace MiniThemeStudio.Infrastructure.Fonts;

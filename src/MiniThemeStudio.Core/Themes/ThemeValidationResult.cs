@@ -1,6 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
-
 namespace MiniThemeStudio.Core.Themes;
 
 public sealed record ThemeValidationIssue(string Message, bool IsError);

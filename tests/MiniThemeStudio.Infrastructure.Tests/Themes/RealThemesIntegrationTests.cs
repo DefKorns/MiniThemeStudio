@@ -1,10 +1,7 @@
-using System.IO;
-using System.Threading.Tasks;
 using MiniThemeStudio.Core.Firmware;
 using MiniThemeStudio.Core.Themes;
 using MiniThemeStudio.Infrastructure.Firmware;
 using MiniThemeStudio.Infrastructure.Themes;
-using Xunit;
 
 namespace MiniThemeStudio.Infrastructure.Tests.Themes;
 

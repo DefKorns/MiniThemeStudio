@@ -1,10 +1,5 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using MiniThemeStudio.Core.Fonts;
 using MiniThemeStudio.Infrastructure.Fonts;
-using Xunit;
 using Xunit.Abstractions;
 
 namespace MiniThemeStudio.Infrastructure.Tests.Fonts;

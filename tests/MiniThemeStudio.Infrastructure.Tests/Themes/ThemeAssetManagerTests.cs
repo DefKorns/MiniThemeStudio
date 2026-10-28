@@ -1,9 +1,7 @@
-using System.IO;
 using System.Text.Json.Nodes;
 using MiniThemeStudio.Core.Themes;
 using MiniThemeStudio.Infrastructure.Themes;
 using SkiaSharp;
-using Xunit;
 
 namespace MiniThemeStudio.Infrastructure.Tests.Themes;
 

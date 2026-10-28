@@ -87,14 +87,66 @@ public sealed class CharacterSheetEditorTests : IDisposable
         var wrong = Path.Combine(_themePath, "wrong.png");
         SavePng(wrong, 17, 16);
 
-        var picture = Assert.Throws<InvalidDataException>(() => _editor.ReplaceFrame(_themePath, _basePath, sheet, frame, wrong));
-        Assert.Equal("The picture can be 16 × 16 pixels at most, the room the frame has; wrong.png is 17 × 16 without its transparent edges.", picture.Message);
         Assert.Throws<InvalidDataException>(() => _editor.ReplaceSheet(_themePath, _basePath, sheet, wrong));
 
         var whole = Path.Combine(_themePath, "sheet.png");
         SavePng(whole, 128, 64, (0, 0, 8, 8));
         _editor.ReplaceSheet(_themePath, _basePath, sheet, whole);
         Assert.True(File.Exists(Path.Combine(_themePath, "resources", "sprites", "characters_sbm.png")));
+    }
+
+    [Fact]
+    public void EnlargedPixelArtIsDrawnAtItsOwnPixelSize()
+    {
+        var sheet = _editor.GetSheets(_themePath, _basePath)[0];
+
+        // a 16 x 16 sprite drawn three times larger, with a 3 x 3 dot in one corner
+        var big = Path.Combine(_themePath, "big.png");
+        SavePng(big, 48, 48, (0, 0, 48, 48));
+        using (var bitmap = SKBitmap.Decode(big).Copy(SKColorType.Rgba8888))
+        {
+            for (var y = 0; y < 3; y++)
+            {
+                for (var x = 0; x < 3; x++)
+                {
+                    bitmap.SetPixel(x, y, SKColors.Blue);
+                }
+            }
+
+            using var png = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+            File.WriteAllBytes(big, png.ToArray());
+        }
+
+        Assert.Equal(1 / 3.0, _editor.ReplaceFrame(_themePath, _basePath, sheet, sheet.Frames[2], big), 6);
+
+        using var pixels = SKBitmap.Decode(Path.Combine(_themePath, "resources", "sprites", "characters_sbm.png"));
+        Assert.Equal(SKColors.Blue, pixels.GetPixel(0, 35));
+        Assert.Equal(SKColors.Red, pixels.GetPixel(1, 35));
+    }
+
+    [Fact]
+    public void ALargePictureIsMadeSmallerToFit()
+    {
+        var sheet = _editor.GetSheets(_themePath, _basePath)[0];
+        // a sprite drawn at its own pixel size, with one pixel of another colour
+        var large = Path.Combine(_themePath, "large.png");
+        SavePng(large, 27, 36);
+        using (var bitmap = SKBitmap.Decode(large).Copy(SKColorType.Rgba8888))
+        {
+            bitmap.SetPixel(1, 1, SKColors.Blue);
+            using var png = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+            File.WriteAllBytes(large, png.ToArray());
+        }
+
+        var scale = _editor.ReplaceFrame(_themePath, _basePath, sheet, sheet.Frames[0], large);
+
+        Assert.Equal(16 / 36.0, scale, 6);
+        using var pixels = SKBitmap.Decode(Path.Combine(_themePath, "resources", "sprites", "characters_sbm.png"));
+
+        // 12 x 16, standing on the bottom line of the old picture and centred on it
+        Assert.Equal(255, pixels.GetPixel(2, 1).Alpha);
+        Assert.Equal(255, pixels.GetPixel(13, 16).Alpha);
+        Assert.Equal(0, pixels.GetPixel(14, 16).Alpha);
     }
 
     private static void SavePng(string path, int width, int height, params (int X, int Y, int Width, int Height)[] inked)

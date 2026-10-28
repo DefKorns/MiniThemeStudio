@@ -43,22 +43,21 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
         return sheets;
     }
 
-    public void ReplaceFrame(string themeDraftPath, string? baseUiPath, CharacterSheet sheet, CharacterSheetFrame frame, string pictureImagePath)
+    public double ReplaceFrame(string themeDraftPath, string? baseUiPath, CharacterSheet sheet, CharacterSheetFrame frame, string pictureImagePath)
     {
         ArgumentNullException.ThrowIfNull(sheet);
         ArgumentNullException.ThrowIfNull(frame);
         var resource = Resource(sheet.Name);
         using var file = Decode(pictureImagePath, Path.GetFileName(pictureImagePath));
         var ink = Ink(file) ?? throw new InvalidDataException($"{Path.GetFileName(pictureImagePath)} is empty.");
-        if (ink.Width > frame.SlotWidth || ink.Height > frame.SlotHeight)
-        {
-            throw new InvalidDataException(string.Create(CultureInfo.InvariantCulture,
-                $"The picture can be {frame.SlotWidth} × {frame.SlotHeight} pixels at most, the room the frame has; {Path.GetFileName(pictureImagePath)} is {ink.Width} × {ink.Height} without its transparent edges."));
-        }
+        using var inked = new SKBitmap();
+        file.ExtractSubset(inked, ink);
+        var (picture, scale) = Fit(inked, frame.SlotWidth, frame.SlotHeight);
+        using var placed = picture;
 
         // centred where the Base picture was and standing where it stood, inside the slot
-        var x = Math.Clamp(frame.X + ((frame.Width - ink.Width) / 2), frame.SlotX, frame.SlotX + frame.SlotWidth - ink.Width);
-        var y = Math.Clamp(frame.Y + frame.Height - ink.Height, frame.SlotY, frame.SlotY + frame.SlotHeight - ink.Height);
+        var x = Math.Clamp(frame.X + ((frame.Width - placed.Width) / 2), frame.SlotX, frame.SlotX + frame.SlotWidth - placed.Width);
+        var y = Math.Clamp(frame.Y + frame.Height - placed.Height, frame.SlotY, frame.SlotY + frame.SlotHeight - placed.Height);
 
         var (layer, target) = DraftSheet(themeDraftPath, baseUiPath, resource);
         using var pixels = Decode(target, "The character sheet");
@@ -68,10 +67,11 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
             using var clear = new SKPaint { BlendMode = SKBlendMode.Clear };
             canvas.DrawRect(new SKRect(frame.SlotX, frame.SlotY, frame.SlotX + frame.SlotWidth, frame.SlotY + frame.SlotHeight), clear);
             using var copy = new SKPaint { BlendMode = SKBlendMode.Src };
-            canvas.DrawBitmap(file, ink, new SKRect(x, y, x + ink.Width, y + ink.Height), copy);
+            canvas.DrawBitmap(placed, x, y, copy);
         }
 
         Save(pixels, layer.ThemeResourceFile(resource));
+        return scale;
     }
 
     public void ReplaceSheet(string themeDraftPath, string? baseUiPath, CharacterSheet sheet, string sheetImagePath)
@@ -130,6 +130,65 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
         var wanted = alignEnd ? start + length - size : start - ((size - length) / 2);
         return (Math.Clamp(wanted, lowest, highest - size), size);
     }
+
+    // A picture that fits is kept as it is. A larger one loses the enlargement of pixel art first (each of its pixels
+    // drawn as a block of the same colour), then is made smaller until it fits, a source pixel to a sheet pixel.
+    private static (SKBitmap Picture, double Scale) Fit(SKBitmap picture, int width, int height)
+    {
+        if (picture.Width <= width && picture.Height <= height)
+        {
+            return (picture.Copy(), 1);
+        }
+
+        var block = PixelBlock(picture);
+        var scale = 1.0 / block;
+        if (picture.Width / block > width || picture.Height / block > height)
+        {
+            scale = Math.Min((double)width / picture.Width, (double)height / picture.Height);
+        }
+
+        var target = new SKImageInfo(
+            Math.Clamp((int)Math.Round(picture.Width * scale), 1, width),
+            Math.Clamp((int)Math.Round(picture.Height * scale), 1, height),
+            SKColorType.Rgba8888,
+            SKAlphaType.Unpremul);
+        return (picture.Resize(target, SKFilterQuality.None), scale);
+    }
+
+    // the side of the blocks enlarged pixel art is drawn with: what every run of one colour, across and down, is a
+    // multiple of
+    private static int PixelBlock(SKBitmap picture)
+    {
+        var block = 0;
+        void Add(int run) => block = block == 0 ? run : Gcd(block, run);
+        void Runs(int lines, int length, Func<int, int, SKColor> pixel)
+        {
+            for (var line = 0; line < lines && block != 1; line++)
+            {
+                var run = 1;
+                for (var position = 1; position < length; position++)
+                {
+                    if (pixel(line, position) == pixel(line, position - 1))
+                    {
+                        run++;
+                    }
+                    else
+                    {
+                        Add(run);
+                        run = 1;
+                    }
+                }
+
+                Add(run);
+            }
+        }
+
+        Runs(picture.Height, picture.Width, (y, x) => picture.GetPixel(x, y));
+        Runs(picture.Width, picture.Height, (x, y) => picture.GetPixel(x, y));
+        return Math.Max(1, block);
+    }
+
+    private static int Gcd(int first, int second) => second == 0 ? first : Gcd(second, first % second);
 
     // the part of the picture that is not transparent
     private static SKRectI? Ink(SKBitmap picture)

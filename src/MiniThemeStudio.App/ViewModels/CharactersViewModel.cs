@@ -239,10 +239,11 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        if (await RunAsync($"Cannot replace {frame.Label}", () => _sheetEditor.ReplaceFrame(draft.DraftPath, _session.BaseUiPath, frame.Sheet, frame.Frame, imagePath)))
+        var scale = 1.0;
+        if (await RunAsync($"Cannot replace {frame.Label}", () => scale = _sheetEditor.ReplaceFrame(draft.DraftPath, _session.BaseUiPath, frame.Sheet, frame.Frame, imagePath)))
         {
             _session.NotifyContentChanged();
-            _session.Status = $"Replaced {frame.Label}.";
+            _session.Status = $"Replaced {frame.Label}." + Shrunk(scale, frame.Frame);
         }
     }
 
@@ -266,18 +267,25 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
         }
 
         var count = Math.Min(picked.FramePaths.Count, row.Frames.Count);
+        var smallest = 1.0;
         if (await RunAsync($"Cannot import the pictures of {row.Label}", () =>
         {
             for (var index = 0; index < count; index++)
             {
-                _sheetEditor.ReplaceFrame(draft.DraftPath, _session.BaseUiPath, sheet, row.Frames[index].Frame, picked.FramePaths[index]);
+                smallest = Math.Min(smallest, _sheetEditor.ReplaceFrame(draft.DraftPath, _session.BaseUiPath, sheet, row.Frames[index].Frame, picked.FramePaths[index]));
             }
         }))
         {
             _session.NotifyContentChanged();
-            _session.Status = string.Create(CultureInfo.InvariantCulture, $"{row.Label}: replaced {count} of {row.Frames.Count} pictures from the sprite sheet.");
+            _session.Status = string.Create(CultureInfo.InvariantCulture, $"{row.Label}: replaced {count} of {row.Frames.Count} pictures from the sprite sheet.")
+                + Shrunk(smallest, row.Frames[0].Frame);
         }
     }
+
+    // pictures larger than their frame are made smaller; the status says so, as they lose detail
+    private static string Shrunk(double scale, CharacterSheetFrame frame) => scale >= 1
+        ? ""
+        : string.Create(CultureInfo.InvariantCulture, $" Larger than the {frame.SlotWidth} × {frame.SlotHeight} of a frame, so made smaller (×{scale:0.##}).");
 
     [RelayCommand]
     private async Task ReplaceSheetAsync(SheetView? sheet)

@@ -16,8 +16,9 @@ public interface ICharacterSheetEditor
     IReadOnlyList<CharacterSheet> GetSheets(string themePath, string? baseUiPath);
 
     // draws the picture in the frame's slot of the theme's copy of the sheet, centred where the Base picture was and
-    // standing on its bottom line; the transparent edges of the picture are dropped and the rest fits the slot
-    void ReplaceFrame(string themeDraftPath, string? baseUiPath, CharacterSheet sheet, CharacterSheetFrame frame, string pictureImagePath);
+    // standing on its bottom line. Its transparent edges are dropped, and a picture larger than the slot is made
+    // smaller: by its own pixel size when it is enlarged pixel art, then to fit. Returns the scale it was drawn at.
+    double ReplaceFrame(string themeDraftPath, string? baseUiPath, CharacterSheet sheet, CharacterSheetFrame frame, string pictureImagePath);
 
     // the whole sheet, edited elsewhere; it has the size of the one it replaces
     void ReplaceSheet(string themeDraftPath, string? baseUiPath, CharacterSheet sheet, string sheetImagePath);

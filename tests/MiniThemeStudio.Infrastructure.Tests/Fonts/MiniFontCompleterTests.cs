@@ -87,6 +87,20 @@ public class MiniFontCompleterTests
     }
 
     [Fact]
+    public void RedrawingKeepsTheButtonIconsOfTheFont()
+    {
+        // console fonts keep their button icons in the private use area
+        MiniFont font = SmallFont();
+        FontGlyph icon = new(0xE000, 50, 2, 10, 20, 0, 4, 12, 0, 15);
+        MiniFont withIcon = new(font.FormatType, font.Info, font.Common, font.PageNames, [.. font.Glyphs, icon], font.KerningPairs, font.TexturePngBytes);
+
+        MiniFont completed = MiniFontCompleter.Complete(withIcon, ExtraScripts.Cyrillic, redrawText: true);
+
+        Assert.Equal((10, 20, 12), (completed.GetGlyph(0xE000)!.Width, completed.GetGlyph(0xE000)!.Height, completed.GetGlyph(0xE000)!.XAdvance));
+        Assert.True(completed.HasGlyph('Ж'));
+    }
+
+    [Fact]
     public void FillingOnlyKeepsTheFontsOwnLetters()
     {
         MiniFont completed = MiniFontCompleter.Complete(SmallFont(), ExtraScripts.None);

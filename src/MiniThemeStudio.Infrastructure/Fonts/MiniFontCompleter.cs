@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using MiniThemeStudio.Core.Fonts;
 using SkiaSharp;
 
@@ -35,15 +36,27 @@ public static class MiniFontCompleter
         ArgumentNullException.ThrowIfNull(font);
 
         var kept = font.Glyphs.Where(g => IsWanted(g.Id, scripts)).ToList();
+
+        // the text the font has beyond the character sets (kanji of the Famicom fonts, for one) is redrawn too,
+        // where the fill typefaces have it; where they do not, the font's own glyph stays
+        var ownText = new Dictionary<uint, FontGlyph>();
         if (redrawText)
         {
             HashSet<uint> redrawn = FontCharsets.Build(scripts).Where(c => c != ' ').Select(c => (uint)c).ToHashSet();
-            kept = kept.Where(glyph => !redrawn.Contains(glyph.Id)).ToList();
+            foreach (FontGlyph glyph in kept.Where(glyph => !redrawn.Contains(glyph.Id) && IsText((char)glyph.Id)))
+            {
+                ownText[glyph.Id] = glyph;
+            }
+
+            kept = kept.Where(glyph => !redrawn.Contains(glyph.Id) && !ownText.ContainsKey(glyph.Id)).ToList();
         }
 
         var have = kept.Select(g => g.Id).ToHashSet();
-        var missing = FontCharsets.Build(scripts).Where(c => c != ' ' && !have.Contains(c)).ToList();
-        if (missing.Count == 0 && kept.Count == font.Glyphs.Count)
+        var missing = FontCharsets.Build(scripts).Where(c => c != ' ' && !have.Contains(c))
+            .Concat(ownText.Keys.Select(id => (char)id))
+            .Distinct()
+            .ToList();
+        if (!redrawText && missing.Count == 0 && kept.Count == font.Glyphs.Count)
         {
             return font;
         }
@@ -70,6 +83,11 @@ public static class MiniFontCompleter
             SKPaint? paint = new[] { userPaint, latinPaint, japanesePaint, notoLatinPaint, notoJapanesePaint }.FirstOrDefault(p => p?.Typeface.ContainsGlyph(c) == true);
             if (paint is null)
             {
+                if (ownText.TryGetValue(c, out FontGlyph? own))
+                {
+                    kept.Add(own);
+                }
+
                 continue;
             }
 
@@ -102,6 +120,18 @@ public static class MiniFontCompleter
             }
         }
     }
+
+    // letters, digits and punctuation in any script, kana and kanji included; symbols and the private use area
+    // (where console fonts keep their button icons) are not text
+    private static bool IsText(char c) => CharUnicodeInfo.GetUnicodeCategory(c) switch
+    {
+        UnicodeCategory.UppercaseLetter or UnicodeCategory.LowercaseLetter or UnicodeCategory.TitlecaseLetter
+            or UnicodeCategory.ModifierLetter or UnicodeCategory.OtherLetter or UnicodeCategory.DecimalDigitNumber => true,
+        UnicodeCategory.ConnectorPunctuation or UnicodeCategory.DashPunctuation or UnicodeCategory.OpenPunctuation
+            or UnicodeCategory.ClosePunctuation or UnicodeCategory.InitialQuotePunctuation or UnicodeCategory.FinalQuotePunctuation
+            or UnicodeCategory.OtherPunctuation => true,
+        _ => false,
+    };
 
     public static bool IsWanted(uint id, ExtraScripts scripts)
     {

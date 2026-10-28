@@ -425,27 +425,39 @@ public sealed class ThemeAssetManager : IThemeAssetManager
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
 
-        // the NES and Famicom keep their menu fonts in a folder of the console (fonts/nes, fonts/hvc)
-        var fontFiles = new Dictionary<string, (string Path, string Resource, string Extension, bool FromBase)>(StringComparer.OrdinalIgnoreCase);
+        // the UI's fonts are in resources/fonts, on the NES and Famicom in a folder of the console (fonts/nes, fonts/hvc);
+        // older drafts kept the theme's copies there too
+        var fontFiles = new Dictionary<string, (string Path, string Extension, bool FromBase)>(StringComparer.OrdinalIgnoreCase);
         foreach (var file in new ThemeLayer(themeDraftPath, baseUiPath).ListFiles("fonts", "*.*", recursive: true))
         {
-            var ext = Path.GetExtension(file.FilePath);
             var name = Path.GetFileNameWithoutExtension(file.FilePath);
-            if ((ext.Equals(".fnt", StringComparison.OrdinalIgnoreCase) || ext.Equals(".font", StringComparison.OrdinalIgnoreCase))
-                && !MiniThemeStudio.Infrastructure.Fonts.FirmwareFonts.IsFirmwareOnly(name))
+            if (MiniThemeStudio.Infrastructure.Fonts.ThemeFonts.IsFontFile(file.FilePath)
+                && !MiniThemeStudio.Infrastructure.Fonts.FirmwareFonts.IsFirmwareOnly(name)
+                && (!fontFiles.TryGetValue(name, out var existing) || existing.FromBase))
             {
-                // a theme font named like a Base font with the other extension replaces it
-                if (!fontFiles.TryGetValue(name, out var existing) || existing.FromBase)
+                fontFiles[name] = (file.FilePath, Path.GetExtension(file.FilePath), file.IsFromBase);
+            }
+        }
+
+        // the theme's fonts, beside resources and named as Font Remount reads them (large.fnt is l)
+        var themeFonts = Path.Combine(themeDraftPath, MiniThemeStudio.Infrastructure.Fonts.ThemeFonts.Folder);
+        if (Directory.Exists(themeFonts))
+        {
+            foreach (var file in Directory.EnumerateFiles(themeFonts).Where(MiniThemeStudio.Infrastructure.Fonts.ThemeFonts.IsFontFile))
+            {
+                var name = MiniThemeStudio.Infrastructure.Fonts.ThemeFonts.UiName(Path.GetFileNameWithoutExtension(file));
+                if (!MiniThemeStudio.Infrastructure.Fonts.FirmwareFonts.IsFirmwareOnly(name))
                 {
-                    fontFiles[name] = (file.FilePath, file.ResourcePath, ext, file.IsFromBase);
+                    fontFiles[name] = (file, Path.GetExtension(file), false);
                 }
             }
         }
 
         var result = new List<MiniThemeStudio.Core.Fonts.FontAsset>();
-        foreach (var (name, (filePath, resource, _, fromBase)) in fontFiles.OrderBy(kvp => GetFontSortKey(kvp.Key)))
+        foreach (var (name, (filePath, ext, fromBase)) in fontFiles.OrderBy(kvp => GetFontSortKey(kvp.Key)))
         {
-            var relPath = "resources" + resource;
+            // changes are written to the theme's fonts folder
+            var relPath = MiniThemeStudio.Infrastructure.Fonts.ThemeFonts.RelativePath(name, ext);
             try
             {
                 var font = MiniThemeStudio.Infrastructure.Fonts.MiniFontReader.Read(filePath);
@@ -517,6 +529,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         };
 
         MiniThemeStudio.Infrastructure.Fonts.MiniFontWriter.Write(miniFont, draftPath);
+        DropOlderCopy(themeDraftPath, font, draftPath);
     }
 
     public void ReplaceFont(string themeDraftPath, MiniThemeStudio.Core.Fonts.FontAsset font, string sourceFontPath)
@@ -531,6 +544,20 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         // Validate that source is a readable font before overwriting
         _ = MiniThemeStudio.Infrastructure.Fonts.MiniFontReader.Read(sourceFontPath);
         File.Copy(sourceFontPath, targetPath, overwrite: true);
+        DropOlderCopy(themeDraftPath, font, targetPath);
+    }
+
+    // a theme font older drafts kept in resources/fonts goes once the theme's fonts folder has it
+    private static void DropOlderCopy(string themeDraftPath, MiniThemeStudio.Core.Fonts.FontAsset font, string targetPath)
+    {
+        var resources = Path.GetFullPath(Path.Combine(themeDraftPath, "resources")) + Path.DirectorySeparatorChar;
+        var source = Path.GetFullPath(font.FilePath);
+        if (source.StartsWith(resources, StringComparison.OrdinalIgnoreCase)
+            && !source.Equals(Path.GetFullPath(targetPath), StringComparison.OrdinalIgnoreCase)
+            && File.Exists(source))
+        {
+            File.Delete(source);
+        }
     }
 
     public void ExportFontTexture(MiniThemeStudio.Core.Fonts.FontAsset font, string destinationPngPath)
@@ -584,6 +611,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
 
         MiniThemeStudio.Infrastructure.Fonts.MiniFontWriter.Write(miniFont, targetPath);
+        DropOlderCopy(themeDraftPath, targetFont, targetPath);
     }
 
     public void CompleteFont(string themeDraftPath, MiniThemeStudio.Core.Fonts.FontAsset font, MiniThemeStudio.Core.Fonts.ExtraScripts extraScripts, string? fillFontPath = null)
@@ -597,6 +625,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         var targetPath = ThemeLayer.InsideRoot(themeDraftPath, font.RelativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
         MiniThemeStudio.Infrastructure.Fonts.MiniFontWriter.Write(completed, targetPath);
+        DropOlderCopy(themeDraftPath, font, targetPath);
     }
 
     private static (string DisplayName, string[] Roles) GetFontMetadata(string name) =>

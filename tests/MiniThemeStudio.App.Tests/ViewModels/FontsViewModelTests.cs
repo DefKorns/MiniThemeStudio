@@ -18,7 +18,8 @@ public sealed class FontsViewModelTests : IDisposable
 
     public void Dispose() => _app.Dispose();
 
-    private string DraftFont => Path.Combine(_app.Window.CurrentDraftPath!, "resources", "fonts", "s.fnt");
+    // a theme keeps its fonts beside resources, named as Font Remount reads them
+    private string DraftFont => Path.Combine(_app.Window.CurrentDraftPath!, "fonts", "small.fnt");
 
     [Fact]
     public void LoadsTheFontOfTheBaseWithItsPreviews()
@@ -106,13 +107,43 @@ public sealed class FontsViewModelTests : IDisposable
         var fonts = _app.Window.FontsTab;
 
         Assert.Equal(["title", "m", "s"], fonts.Fonts.Select(font => font.Name));
-        Assert.Equal("resources/fonts/nes/m.fnt", fonts.Fonts.Single(font => font.Name == "m").RelativePath);
+        Assert.Equal("fonts/medium.fnt", fonts.Fonts.Single(font => font.Name == "m").RelativePath);
 
         fonts.SelectedFont = fonts.Fonts[0];
         await fonts.CompleteFontCommand.ExecuteAsync(null);
 
         Assert.Empty(_app.Errors.Failures.Select(failure => $"{failure.Failure}: {failure.Exception.Message}"));
         Assert.True(fonts.FontGlyphs.Count > 1);
+    }
+
+    [Fact]
+    public void AThemesOwnFontsFolderReplacesTheBaseFonts()
+    {
+        // as in the om_themes: fonts/small.fnt beside resources
+        var small = SmallFont();
+        MiniFontWriter.Write(new MiniFont(small.FormatType, small.Info, small.Common, small.PageNames, small.Glyphs.Take(2).ToList(), small.KerningPairs, small.TexturePngBytes), DraftFont);
+        _app.Session.Reload();
+        var fonts = _app.Window.FontsTab;
+
+        var font = fonts.Fonts.Single(candidate => candidate.Name == "s");
+        Assert.False(font.IsFromBaseUi);
+        Assert.Equal(2, font.GlyphCount);
+        Assert.Equal(DraftFont, font.FilePath);
+    }
+
+    [Fact]
+    public async Task AFontAnOlderDraftKeptInResourcesMovesToTheFontsFolder()
+    {
+        var older = Path.Combine(_app.Window.CurrentDraftPath!, "resources", "fonts", "s.fnt");
+        Directory.CreateDirectory(Path.GetDirectoryName(older)!);
+        MiniFontWriter.Write(SmallFont(), older);
+        _app.Session.Reload();
+        var fonts = _app.Window.FontsTab;
+
+        await fonts.CompleteFontCommand.ExecuteAsync(null);
+
+        Assert.True(File.Exists(DraftFont));
+        Assert.False(File.Exists(older));
     }
 
     // capitals 20px tall standing on y = 24, plus one Cyrillic letter

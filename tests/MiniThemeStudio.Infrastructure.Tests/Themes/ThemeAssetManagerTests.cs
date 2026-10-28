@@ -444,7 +444,7 @@ public sealed class ThemeAssetManagerTests
 
             manager.ReplaceFontTexture(tempDraft, fontAsset, sourcePng);
 
-            var draftFontFile = Path.Combine(tempDraft, "resources", "fonts", "l.font");
+            var draftFontFile = Path.Combine(tempDraft, "fonts", "large.font");
             Assert.True(File.Exists(draftFontFile));
 
             var reloaded = manager.LoadFont(draftFontFile);

@@ -61,10 +61,12 @@ public sealed class ThemeValidator(IThemeResourceIndexer? resourceIndexer = null
         }
 
         // Validate fonts if present
-        var fontsDir = Path.Combine(themeDraftPath, "resources", "fonts");
-        if (Directory.Exists(fontsDir))
+        foreach (var fontsDir in new[] { Path.Combine(themeDraftPath, MiniThemeStudio.Infrastructure.Fonts.ThemeFonts.Folder), Path.Combine(themeDraftPath, "resources", "fonts") })
         {
-            ValidateFonts(fontsDir, issues);
+            if (Directory.Exists(fontsDir))
+            {
+                ValidateFonts(fontsDir, issues);
+            }
         }
 
         // Validate sounds / BGM if present

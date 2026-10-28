@@ -94,6 +94,22 @@ public sealed class ThemeExporterTests : IDisposable
     }
 
     [Fact]
+    public void ThemeFontsGoBesideResourcesNamedAsFontRemountReadsThem()
+    {
+        // the theme's fonts folder, and a font an older draft kept in resources/fonts
+        WriteFile(_themePath, "fonts/large.fnt", "large");
+        WriteFile(_themePath, "resources/fonts/nes/s.fnt", "small");
+        WriteFile(_themePath, "resources/fonts/l.fnt", "older large");
+
+        var result = new ThemeExporter().ExportPackage(_themePath, Path.Combine(_rootPath, "out"), "nes", "my_theme", null, null);
+
+        var entries = ReadEntryNames(result.PackagePath);
+        Assert.Contains("my_theme/fonts/large.fnt", entries);
+        Assert.Contains("my_theme/fonts/small.fnt", entries);
+        Assert.DoesNotContain(entries, entry => entry.StartsWith("my_theme/resources/fonts", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void RejectsInvalidNames()
     {
         Assert.Throws<ArgumentException>(() => new ThemeExporter().ExportPackage(_themePath, _rootPath, "snes", "../escape", null, null));

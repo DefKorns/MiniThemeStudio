@@ -32,7 +32,7 @@ public sealed partial class ThemeExporter(MiniThemeStudio.Core.Audio.IFFmpegAudi
         var packagePath = Path.Combine(outputDirectory, $"{system.ToUpperInvariant()}.{name}.tar.gz");
         var temporaryPath = $"{packagePath}.{Guid.NewGuid():N}.tmp";
         var includesPreview = previewPath is not null && File.Exists(previewPath);
-        var (files, skipped) = SelectFiles(themePath, baseUiPath, options);
+        var (files, sources, skipped) = SelectFiles(themePath, baseUiPath, options);
         var needsOverlay = baseUiPath is not null
             && !files.Contains("needs_overlay")
             && files.Any(relativePath => !File.Exists(Path.Combine(baseUiPath, relativePath)) && relativePath.StartsWith("resources/", StringComparison.Ordinal));
@@ -50,7 +50,7 @@ public sealed partial class ThemeExporter(MiniThemeStudio.Core.Audio.IFFmpegAudi
 
                 foreach (var relativePath in files)
                 {
-                    WriteFile(writer, Path.Combine(themePath, relativePath), $"{name}/{relativePath}");
+                    WriteFile(writer, Path.Combine(themePath, sources.GetValueOrDefault(relativePath, relativePath)), $"{name}/{relativePath}");
                 }
 
                 if (needsOverlay)
@@ -76,9 +76,11 @@ public sealed partial class ThemeExporter(MiniThemeStudio.Core.Audio.IFFmpegAudi
         }
     }
 
-    private static (List<string> Files, int Skipped) SelectFiles(string themePath, string? baseUiPath, ThemeExportOptions options)
+    // the files of the package, and for the ones that move, where they are in the draft
+    private static (List<string> Files, Dictionary<string, string> Sources, int Skipped) SelectFiles(string themePath, string? baseUiPath, ThemeExportOptions options)
     {
         var files = new List<string>();
+        var sources = new Dictionary<string, string>(StringComparer.Ordinal);
         var skipped = 0;
         foreach (var filePath in Directory.EnumerateFiles(themePath, "*", SearchOption.AllDirectories))
         {
@@ -113,11 +115,25 @@ public sealed partial class ThemeExporter(MiniThemeStudio.Core.Audio.IFFmpegAudi
                 continue;
             }
 
+            // theme fonts live in fonts/ beside resources, named as Font Remount reads them; one in resources/fonts
+            // (where older drafts kept them) moves there, unless the theme already has it in fonts/
+            if (relativePath.StartsWith("resources/fonts/", StringComparison.OrdinalIgnoreCase) && MiniThemeStudio.Infrastructure.Fonts.ThemeFonts.IsFontFile(relativePath))
+            {
+                var fontPath = MiniThemeStudio.Infrastructure.Fonts.ThemeFonts.RelativePath(Path.GetFileNameWithoutExtension(relativePath), Path.GetExtension(relativePath));
+                if (File.Exists(Path.Combine(themePath, fontPath)) || sources.ContainsKey(fontPath))
+                {
+                    continue;
+                }
+
+                sources[fontPath] = relativePath;
+                relativePath = fontPath;
+            }
+
             files.Add(relativePath);
         }
 
         files.Sort(StringComparer.Ordinal);
-        return (files, skipped);
+        return (files, sources, skipped);
     }
 
     private static bool IsUnchanged(string themeFile, string baseFile)

@@ -261,11 +261,11 @@
 
       <!-- TAB 2: WALLPAPERS -->
       <TabItem Header="Wallpapers">
-        <Grid ColumnDefinitions="*,380" Margin="16,12">
+        <Grid ColumnDefinitions="*,380" Margin="16,12" DataContext="{Binding WallpapersTab}" x:DataType="vm:WallpapersViewModel">
           <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid RowDefinitions="Auto,*">
               <TextBlock Margin="16,12" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Background Wallpapers (wall, wall_near, wall_far)" />
-              <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding Wallpapers}" SelectedItem="{Binding SelectedWallpaper}" SelectionChanged="WallpaperList_SelectionChanged">
+              <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding Wallpapers}" SelectedItem="{Binding SelectedWallpaper}">
                 <ListBox.Styles>
                   <Style Selector="ListBoxItem">
                     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -299,13 +299,13 @@
               <StackPanel Margin="20" Spacing="14">
                 <TextBlock FontFamily="Georgia, serif" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Wallpaper Preview" />
                 <Border Height="240" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
-                  <Image x:Name="WallpaperPreviewImage" Margin="8" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
+                  <controls:FileImage Margin="8" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" FilePath="{Binding SelectedWallpaper.ImagePath}" Revision="{Binding PreviewRevision}" />
                 </Border>
                 <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedWallpaper.DisplayName}" />
                 <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SelectedWallpaper.UsageText}" TextWrapping="Wrap" />
                 <Grid ColumnDefinitions="*,*" Margin="0,4">
-                  <Button Margin="0,0,4,0" Padding="12,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" IsEnabled="{Binding CanReplaceWallpaper}" Click="ReplaceWallpaper_Click" Content="Replace PNG" />
-                  <Button Grid.Column="1" Margin="4,0,0,0" Padding="12,8" HorizontalAlignment="Stretch" IsEnabled="{Binding CanReplaceWallpaper}" Click="ExportWallpaper_Click" Content="Export PNG" />
+                  <Button Margin="0,0,4,0" Padding="12,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Command="{Binding ReplaceWallpaperCommand}" Content="Replace PNG" />
+                  <Button Grid.Column="1" Margin="4,0,0,0" Padding="12,8" HorizontalAlignment="Stretch" Command="{Binding ExportWallpaperCommand}" Content="Export PNG" />
                 </Grid>
                 <Border Height="1" Background="{DynamicResource BorderBrush}" />
                 <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="Wallpapers define the main background, near foreground parallax layer, and far distant layer. Dimensions are automatically preserved or updated in JSON." TextWrapping="Wrap" />

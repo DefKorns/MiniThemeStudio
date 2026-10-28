@@ -70,6 +70,7 @@ public static class ServiceRegistration
         services.AddSingleton<ThemeSession>();
         services.AddSingleton<ScenesViewModel>();
         services.AddSingleton<SpritesViewModel>();
+        services.AddSingleton<WallpapersViewModel>();
         services.AddSingleton<MainWindowViewModel>();
         services.AddSingleton<MainWindow>();
 

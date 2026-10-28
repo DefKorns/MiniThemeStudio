@@ -55,7 +55,8 @@ public partial class MainWindowViewModel : ViewModelBase
         IErrorHandler errorHandler,
         ThemeSession session,
         ScenesViewModel scenesTab,
-        SpritesViewModel spritesTab)
+        SpritesViewModel spritesTab,
+        WallpapersViewModel wallpapersTab)
     {
         _metadataReader = metadataReader;
         _themeDraftService = themeDraftService;
@@ -76,6 +77,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _session = session;
         ScenesTab = scenesTab;
         SpritesTab = spritesTab;
+        WallpapersTab = wallpapersTab;
         ScenesTab.SpriteRequested += (_, request) =>
         {
             if (SpritesTab.ShowSprite(request))
@@ -105,6 +107,8 @@ public partial class MainWindowViewModel : ViewModelBase
     public ScenesViewModel ScenesTab { get; }
 
     public SpritesViewModel SpritesTab { get; }
+
+    public WallpapersViewModel WallpapersTab { get; }
 
     // the workspace tab shown; 0 is Sprites
     [ObservableProperty]
@@ -136,16 +140,6 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [ObservableProperty]
     private string currentBaseLabel = "No Base";
-
-    // Wallpapers
-    [ObservableProperty]
-    private IReadOnlyList<WallpaperAsset> wallpapers = [];
-
-    [ObservableProperty]
-    private WallpaperAsset? selectedWallpaper;
-
-    [ObservableProperty]
-    private bool canReplaceWallpaper;
 
     // images of this theme that no scene draws
     [ObservableProperty]
@@ -221,7 +215,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _session.BaseUiPath = baseUiPath;
         LoadDraft(_session.Draft);
         HasUnsavedChanges = hadUnsavedChanges;
-        Status = $"Using {CurrentBaseLabel} - {SpritesTab.Sprites.Count} sprites, {Wallpapers.Count} wallpapers.";
+        Status = $"Using {CurrentBaseLabel} - {SpritesTab.Sprites.Count} sprites, {WallpapersTab.Wallpapers.Count} wallpapers.";
     }
 
     private static bool PathsEqual(string first, string? second)
@@ -252,58 +246,6 @@ public partial class MainWindowViewModel : ViewModelBase
             ? $"Saved to {_session.Draft.SavePath}"
             : $"Saved to {_session.Draft.SavePath} (previous version backed up to {_session.Draft.LastBackupPath})";
         ForgetSavedDraftAfterSave();
-    }
-
-    public bool ReplaceSelectedWallpaper(string replacementImagePath)
-    {
-        if (SelectedWallpaper is null || _session.Draft is null)
-        {
-            Status = "Select a wallpaper first.";
-            return false;
-        }
-
-        try
-        {
-            var targetPng = Path.Combine(
-                _session.Draft.DraftPath,
-                "resources",
-                "layout",
-                "asset",
-                "sprite",
-                "wallpaper",
-                $"{SelectedWallpaper.Name}.png");
-
-            _assetManager.ReplaceWallpaper(targetPng, replacementImagePath, SelectedWallpaper.JsonPath);
-            ReloadAssets();
-            MarkChanged();
-            Status = $"Replaced wallpaper {SelectedWallpaper.DisplayName}.";
-            return true;
-        }
-        catch (Exception exception)
-        {
-            Status = exception.Message;
-            return false;
-        }
-    }
-
-    public bool ExportSelectedWallpaper(string destinationPath)
-    {
-        if (SelectedWallpaper is null)
-        {
-            return false;
-        }
-
-        try
-        {
-            _assetManager.ExportWallpaper(SelectedWallpaper, destinationPath);
-            Status = $"Exported wallpaper {SelectedWallpaper.DisplayName}.";
-            return true;
-        }
-        catch (Exception exception)
-        {
-            Status = exception.Message;
-            return false;
-        }
     }
 
     public bool DeleteSelectedUnusedImage()
@@ -470,20 +412,18 @@ public partial class MainWindowViewModel : ViewModelBase
         ReloadAssets();
         RunValidation();
         ShowWorkspace();
-        Status = $"Draft opened - {SpritesTab.Sprites.Count} sprites, {Wallpapers.Count} wallpapers.";
+        Status = $"Draft opened - {SpritesTab.Sprites.Count} sprites, {WallpapersTab.Wallpapers.Count} wallpapers.";
     }
 
     private void ReloadAssets()
     {
         if (_session.Draft is null)
         {
-            Wallpapers = [];
             UnusedImages = [];
             MissingTextures = [];
             Fonts = [];
             ReloadCharacters();
             ReloadBgmTracks();
-            SelectedWallpaper = null;
             SelectedFont = null;
             _session.Reload();
             return;
@@ -491,17 +431,6 @@ public partial class MainWindowViewModel : ViewModelBase
 
         _session.Reload();
         var report = _session.Report;
-        var selectedWallpaperName = SelectedWallpaper?.Name;
-
-        Wallpapers = _assetManager.GetWallpapers(_session.Draft.DraftPath, _session.BaseUiPath)
-            .Select(wallpaper => wallpaper with
-            {
-                UsedBy = report.UsageOf(report.TextureIdOf($"layout/asset/sprite/wallpaper/{wallpaper.Name}.png", wallpaper.TextureId)),
-            })
-            .ToList();
-        SelectedWallpaper = Wallpapers.FirstOrDefault(wallpaper => wallpaper.Name == selectedWallpaperName)
-            ?? (Wallpapers.Count > 0 ? Wallpapers[0] : null);
-
         var images = _assetManager.GetExtraAssets(_session.Draft.DraftPath, _session.BaseUiPath)
             .Select(asset => report.TextureIdOf(asset.RelativePath, asset.TextureId) is var textureId
                 ? asset with { TextureId = textureId, UsedBy = report.UsageOf(textureId) }
@@ -553,8 +482,4 @@ public partial class MainWindowViewModel : ViewModelBase
         IsThemeOpen = true;
     }
 
-    partial void OnSelectedWallpaperChanged(WallpaperAsset? value)
-    {
-        CanReplaceWallpaper = value is not null;
-    }
 }

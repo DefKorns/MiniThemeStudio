@@ -32,7 +32,6 @@ public sealed partial class MainWindow : Window, IDisposable
     private bool _isCloseConfirmationOpen;
     private Bitmap? _atlasBitmap;
     private CroppedBitmap? _spritePreview;
-    private Bitmap? _wallpaperBitmap;
     private Bitmap? _unusedImageBitmap;
     private readonly Avalonia.Threading.DispatcherTimer _animationTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
     private readonly System.Diagnostics.Stopwatch _animationClock = System.Diagnostics.Stopwatch.StartNew();
@@ -127,87 +126,6 @@ public sealed partial class MainWindow : Window, IDisposable
         }
 
         viewModel.MuteBgmTrack(trackName);
-    }
-
-    // Wallpapers Handlers
-    private void WallpaperList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (sender is ListBox { SelectedItem: WallpaperAsset wallpaper })
-        {
-            ShowWallpaperPreview(wallpaper);
-        }
-    }
-
-    private void ShowWallpaperPreview(WallpaperAsset wallpaper)
-    {
-        WallpaperPreviewImage.Source = null;
-        _wallpaperBitmap?.Dispose();
-        _wallpaperBitmap = null;
-
-        if (File.Exists(wallpaper.ImagePath))
-        {
-            try
-            {
-                _wallpaperBitmap = new Bitmap(wallpaper.ImagePath);
-                WallpaperPreviewImage.Source = _wallpaperBitmap;
-            }
-            catch
-            {
-                // Ignore preview decode failure
-            }
-        }
-    }
-
-    private async void ReplaceWallpaper_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel viewModel || viewModel.SelectedWallpaper is null)
-        {
-            return;
-        }
-
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = $"Select replacement PNG for {viewModel.SelectedWallpaper.DisplayName}",
-            AllowMultiple = false,
-            FileTypeFilter = [new FilePickerFileType("PNG image") { Patterns = ["*.png"] }]
-        });
-
-        var replacementPath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
-        if (replacementPath is null)
-        {
-            return;
-        }
-
-        if (viewModel.ReplaceSelectedWallpaper(replacementPath))
-        {
-            ShowWallpaperPreview(viewModel.SelectedWallpaper);
-        }
-        else
-        {
-            await ShowErrorAsync("Cannot replace wallpaper", viewModel.Status);
-        }
-    }
-
-    private async void ExportWallpaper_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel viewModel || viewModel.SelectedWallpaper is null)
-        {
-            return;
-        }
-
-        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-        {
-            Title = "Export Wallpaper",
-            DefaultExtension = "png",
-            SuggestedFileName = $"{viewModel.SelectedWallpaper.Name}.png",
-            FileTypeChoices = [new FilePickerFileType("PNG image") { Patterns = ["*.png"] }]
-        });
-
-        var savePath = file?.TryGetLocalPath();
-        if (savePath != null)
-        {
-            viewModel.ExportSelectedWallpaper(savePath);
-        }
     }
 
     private void UnusedImageList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -549,10 +467,6 @@ public sealed partial class MainWindow : Window, IDisposable
     private void DisposePreview()
     {
         DisposeAtlasPreview();
-
-        WallpaperPreviewImage.Source = null;
-        _wallpaperBitmap?.Dispose();
-        _wallpaperBitmap = null;
 
         UnusedImagePreviewImage.Source = null;
         _unusedImageBitmap?.Dispose();

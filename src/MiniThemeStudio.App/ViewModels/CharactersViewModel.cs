@@ -239,11 +239,9 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var scale = 1.0;
-        if (await RunAsync($"Cannot replace {frame.Label}", () => scale = _sheetEditor.ReplaceFrame(draft.DraftPath, _session.BaseUiPath, frame.Sheet, frame.Frame, imagePath)))
+        if (SheetGroups.FirstOrDefault(group => group.Row.Frames.Contains(frame))?.Row is { } row)
         {
-            _session.NotifyContentChanged();
-            _session.Status = $"Replaced {frame.Label}." + Shrunk(scale, frame.Frame);
+            await ReplaceRowAsync(draft, row, [(frame.Frame.Index, imagePath)], $"Cannot replace {frame.Label}", _ => $"Replaced {frame.Label}.");
         }
     }
 
@@ -266,19 +264,75 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var count = Math.Min(picked.FramePaths.Count, row.Frames.Count);
-        var smallest = 1.0;
-        if (await RunAsync($"Cannot import the pictures of {row.Label}", () =>
+        var pictures = picked.FramePaths.Take(row.Frames.Count).Select((path, index) => (index, path)).ToList();
+        await ReplaceRowAsync(
+            draft,
+            row,
+            pictures,
+            $"Cannot import the pictures of {row.Label}",
+            count => string.Create(CultureInfo.InvariantCulture, $"{row.Label}: replaced {count} of {row.Frames.Count} pictures from the sprite sheet."));
+    }
+
+    // New pictures for frames of a row. Pictures larger than the frames make the row bigger, when the script that
+    // cuts it can be rewritten and the user wants it, or are made smaller to fit.
+    private async Task ReplaceRowAsync(ThemeDraft draft, SheetRowView row, List<(int Index, string Path)> pictures, string failure, Func<int, string> status)
+    {
+        var sheet = row.Frames[0].Sheet;
+        var room = row.Frames[0].Frame;
+        var needed = (Width: 0, Height: 0);
+        if (!await RunAsync(failure, () =>
         {
-            for (var index = 0; index < count; index++)
+            foreach (var (_, path) in pictures)
             {
-                smallest = Math.Min(smallest, _sheetEditor.ReplaceFrame(draft.DraftPath, _session.BaseUiPath, sheet, row.Frames[index].Frame, picked.FramePaths[index]));
+                var (width, height) = _sheetEditor.MeasurePicture(path);
+                needed = (Math.Max(needed.Width, width), Math.Max(needed.Height, height));
+            }
+        }))
+        {
+            return;
+        }
+
+        var grow = false;
+        if ((needed.Width > room.SlotWidth || needed.Height > room.SlotHeight) && sheet.CanResize)
+        {
+            var answer = await _dialogService.ShowChoiceAsync(
+                "Larger pictures",
+                string.Create(CultureInfo.InvariantCulture,
+                    $"The pictures are up to {needed.Width} × {needed.Height}, larger than the {room.SlotWidth} × {room.SlotHeight} frames of {row.Label}. ")
+                    + $"Make {row.Label} bigger to fit them (the character sheet and sys_wallpaper_fg0.lua are rewritten, and {row.Label} is drawn bigger in the menu), or make the pictures smaller?",
+                $"Make {row.Label} bigger",
+                "Make them smaller",
+                "Cancel",
+                DialogVariant.Info);
+            if (answer == DialogResult.Cancelled)
+            {
+                return;
+            }
+
+            grow = answer == DialogResult.Accepted;
+        }
+
+        var smallest = 1.0;
+        if (await RunAsync(failure, () =>
+        {
+            var target = sheet;
+            var frames = row.Frames.Select(frame => frame.Frame).ToList();
+            if (grow)
+            {
+                _sheetEditor.ResizeRow(draft.DraftPath, _session.BaseUiPath, sheet, room.Row, needed.Width, needed.Height);
+                target = _sheetEditor.GetSheets(draft.DraftPath, _session.BaseUiPath).First(candidate => candidate.Name == sheet.Name);
+                frames = target.Frames.Where(frame => frame.Row == room.Row).OrderBy(frame => frame.Index).ToList();
+            }
+
+            foreach (var (index, path) in pictures)
+            {
+                smallest = Math.Min(smallest, _sheetEditor.ReplaceFrame(draft.DraftPath, _session.BaseUiPath, target, frames[index], path));
             }
         }))
         {
             _session.NotifyContentChanged();
-            _session.Status = string.Create(CultureInfo.InvariantCulture, $"{row.Label}: replaced {count} of {row.Frames.Count} pictures from the sprite sheet.")
-                + Shrunk(smallest, row.Frames[0].Frame);
+            _session.Status = status(pictures.Count)
+                + (grow ? string.Create(CultureInfo.InvariantCulture, $" {row.Label} is now {Math.Max(needed.Width, room.SlotWidth)} × {Math.Max(needed.Height, room.SlotHeight)}.") : Shrunk(smallest, room));
         }
     }
 
@@ -532,7 +586,8 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
             .GroupBy(frame => frame.Row)
             .Select(row =>
             {
-                var rowName = row.Key < SheetRowNames.Length ? SheetRowNames[row.Key] : $"Row {row.Key + 1}";
+                var rowName = row.Key < sheet.RowNames.Count ? sheet.RowNames[row.Key]
+                    : row.Key < SheetRowNames.Length ? SheetRowNames[row.Key] : $"Row {row.Key + 1}";
                 return new SheetRowView(isBackground ? "Small Mario and Luigi" : rowName, row
                     .Select(frame => new SheetFrameView(
                         sheet,

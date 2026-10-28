@@ -16,6 +16,16 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
     // the menu's characters, then the small ones of the background
     private static readonly string[] SheetNames = ["characters_sbm", "wallpaper-hvc"];
 
+    // the script that cuts the menu's characters from characters_sbm, through its smb_tex texture
+    private const string ScriptResource = "/scripts/sys_wallpaper_fg0.lua";
+    private const string ScriptSheet = "characters_sbm";
+    private const string ScriptTexture = "smb_tex";
+
+    // the gaps the console's sheet leaves around its pictures
+    private const int TopMargin = 1;
+    private const int RowGap = 1;
+    private const int ColumnGap = 2;
+
     public IReadOnlyList<CharacterSheet> GetSheets(string themePath, string? baseUiPath)
     {
         var layer = new ThemeLayer(themePath, baseUiPath);
@@ -28,8 +38,10 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
                 continue;
             }
 
-            // the places come from the Base sheet: a new picture with transparent edges must not move them
-            using var layout = Decode(layer.ResolveInBase(resource) ?? imagePath, "The character sheet");
+            // the script tells where it cuts its characters; without it, the places come from the Base sheet, as a new
+            // picture with transparent edges must not move them
+            var characters = name == ScriptSheet ? ScriptCharacters(layer) : null;
+            using var layout = Decode(characters is null ? layer.ResolveInBase(resource) ?? imagePath : imagePath, "The character sheet");
             sheets.Add(new CharacterSheet(
                 name,
                 imagePath,
@@ -37,7 +49,9 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
                 layout.Width,
                 layout.Height,
                 layer.ResolveInTheme(resource) is null,
-                FindFrames(layout)));
+                characters is null ? FindFrames(layout) : ScriptFrames(characters),
+                characters?.Select(character => Title(character.Name)).ToList() ?? [],
+                characters is not null));
         }
 
         return sheets;
@@ -91,6 +105,149 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
         var target = layer.ThemeResourceFile(resource);
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
         File.Copy(sheetImagePath, target, true);
+    }
+
+    public (int Width, int Height) MeasurePicture(string pictureImagePath)
+    {
+        using var picture = Decode(pictureImagePath, Path.GetFileName(pictureImagePath));
+        return Ink(picture) is { } ink ? (ink.Width, ink.Height) : (0, 0);
+    }
+
+    public void ResizeRow(string themeDraftPath, string? baseUiPath, CharacterSheet sheet, int row, int width, int height)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+        var layer = new ThemeLayer(themeDraftPath, baseUiPath);
+        if (sheet.Name != ScriptSheet || layer.Resolve(ScriptResource) is not { } scriptPath)
+        {
+            throw new InvalidDataException("These pictures are cut by a script the app cannot rewrite, so they keep their size.");
+        }
+
+        var patterns = LuaCharacterPatterns.Read(File.ReadAllBytes(scriptPath));
+        var characters = patterns.Characters.Where(character => character.Texture == ScriptTexture).ToList();
+        if (row < 0 || row >= characters.Count)
+        {
+            throw new ArgumentOutOfRangeException(nameof(row));
+        }
+
+        // the row grows, the others keep their size; the rows stack with the console's gaps
+        var sizes = characters.Select((character, index) => index == row
+            ? (Width: Math.Max(width, character.Width), Height: Math.Max(height, character.Height))
+            : (character.Width, character.Height)).ToList();
+        var places = new List<List<(int X, int Y)>>();
+        var top = TopMargin;
+        var right = 0;
+        for (var index = 0; index < characters.Count; index++)
+        {
+            var (cellWidth, cellHeight) = sizes[index];
+            places.Add(Enumerable.Range(0, characters[index].Frames.Count).Select(frame => (frame * (cellWidth + ColumnGap), top)).ToList());
+            right = Math.Max(right, (characters[index].Frames.Count * (cellWidth + ColumnGap)) - ColumnGap);
+            top += cellHeight + RowGap;
+        }
+
+        using var current = Decode(layer.Resolve(Resource(ScriptSheet))!, "The character sheet");
+
+        // textures keep a power of two side, as the console's own
+        using var resized = new SKBitmap(new SKImageInfo(
+            Math.Max(current.Width, PowerOfTwo(right)),
+            Math.Max(current.Height, PowerOfTwo(top)),
+            SKColorType.Rgba8888,
+            SKAlphaType.Unpremul));
+        resized.Erase(SKColors.Transparent);
+        using (var canvas = new SKCanvas(resized))
+        {
+            using var copy = new SKPaint { BlendMode = SKBlendMode.Src };
+            for (var index = 0; index < characters.Count; index++)
+            {
+                var character = characters[index];
+                var (cellWidth, cellHeight) = sizes[index];
+                for (var frame = 0; frame < character.Frames.Count; frame++)
+                {
+                    // each picture keeps its pixels, centred at the bottom of its larger cell
+                    var (x, y) = character.Frames[frame];
+                    var (newX, newY) = places[index][frame];
+                    var left = newX + ((cellWidth - character.Width) / 2);
+                    var bottom = newY + cellHeight - character.Height;
+                    canvas.DrawBitmap(current, new SKRect(x, y, x + character.Width, y + character.Height), new SKRect(left, bottom, left + character.Width, bottom + character.Height), copy);
+                }
+            }
+        }
+
+        var target = layer.ThemeResourceFile(Resource(ScriptSheet));
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        Save(resized, target);
+        WriteTextureSize(layer, resized.Width, resized.Height);
+
+        for (var index = 0; index < characters.Count; index++)
+        {
+            patterns.Set(characters[index].Name, sizes[index].Width, sizes[index].Height, places[index]);
+        }
+
+        var scriptTarget = layer.ThemeResourceFile(ScriptResource);
+        Directory.CreateDirectory(Path.GetDirectoryName(scriptTarget)!);
+        File.WriteAllBytes(scriptTarget, patterns.ToBytes());
+    }
+
+    // the characters_sbm.json of the theme tells the new size of the texture
+    private static void WriteTextureSize(ThemeLayer layer, int width, int height)
+    {
+        var definition = Path.ChangeExtension(Resource(ScriptSheet), ".json");
+        if (layer.Resolve(definition) is not { } source)
+        {
+            return;
+        }
+
+        var json = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(source)) as System.Text.Json.Nodes.JsonObject
+            ?? throw new InvalidDataException("characters_sbm.json is not a JSON object.");
+        if (json["texture"] is System.Text.Json.Nodes.JsonObject texture)
+        {
+            texture["width"] = width;
+            texture["height"] = height;
+        }
+
+        layer.WriteThemeResource(definition, EngineJson.ToCompactString(json));
+    }
+
+    private static int PowerOfTwo(int value)
+    {
+        var power = 1;
+        while (power < value)
+        {
+            power <<= 1;
+        }
+
+        return power;
+    }
+
+    // the characters the script cuts from characters_sbm, or null when the UI has no such script
+    private static List<LuaCharacter>? ScriptCharacters(ThemeLayer layer)
+    {
+        if (layer.Resolve(ScriptResource) is not { } scriptPath)
+        {
+            return null;
+        }
+
+        try
+        {
+            var characters = LuaCharacterPatterns.Read(File.ReadAllBytes(scriptPath)).Characters.Where(character => character.Texture == ScriptTexture).ToList();
+            return characters.Count > 0 ? characters : null;
+        }
+        catch (InvalidDataException)
+        {
+            return null;
+        }
+    }
+
+    // a frame per picture the script cuts, which is also all the room it has
+    private static List<CharacterSheetFrame> ScriptFrames(List<LuaCharacter> characters) =>
+        characters.SelectMany((character, row) => character.Frames.Select((place, index) =>
+            new CharacterSheetFrame(row, index, place.X, place.Y, character.Width, character.Height, place.X, place.Y, character.Width, character.Height)))
+            .ToList();
+
+    // smb_mario is Mario
+    private static string Title(string name)
+    {
+        var word = name.StartsWith("smb_", StringComparison.Ordinal) ? name[4..] : name;
+        return word.Length == 0 ? name : char.ToUpperInvariant(word[0]) + word[1..];
     }
 
     private static string Resource(string name) => $"/sprites/{name}.png";

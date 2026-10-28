@@ -22,6 +22,7 @@
   <ItemGroup>
     <!-- the compiled LuaJIT palettes the Infrastructure tests use, shared instead of copied -->
     <Compile Include="..\MiniThemeStudio.Infrastructure.Tests\Themes\PaletteFixtures.cs" Link="TestDoubles\PaletteFixtures.cs" />
+    <Compile Include="..\MiniThemeStudio.Infrastructure.Tests\Themes\CharacterPatternFixtures.cs" Link="TestDoubles\CharacterPatternFixtures.cs" />
   </ItemGroup>
 
   <ItemGroup>

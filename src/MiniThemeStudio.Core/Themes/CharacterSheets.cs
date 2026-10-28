@@ -8,7 +8,18 @@ public sealed record CharacterSheetFrame(int Row, int Index, int X, int Y, int W
 // A sheet the NES and Famicom UIs draw characters from: characters_sbm (Mario, Luigi and the ? block of the
 // menu) and wallpaper-hvc (the small ones walking over the background). A script cuts the pictures at fixed
 // places, so a new picture keeps the place and the size of the one it replaces.
-public sealed record CharacterSheet(string Name, string ImagePath, string RelativePath, int Width, int Height, bool IsFromBaseUi, IReadOnlyList<CharacterSheetFrame> Frames);
+// RowNames names the rows the script draws (Mario, Luigi, Block); CanResize tells that script sets their size, so
+// a row can be given larger frames.
+public sealed record CharacterSheet(
+    string Name,
+    string ImagePath,
+    string RelativePath,
+    int Width,
+    int Height,
+    bool IsFromBaseUi,
+    IReadOnlyList<CharacterSheetFrame> Frames,
+    IReadOnlyList<string> RowNames,
+    bool CanResize);
 
 public interface ICharacterSheetEditor
 {
@@ -22,4 +33,11 @@ public interface ICharacterSheetEditor
 
     // the whole sheet, edited elsewhere; it has the size of the one it replaces
     void ReplaceSheet(string themeDraftPath, string? baseUiPath, CharacterSheet sheet, string sheetImagePath);
+
+    // the size of the picture without its transparent edges
+    (int Width, int Height) MeasurePicture(string pictureImagePath);
+
+    // gives every frame of the row the new size (never smaller than now): the sheet is laid out again with the
+    // pictures it has, and the script that cuts them is rewritten to match
+    void ResizeRow(string themeDraftPath, string? baseUiPath, CharacterSheet sheet, int row, int width, int height);
 }

@@ -138,7 +138,7 @@
     </Grid>
 
     <!-- Theme Workspace View -->
-    <TabControl x:Name="WorkspaceTabs" Grid.Row="1" Grid.Column="1" IsVisible="{Binding IsThemeOpen}">
+    <TabControl x:Name="WorkspaceTabs" Grid.Row="1" Grid.Column="1" IsVisible="{Binding IsThemeOpen}" SelectedIndex="{Binding SelectedTabIndex}">
       <!-- TAB 1: PACKED ATLAS SPRITES -->
       <TabItem Header="Sprites">
         <Grid ColumnDefinitions="270,*,320" Margin="16,12">
@@ -317,7 +317,7 @@
 
       <!-- TAB 3: SCENES -->
       <TabItem Header="Scenes">
-        <Grid ColumnDefinitions="290,*,320" Margin="16,12">
+        <Grid ColumnDefinitions="290,*,320" Margin="16,12" DataContext="{Binding Scenes}" x:DataType="vm:ScenesViewModel">
           <!-- Scene and node tree -->
           <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid RowDefinitions="Auto,*">
@@ -402,15 +402,15 @@
                         </ComboBox.ItemTemplate>
                       </ComboBox>
                     </Grid>
-                    <Button Padding="10,6" HorizontalAlignment="Stretch" IsVisible="{Binding SelectedNodeIsTexture}" Click="ReplaceSceneImage_Click" Content="Replace PNG..."
+                    <Button Padding="10,6" HorizontalAlignment="Stretch" IsVisible="{Binding SelectedNodeIsTexture}" Command="{Binding ReplaceImageCommand}" Content="Replace PNG..."
                             ToolTip.Tip="Replaces the image file: every node that uses this texture changes" />
-                    <Button Padding="10,6" HorizontalAlignment="Stretch" IsVisible="{Binding SelectedNodeIsSprite}" Click="OpenSceneSprite_Click" Content="Edit sprite in Sprites tab" />
+                    <Button Padding="10,6" HorizontalAlignment="Stretch" IsVisible="{Binding SelectedNodeIsSprite}" Command="{Binding EditSpriteCommand}" Content="Edit sprite in Sprites tab" />
                   </StackPanel>
 
                   <Border Height="1" Background="{DynamicResource BorderBrush}" />
                   <Grid ColumnDefinitions="*,*">
-                    <Button Margin="0,0,4,0" Padding="10,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Click="ApplySceneNode_Click" Content="Apply" />
-                    <Button Grid.Column="1" Margin="4,0,0,0" Padding="10,8" HorizontalAlignment="Stretch" Click="ResetSceneNode_Click" Content="Discard" />
+                    <Button Margin="0,0,4,0" Padding="10,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Command="{Binding ApplyNodeChangesCommand}" Content="Apply" />
+                    <Button Grid.Column="1" Margin="4,0,0,0" Padding="10,8" HorizontalAlignment="Stretch" Command="{Binding ResetSceneNodeFieldsCommand}" Content="Discard" />
                   </Grid>
                   <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
                              Text="Changes are written to this theme's copy of the scene; the Base is never modified." />

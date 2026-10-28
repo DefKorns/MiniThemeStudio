@@ -274,48 +274,6 @@ public sealed partial class MainWindow : Window, IDisposable
         }
     }
 
-    // Scene Handlers
-    private void ApplySceneNode_Click(object? sender, RoutedEventArgs e)
-    {
-        (DataContext as MainWindowViewModel)?.ApplySceneNodeChanges();
-    }
-
-    private void ResetSceneNode_Click(object? sender, RoutedEventArgs e)
-    {
-        (DataContext as MainWindowViewModel)?.ResetSceneNodeFields();
-    }
-
-    private async void ReplaceSceneImage_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel { SelectedSceneNode: { } node } viewModel)
-        {
-            return;
-        }
-
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = $"Select replacement PNG for {node.Name}",
-            AllowMultiple = false,
-            FileTypeFilter = [new FilePickerFileType("PNG image") { Patterns = ["*.png"] }]
-        });
-
-        var replacementPath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
-        if (replacementPath is not null && !viewModel.ReplaceSelectedSceneImage(replacementPath))
-        {
-            await ShowErrorAsync("Cannot replace image", viewModel.Status);
-        }
-    }
-
-    private void OpenSceneSprite_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainWindowViewModel viewModel
-            && viewModel.SelectSceneSpriteInAtlas()
-            && WorkspaceTabs.Items.OfType<TabItem>().FirstOrDefault(tab => tab.Header as string == "Sprites") is { } tab)
-        {
-            WorkspaceTabs.SelectedItem = tab;
-        }
-    }
-
     private void UnusedImageList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         UnusedImagePreviewImage.Source = null;

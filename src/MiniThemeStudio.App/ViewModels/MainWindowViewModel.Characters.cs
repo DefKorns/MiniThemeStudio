@@ -46,7 +46,7 @@ public partial class MainWindowViewModel
 
     public bool ReplaceAnimationFrames(IReadOnlyList<string> framePaths, AtlasSize frameSize, bool resizeCharacter)
     {
-        if (_draft is null || SelectedCharacter is not { } character || SelectedAnimation is not { } animation || PrimaryTrack(animation) is not { } track)
+        if (_session.Draft is null || SelectedCharacter is not { } character || SelectedAnimation is not { } animation || PrimaryTrack(animation) is not { } track)
         {
             Status = "Select a character animation first.";
             return false;
@@ -62,14 +62,14 @@ public partial class MainWindowViewModel
                 {
                     var relativePath = RelativeToRoot(existing.ImagePath);
                     _assetManager.ReplaceExtraAsset(
-                        Path.Combine(_draft.DraftPath, relativePath),
+                        Path.Combine(_session.Draft.DraftPath, relativePath),
                         framePaths[index],
                         Path.ChangeExtension(existing.ImagePath, ".json"));
                     frameIds.Add(loopIds[index]);
                 }
                 else
                 {
-                    frameIds.Add(_characterEditor.AddTexture(_draft.DraftPath, _currentBaseUiPath, NextFrameRelativePath(loopIds), framePaths[index]));
+                    frameIds.Add(_characterEditor.AddTexture(_session.Draft.DraftPath, _session.BaseUiPath, NextFrameRelativePath(loopIds), framePaths[index]));
                 }
             }
 
@@ -78,10 +78,10 @@ public partial class MainWindowViewModel
             var keys = frameIds.Select((id, index) => new AnimationKey(index * frameTime, id))
                 .Concat(track.Keys.Where(key => key.Time >= animation.Duration).Select(key => key with { Time = key.Time - animation.Duration + duration }))
                 .ToList();
-            _characterEditor.SetTrackKeys(_draft.DraftPath, _currentBaseUiPath, animation.ResourcePath, track.NodeName, keys, duration);
+            _characterEditor.SetTrackKeys(_session.Draft.DraftPath, _session.BaseUiPath, animation.ResourcePath, track.NodeName, keys, duration);
             if (resizeCharacter)
             {
-                _characterEditor.SetFrameSize(_draft.DraftPath, _currentBaseUiPath, character, frameSize);
+                _characterEditor.SetFrameSize(_session.Draft.DraftPath, _session.BaseUiPath, character, frameSize);
             }
 
             var animationName = animation.Name;
@@ -102,7 +102,7 @@ public partial class MainWindowViewModel
 
     public bool MirrorFrames(IReadOnlyCollection<string> textureIds)
     {
-        if (_draft is null || SelectedCharacter is not { } character || SelectedAnimation is not { } animation)
+        if (_session.Draft is null || SelectedCharacter is not { } character || SelectedAnimation is not { } animation)
         {
             Status = "Select a character animation first.";
             return false;
@@ -117,7 +117,7 @@ public partial class MainWindowViewModel
         try
         {
             var distinct = textureIds.ToHashSet(StringComparer.Ordinal);
-            _characterEditor.MirrorTextures(_draft.DraftPath, _currentBaseUiPath, distinct);
+            _characterEditor.MirrorTextures(_session.Draft.DraftPath, _session.BaseUiPath, distinct);
             var shared = CharacterAnimations
                 .Where(candidate => candidate.Name != animation.Name
                     && candidate.Tracks.Any(track => track.Keys.Any(key => distinct.Contains(key.TextureId))))
@@ -142,7 +142,7 @@ public partial class MainWindowViewModel
 
     public bool ApplyFrameTime()
     {
-        if (_draft is null || SelectedAnimation is not { } animation || PrimaryTrack(animation) is not { } track)
+        if (_session.Draft is null || SelectedAnimation is not { } animation || PrimaryTrack(animation) is not { } track)
         {
             Status = "Select a character animation first.";
             return false;
@@ -156,7 +156,7 @@ public partial class MainWindowViewModel
             var keys = loopKeys.Select((key, index) => key with { Time = index * frameTime })
                 .Concat(track.Keys.Where(key => key.Time >= animation.Duration).Select(key => key with { Time = key.Time - animation.Duration + duration }))
                 .ToList();
-            _characterEditor.SetTrackKeys(_draft.DraftPath, _currentBaseUiPath, animation.ResourcePath, track.NodeName, keys, duration);
+            _characterEditor.SetTrackKeys(_session.Draft.DraftPath, _session.BaseUiPath, animation.ResourcePath, track.NodeName, keys, duration);
 
             var animationName = animation.Name;
             var frameTimeMilliseconds = FrameTimeMilliseconds;
@@ -176,7 +176,7 @@ public partial class MainWindowViewModel
 
     private void ReloadCharacters()
     {
-        if (_draft is null)
+        if (_session.Draft is null)
         {
             Characters = [];
             SelectedCharacter = null;
@@ -184,16 +184,16 @@ public partial class MainWindowViewModel
         }
 
         var previous = SelectedCharacter;
-        _characterTextures = _characterEditor.GetTextures(_draft.DraftPath, _currentBaseUiPath);
+        _characterTextures = _characterEditor.GetTextures(_session.Draft.DraftPath, _session.BaseUiPath);
         DisposeThumbnails();
-        Characters = _characterEditor.GetCharacters(_draft.DraftPath, _currentBaseUiPath);
+        Characters = _characterEditor.GetCharacters(_session.Draft.DraftPath, _session.BaseUiPath);
         SelectedCharacter = null;
         SelectedCharacter = Characters.Contains(previous) ? previous : (Characters.Count > 0 ? Characters[0] : null);
     }
 
     partial void OnSelectedCharacterChanged(string? value)
     {
-        if (_draft is null || value is null)
+        if (_session.Draft is null || value is null)
         {
             CharacterAnimations = [];
             SelectedAnimation = null;
@@ -203,12 +203,12 @@ public partial class MainWindowViewModel
         }
 
         var previousName = SelectedAnimation?.Name;
-        CharacterAnimations = _characterEditor.GetAnimations(_draft.DraftPath, _currentBaseUiPath, value);
+        CharacterAnimations = _characterEditor.GetAnimations(_session.Draft.DraftPath, _session.BaseUiPath, value);
         SelectedAnimation = CharacterAnimations.FirstOrDefault(animation => animation.Name == previousName)
             ?? CharacterAnimations.FirstOrDefault(animation => animation.Name == "run")
             ?? CharacterAnimations.FirstOrDefault();
 
-        var node = _characterEditor.GetNodes(_draft.DraftPath, _currentBaseUiPath, value).FirstOrDefault();
+        var node = _characterEditor.GetNodes(_session.Draft.DraftPath, _session.BaseUiPath, value).FirstOrDefault();
         CurrentCharacterFrameSize = SelectedAnimation is { } animation && PrimaryTrack(animation) is { Keys.Count: > 0 } track
             && _characterTextures.TryGetValue(track.Keys[0].TextureId, out var texture)
             ? new AtlasSize(texture.Width, texture.Height)
@@ -252,8 +252,8 @@ public partial class MainWindowViewModel
         for (var number = 1; ; number++)
         {
             var candidate = Path.Combine(directory, $"{prefix}{number:00}.png");
-            if (!File.Exists(Path.Combine(_draft!.DraftPath, candidate))
-                && (_currentBaseUiPath is null || !File.Exists(Path.Combine(_currentBaseUiPath, candidate))))
+            if (!File.Exists(Path.Combine(_session.Draft!.DraftPath, candidate))
+                && (_session.BaseUiPath is null || !File.Exists(Path.Combine(_session.BaseUiPath, candidate))))
             {
                 return candidate;
             }
@@ -262,9 +262,9 @@ public partial class MainWindowViewModel
 
     private string RelativeToRoot(string imagePath)
     {
-        var root = _currentBaseUiPath is not null && !Path.GetRelativePath(_currentBaseUiPath, imagePath).StartsWith("..", StringComparison.Ordinal)
-            ? _currentBaseUiPath
-            : _draft!.DraftPath;
+        var root = _session.BaseUiPath is not null && !Path.GetRelativePath(_session.BaseUiPath, imagePath).StartsWith("..", StringComparison.Ordinal)
+            ? _session.BaseUiPath
+            : _session.Draft!.DraftPath;
         return Path.GetRelativePath(root, imagePath);
     }
 

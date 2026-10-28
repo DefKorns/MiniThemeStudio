@@ -9,7 +9,6 @@ using MiniThemeStudio.App.Errors;
 using MiniThemeStudio.App.Services;
 using MiniThemeStudio.Core.Audio;
 using MiniThemeStudio.Core.Firmware;
-using MiniThemeStudio.Core.Scenes;
 using MiniThemeStudio.Core.Settings;
 using MiniThemeStudio.Core.Themes;
 
@@ -24,13 +23,11 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly IThemeAssetManager _assetManager;
     private readonly IThemeValidator _themeValidator;
     private readonly IBaseFirmwareManager _baseFirmwareManager;
-    private readonly IThemeResourceIndexer _resourceIndexer;
     private readonly IThemeExporter _themeExporter;
     private readonly ICharacterAnimationEditor _characterEditor;
     private readonly IThemePaletteEditor _paletteEditor;
     private readonly ISavedDraftStore _savedDraftStore;
     private readonly IAppSettingsStore _settingsStore;
-    private readonly ISceneEditor _sceneEditor;
     private readonly IFFmpegAudioConverter _audioConverter;
     private readonly IDialogService _dialogService;
     private readonly IFileDialogService _fileDialogs;
@@ -38,8 +35,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly IAppearanceService _appearance;
     private readonly IErrorHandler _errorHandler;
 
-    private ThemeDraft? _draft;
-    private string? _currentBaseUiPath;
+    private readonly ThemeSession _session;
     private FirmwareDefinition? _currentBase;
 
     public MainWindowViewModel(
@@ -50,19 +46,19 @@ public partial class MainWindowViewModel : ViewModelBase
         IThemeAssetManager assetManager,
         IThemeValidator themeValidator,
         IBaseFirmwareManager baseFirmwareManager,
-        IThemeResourceIndexer resourceIndexer,
         IThemeExporter themeExporter,
         ICharacterAnimationEditor characterEditor,
         ISavedDraftStore savedDraftStore,
         IThemePaletteEditor paletteEditor,
         IAppSettingsStore settingsStore,
-        ISceneEditor sceneEditor,
         IFFmpegAudioConverter audioConverter,
         IDialogService dialogService,
         IFileDialogService fileDialogs,
         IAppDialogs appDialogs,
         IAppearanceService appearance,
-        IErrorHandler errorHandler)
+        IErrorHandler errorHandler,
+        ThemeSession session,
+        ScenesViewModel scenes)
     {
         _metadataReader = metadataReader;
         _textureAtlasReader = textureAtlasReader;
@@ -71,20 +67,44 @@ public partial class MainWindowViewModel : ViewModelBase
         _assetManager = assetManager;
         _themeValidator = themeValidator;
         _baseFirmwareManager = baseFirmwareManager;
-        _resourceIndexer = resourceIndexer;
         _themeExporter = themeExporter;
         _characterEditor = characterEditor;
         _savedDraftStore = savedDraftStore;
         _paletteEditor = paletteEditor;
         _settingsStore = settingsStore;
-        _sceneEditor = sceneEditor;
         _audioConverter = audioConverter;
         _dialogService = dialogService;
         _fileDialogs = fileDialogs;
         _appDialogs = appDialogs;
         _appearance = appearance;
         _errorHandler = errorHandler;
+        _session = session;
+        Scenes = scenes;
+        Scenes.SpriteRequested += (_, request) => ShowSpriteInAtlas(request);
+
+        // the session holds the state the window binds to; its changes are raised here too
+        _session.PropertyChanged += (_, e) =>
+        {
+            OnPropertyChanged(e.PropertyName);
+            if (e.PropertyName is nameof(ThemeSession.HasUnsavedChanges) or nameof(ThemeSession.IsDraftSaved))
+            {
+                OnPropertyChanged(nameof(ShowUnsavedChangesBadge));
+                OnPropertyChanged(nameof(ShowDraftSavedBadge));
+                OnPropertyChanged(nameof(HasUnsavedWork));
+            }
+        };
+        _session.ContentChanged += (_, _) =>
+        {
+            ReloadAssets();
+            RunValidation();
+        };
     }
+
+    public ScenesViewModel Scenes { get; }
+
+    // the workspace tab shown; 0 is Sprites
+    [ObservableProperty]
+    private int selectedTabIndex;
 
     [ObservableProperty]
     private bool isHomeVisible = true;
@@ -104,8 +124,11 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool requiresOverlay;
 
-    [ObservableProperty]
-    private string status = "Ready";
+    public string Status
+    {
+        get => _session.Status;
+        set => _session.Status = value;
+    }
 
     [ObservableProperty]
     private string currentBaseLabel = "No Base";
@@ -182,14 +205,18 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool isThemeValid = true;
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowUnsavedChangesBadge), nameof(ShowDraftSavedBadge), nameof(HasUnsavedWork))]
-    private bool hasUnsavedChanges;
+    public bool HasUnsavedChanges
+    {
+        get => _session.HasUnsavedChanges;
+        set => _session.HasUnsavedChanges = value;
+    }
 
     // the changes not yet saved to the theme are kept in a saved draft
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowUnsavedChangesBadge), nameof(ShowDraftSavedBadge), nameof(HasUnsavedWork))]
-    private bool isDraftSaved;
+    public bool IsDraftSaved
+    {
+        get => _session.IsDraftSaved;
+        set => _session.IsDraftSaved = value;
+    }
 
     public bool ShowUnsavedChangesBadge => HasUnsavedChanges && !IsDraftSaved;
 
@@ -200,29 +227,28 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void MarkChanged()
     {
-        HasUnsavedChanges = true;
-        IsDraftSaved = false;
+        _session.MarkChanged();
     }
 
-    public string? CurrentDraftPath => _draft?.DraftPath;
-    public string? CurrentBaseUiPath => _currentBaseUiPath;
+    public string? CurrentDraftPath => _session.Draft?.DraftPath;
+    public string? CurrentBaseUiPath => _session.BaseUiPath;
 
     public void OpenTheme(string rootPath, string? baseUiPath = null)
     {
-        _currentBaseUiPath = baseUiPath ?? _baseFirmwareManager.FindCompatibleBaseUiPath(rootPath);
+        _session.BaseUiPath = baseUiPath ?? _baseFirmwareManager.FindCompatibleBaseUiPath(rootPath);
         OpenDraft(() => _themeDraftService.OpenExisting(rootPath), false);
     }
 
     public void ChangeBase(string baseUiPath)
     {
-        if (_draft is null)
+        if (_session.Draft is null)
         {
             return;
         }
 
         var hadUnsavedChanges = HasUnsavedChanges;
-        _currentBaseUiPath = baseUiPath;
-        LoadDraft(_draft);
+        _session.BaseUiPath = baseUiPath;
+        LoadDraft(_session.Draft);
         HasUnsavedChanges = hadUnsavedChanges;
         Status = $"Using {CurrentBaseLabel} - {Sprites.Count} sprites, {Wallpapers.Count} wallpapers.";
     }
@@ -237,29 +263,29 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public void CreateTheme(NewThemeRequest request)
     {
-        _currentBaseUiPath = request.BaseThemePath;
+        _session.BaseUiPath = request.BaseThemePath;
         OpenDraft(() => _themeDraftService.CreateNew(request), true);
     }
 
     public void SaveTheme()
     {
-        if (_draft is null || !HasUnsavedChanges)
+        if (_session.Draft is null || !HasUnsavedChanges)
         {
             return;
         }
 
         ValidateBeforeOutput("saving");
-        _draft = _themeDraftService.Save(_draft);
+        _session.Draft = _themeDraftService.Save(_session.Draft);
         HasUnsavedChanges = false;
-        Status = _draft.LastBackupPath is null
-            ? $"Saved to {_draft.SavePath}"
-            : $"Saved to {_draft.SavePath} (previous version backed up to {_draft.LastBackupPath})";
+        Status = _session.Draft.LastBackupPath is null
+            ? $"Saved to {_session.Draft.SavePath}"
+            : $"Saved to {_session.Draft.SavePath} (previous version backed up to {_session.Draft.LastBackupPath})";
         ForgetSavedDraftAfterSave();
     }
 
     public bool ReplaceSelectedSprite(string replacementImagePath)
     {
-        if (SelectedSprite is not { } sprite || SelectedAtlas is not { } atlas || _draft is null)
+        if (SelectedSprite is not { } sprite || SelectedAtlas is not { } atlas || _session.Draft is null)
         {
             Status = "Select a packed sprite first.";
             return false;
@@ -268,7 +294,7 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var draftImagePath = _assetManager.EnsureDraftCopy(
-                _draft.DraftPath,
+                _session.Draft.DraftPath,
                 atlas.RelativeImagePath,
                 atlas.ImagePath);
             if (draftImagePath != atlas.ImagePath)
@@ -321,7 +347,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public bool ReplaceSelectedWallpaper(string replacementImagePath)
     {
-        if (SelectedWallpaper is null || _draft is null)
+        if (SelectedWallpaper is null || _session.Draft is null)
         {
             Status = "Select a wallpaper first.";
             return false;
@@ -330,7 +356,7 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             var targetPng = Path.Combine(
-                _draft.DraftPath,
+                _session.Draft.DraftPath,
                 "resources",
                 "layout",
                 "asset",
@@ -385,14 +411,14 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private bool DeleteDraftImage(ExtraAsset image, string status)
     {
-        if (_draft is null)
+        if (_session.Draft is null)
         {
             return false;
         }
 
         try
         {
-            var targetPng = Path.Combine(_draft.DraftPath, "resources", image.RelativePath);
+            var targetPng = Path.Combine(_session.Draft.DraftPath, "resources", image.RelativePath);
             _assetManager.DeleteExtraAsset(targetPng);
             ReloadAssets();
             RunValidation();
@@ -409,13 +435,13 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public string? PackagingSystem => _currentBase is null ? null : ConsoleFamilies.PackagingSystem(ConsoleFamilies.Of(_currentBase));
 
-    public string PackagingName => _draft is null
+    public string PackagingName => _session.Draft is null
         ? ""
-        : ThemeDirectoryName.FromDisplayName(Path.GetFileName(Path.TrimEndingDirectorySeparator(_draft.SavePath)));
+        : ThemeDirectoryName.FromDisplayName(Path.GetFileName(Path.TrimEndingDirectorySeparator(_session.Draft.SavePath)));
 
     public void ExportPackage(string outputDirectory)
     {
-        if (_draft is null)
+        if (_session.Draft is null)
         {
             return;
         }
@@ -424,13 +450,13 @@ public partial class MainWindowViewModel : ViewModelBase
             ?? throw new OperationFailedException("Choose the Base of this theme first (click the console badge in the header).");
         ValidateBeforeOutput("exporting");
 
-        var previewPath = $"{Path.TrimEndingDirectorySeparator(_draft.SavePath)}.png";
+        var previewPath = $"{Path.TrimEndingDirectorySeparator(_session.Draft.SavePath)}.png";
         var exportOptions = new ThemeExportOptions(
             ConvertBgmAudio: ConvertBgmAudio,
             FFmpegPath: _settingsStore.Current.FFmpegPath,
             BgmChannels: BgmChannels,
             IncludeBgm: IncludeBgm);
-        var result = _themeExporter.ExportPackage(_draft.DraftPath, outputDirectory, system, PackagingName, previewPath, _currentBaseUiPath, exportOptions);
+        var result = _themeExporter.ExportPackage(_session.Draft.DraftPath, outputDirectory, system, PackagingName, previewPath, _session.BaseUiPath, exportOptions);
         var summary = $"Exported {result.FileCount} changed files to {result.PackagePath} ({result.UnchangedFilesSkipped} unchanged Base files left out)";
         Status = result.IncludesPreview
             ? $"{summary}."
@@ -445,7 +471,7 @@ public partial class MainWindowViewModel : ViewModelBase
             FFmpegPath: _settingsStore.Current.FFmpegPath,
             BgmChannels: BgmChannels,
             IncludeBgm: IncludeBgm);
-        var validation = _themeValidator.Validate(_draft!.DraftPath, _currentBaseUiPath, validationOptions);
+        var validation = _themeValidator.Validate(_session.Draft!.DraftPath, _session.BaseUiPath, validationOptions);
         ValidationIssues = validation.Issues;
         IsThemeValid = validation.IsValid;
         if (!validation.HasErrors)
@@ -460,7 +486,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [RelayCommand]
     public void RunValidation()
     {
-        if (_draft is null)
+        if (_session.Draft is null)
         {
             return;
         }
@@ -470,7 +496,7 @@ public partial class MainWindowViewModel : ViewModelBase
             FFmpegPath: _settingsStore.Current.FFmpegPath,
             BgmChannels: BgmChannels,
             IncludeBgm: IncludeBgm);
-        var result = _themeValidator.Validate(_draft.DraftPath, _currentBaseUiPath, validationOptions);
+        var result = _themeValidator.Validate(_session.Draft.DraftPath, _session.BaseUiPath, validationOptions);
         ValidationIssues = result.Issues;
         IsThemeValid = result.IsValid;
         ValidationSummary = result.IsValid
@@ -491,10 +517,10 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public void DiscardTheme()
     {
-        if (_draft is not null)
+        if (_session.Draft is not null)
         {
-            _themeDraftService.Discard(_draft);
-            _draft = null;
+            _themeDraftService.Discard(_session.Draft);
+            _session.Draft = null;
         }
 
         OnPropertyChanged(nameof(CurrentDraftPath));
@@ -508,8 +534,8 @@ public partial class MainWindowViewModel : ViewModelBase
 
         try
         {
-            _draft = createDraft();
-            LoadDraft(_draft);
+            _session.Draft = createDraft();
+            LoadDraft(_session.Draft);
             HasUnsavedChanges = isNewTheme;
         }
         catch
@@ -530,10 +556,10 @@ public partial class MainWindowViewModel : ViewModelBase
         RequiresOverlay = metadata.RequiresOverlay;
 
         _currentBase = _baseFirmwareManager.GetInstalledBases()
-            .FirstOrDefault(info => info.Status == BaseInstallStatus.Valid && PathsEqual(info.LocalPath, _currentBaseUiPath))?
+            .FirstOrDefault(info => info.Status == BaseInstallStatus.Valid && PathsEqual(info.LocalPath, _session.BaseUiPath))?
             .Definition;
         CurrentBaseLabel = _currentBase is null ? "No Base" : ConsoleFamilies.ShortLabel(_currentBase);
-        Atlases = _textureAtlasReader.ReadAll(draft.DraftPath, _currentBaseUiPath);
+        Atlases = _textureAtlasReader.ReadAll(draft.DraftPath, _session.BaseUiPath);
         SelectedAtlas = Atlases.Count > 0 ? Atlases[0] : null;
         if (SelectedAtlas is null)
         {
@@ -548,7 +574,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void ReloadAssets()
     {
-        if (_draft is null)
+        if (_session.Draft is null)
         {
             Wallpapers = [];
             UnusedImages = [];
@@ -558,14 +584,15 @@ public partial class MainWindowViewModel : ViewModelBase
             ReloadBgmTracks();
             SelectedWallpaper = null;
             SelectedFont = null;
-            ReloadScenes(null);
+            _session.Reload();
             return;
         }
 
-        var report = _resourceIndexer.Analyze(_draft.DraftPath, _currentBaseUiPath);
+        _session.Reload();
+        var report = _session.Report;
         var selectedWallpaperName = SelectedWallpaper?.Name;
 
-        Wallpapers = _assetManager.GetWallpapers(_draft.DraftPath, _currentBaseUiPath)
+        Wallpapers = _assetManager.GetWallpapers(_session.Draft.DraftPath, _session.BaseUiPath)
             .Select(wallpaper => wallpaper with
             {
                 UsedBy = report.UsageOf(report.TextureIdOf($"layout/asset/sprite/wallpaper/{wallpaper.Name}.png", wallpaper.TextureId)),
@@ -574,7 +601,7 @@ public partial class MainWindowViewModel : ViewModelBase
         SelectedWallpaper = Wallpapers.FirstOrDefault(wallpaper => wallpaper.Name == selectedWallpaperName)
             ?? (Wallpapers.Count > 0 ? Wallpapers[0] : null);
 
-        var images = _assetManager.GetExtraAssets(_draft.DraftPath, _currentBaseUiPath)
+        var images = _assetManager.GetExtraAssets(_session.Draft.DraftPath, _session.BaseUiPath)
             .Select(asset => report.TextureIdOf(asset.RelativePath, asset.TextureId) is var textureId
                 ? asset with { TextureId = textureId, UsedBy = report.UsageOf(textureId) }
                 : asset)
@@ -592,12 +619,11 @@ public partial class MainWindowViewModel : ViewModelBase
         ReloadFonts();
         ReloadPalettes();
         ReloadBgmTracks();
-        ReloadScenes(report);
     }
 
     public bool ProvideSelectedMissingTexture(string sourceImagePath)
     {
-        if (SelectedMissingTexture is not { } texture || _draft is null)
+        if (SelectedMissingTexture is not { } texture || _session.Draft is null)
         {
             Status = "Select a missing texture first.";
             return false;
@@ -605,7 +631,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         try
         {
-            _assetManager.ProvideMissingTexture(_draft.DraftPath, texture, sourceImagePath);
+            _assetManager.ProvideMissingTexture(_session.Draft.DraftPath, texture, sourceImagePath);
             ReloadAssets();
             RunValidation();
             MarkChanged();
@@ -618,6 +644,22 @@ public partial class MainWindowViewModel : ViewModelBase
             Status = exception.Message;
             return false;
         }
+    }
+
+    private void ShowSpriteInAtlas(SceneSpriteRequest request)
+    {
+        var atlas = Atlases.FirstOrDefault(candidate => candidate.TextureId == request.TextureId)
+            ?? Atlases.FirstOrDefault(candidate => request.ImagePath is not null && PathsEqual(candidate.ImagePath, request.ImagePath));
+        if (atlas?.Sprites.FirstOrDefault(sprite => sprite.Name == request.SpriteName) is not { } sprite)
+        {
+            Status = $"Sprite {request.SpriteName} was not found in the atlases.";
+            return;
+        }
+
+        SelectedAtlas = atlas;
+        SpriteSearchText = "";
+        SelectedSprite = sprite;
+        SelectedTabIndex = 0;
     }
 
     private void ApplySpriteFilter()

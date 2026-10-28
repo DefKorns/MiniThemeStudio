@@ -121,7 +121,7 @@ public partial class MainWindowViewModel
 
     private void ReloadFonts()
     {
-        if (_draft is null)
+        if (_session.Draft is null)
         {
             Fonts = [];
             SelectedFont = null;
@@ -129,7 +129,7 @@ public partial class MainWindowViewModel
         }
 
         var prevSelectedName = SelectedFont?.Name;
-        Fonts = _assetManager.GetFonts(_draft.DraftPath, _currentBaseUiPath);
+        Fonts = _assetManager.GetFonts(_session.Draft.DraftPath, _session.BaseUiPath);
         SelectedFont = Fonts.FirstOrDefault(f => f.Name.Equals(prevSelectedName, StringComparison.OrdinalIgnoreCase))
             ?? (Fonts.Count > 0 ? Fonts[0] : null);
     }
@@ -324,7 +324,7 @@ public partial class MainWindowViewModel
 
     public bool ReplaceSelectedFontTexture(string sourcePngPath)
     {
-        if (SelectedFont is null || _draft is null)
+        if (SelectedFont is null || _session.Draft is null)
         {
             Status = "Select a font first.";
             return false;
@@ -332,7 +332,7 @@ public partial class MainWindowViewModel
 
         try
         {
-            _assetManager.ReplaceFontTexture(_draft.DraftPath, SelectedFont, sourcePngPath);
+            _assetManager.ReplaceFontTexture(_session.Draft.DraftPath, SelectedFont, sourcePngPath);
             ReloadAssets();
             RunValidation();
             MarkChanged();
@@ -348,7 +348,7 @@ public partial class MainWindowViewModel
 
     public bool ReplaceSelectedFontFile(string sourceFontPath)
     {
-        if (SelectedFont is null || _draft is null)
+        if (SelectedFont is null || _session.Draft is null)
         {
             Status = "Select a font first.";
             return false;
@@ -356,7 +356,7 @@ public partial class MainWindowViewModel
 
         try
         {
-            _assetManager.ReplaceFont(_draft.DraftPath, SelectedFont, sourceFontPath);
+            _assetManager.ReplaceFont(_session.Draft.DraftPath, SelectedFont, sourceFontPath);
             ReloadAssets();
             RunValidation();
             MarkChanged();
@@ -412,7 +412,7 @@ public partial class MainWindowViewModel
 
     public bool ImportSelectedTrueTypeFont(string fontOrZipPath, int? fontSize = null, bool antiAlias = false)
     {
-        if (SelectedFont is null || _draft is null)
+        if (SelectedFont is null || _session.Draft is null)
         {
             Status = "Select a font first.";
             return false;
@@ -420,7 +420,7 @@ public partial class MainWindowViewModel
 
         try
         {
-            _assetManager.ImportTrueTypeFont(_draft.DraftPath, SelectedFont, fontOrZipPath, fontSize, antiAlias, SelectedScripts, FillFontPath);
+            _assetManager.ImportTrueTypeFont(_session.Draft.DraftPath, SelectedFont, fontOrZipPath, fontSize, antiAlias, SelectedScripts, FillFontPath);
             ReloadFonts();
             RunValidation();
             MarkChanged();
@@ -449,7 +449,7 @@ public partial class MainWindowViewModel
     // the missing characters, and the scripts ticked, from the complete font of the same role
     public bool CompleteSelectedFont()
     {
-        if (SelectedFont is null || _draft is null)
+        if (SelectedFont is null || _session.Draft is null)
         {
             Status = "Select a font first.";
             return false;
@@ -457,7 +457,7 @@ public partial class MainWindowViewModel
 
         try
         {
-            _assetManager.CompleteFont(_draft.DraftPath, SelectedFont, SelectedScripts, FillFontPath);
+            _assetManager.CompleteFont(_session.Draft.DraftPath, SelectedFont, SelectedScripts, FillFontPath);
             var name = SelectedFont.DisplayName;
             ReloadFonts();
             RunValidation();

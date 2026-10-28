@@ -86,7 +86,7 @@ public partial class MainWindowViewModel
 
     public void ReloadBgmTracks()
     {
-        if (_draft is null)
+        if (_session.Draft is null)
         {
             BgmTracks = [];
             SelectedBgmTrack = null;
@@ -94,21 +94,21 @@ public partial class MainWindowViewModel
         }
 
         var selectedName = SelectedBgmTrack?.Name;
-        BgmTracks = _assetManager.GetBgmTracks(_draft.DraftPath, _currentBaseUiPath);
+        BgmTracks = _assetManager.GetBgmTracks(_session.Draft.DraftPath, _session.BaseUiPath);
         SelectedBgmTrack = BgmTracks.FirstOrDefault(t => t.Name == selectedName)
             ?? (BgmTracks.Count > 0 ? BgmTracks[0] : null);
     }
 
     public bool ReplaceBgmTrack(string trackName, string sourceAudioFilePath)
     {
-        if (_draft is null)
+        if (_session.Draft is null)
         {
             return false;
         }
 
         try
         {
-            _assetManager.ReplaceBgmTrack(_draft.DraftPath, trackName, sourceAudioFilePath, _currentBaseUiPath);
+            _assetManager.ReplaceBgmTrack(_session.Draft.DraftPath, trackName, sourceAudioFilePath, _session.BaseUiPath);
             ReloadBgmTracks();
             HasUnsavedChanges = true;
             IsDraftSaved = false;
@@ -125,14 +125,14 @@ public partial class MainWindowViewModel
 
     public bool RevertBgmTrack(string trackName)
     {
-        if (_draft is null)
+        if (_session.Draft is null)
         {
             return false;
         }
 
         try
         {
-            _assetManager.RevertBgmTrack(_draft.DraftPath, trackName);
+            _assetManager.RevertBgmTrack(_session.Draft.DraftPath, trackName);
             ReloadBgmTracks();
             HasUnsavedChanges = true;
             IsDraftSaved = false;
@@ -149,14 +149,14 @@ public partial class MainWindowViewModel
 
     public bool MuteBgmTrack(string trackName)
     {
-        if (_draft is null)
+        if (_session.Draft is null)
         {
             return false;
         }
 
         try
         {
-            _assetManager.MuteBgmTrack(_draft.DraftPath, trackName, _currentBaseUiPath);
+            _assetManager.MuteBgmTrack(_session.Draft.DraftPath, trackName, _session.BaseUiPath);
             ReloadBgmTracks();
             HasUnsavedChanges = true;
             IsDraftSaved = false;
@@ -173,7 +173,7 @@ public partial class MainWindowViewModel
 
     public async Task<bool> ConvertBgmTrackNowAsync(string trackName)
     {
-        if (_draft is null)
+        if (_session.Draft is null)
         {
             return false;
         }

@@ -145,7 +145,7 @@ public partial class MainWindowViewModel
     [RelayCommand]
     private async Task ExportPackageAsync()
     {
-        if (_draft is not null && await _fileDialogs.PickFolderAsync("Select the output folder for the .tar.gz package") is { } outputDirectory)
+        if (_session.Draft is not null && await _fileDialogs.PickFolderAsync("Select the output folder for the .tar.gz package") is { } outputDirectory)
         {
             await RunAsync("Cannot export package", () => ExportPackage(outputDirectory));
         }
@@ -154,8 +154,8 @@ public partial class MainWindowViewModel
     [RelayCommand]
     private async Task ChangeBaseAsync()
     {
-        if (_draft is not null
-            && await AskForBaseAsync(ThemePath, "Choose the Base this theme is edited against. Changes in the draft are kept.", _currentBaseUiPath) is { } baseUiPath)
+        if (_session.Draft is not null
+            && await AskForBaseAsync(ThemePath, "Choose the Base this theme is edited against. Changes in the draft are kept.", _session.BaseUiPath) is { } baseUiPath)
         {
             await RunAsync("Cannot change the Base", () => ChangeBase(baseUiPath));
         }

@@ -11,13 +11,13 @@ public partial class MainWindowViewModel
 
     public void SaveDraft()
     {
-        if (_draft is null)
+        if (_session.Draft is null)
         {
             return;
         }
 
-        var saved = _savedDraftStore.Save(_draft, ThemeName, _currentBaseUiPath);
-        _draft = _draft with { SavedDraftId = saved.Id };
+        var saved = _savedDraftStore.Save(_session.Draft, ThemeName, _session.BaseUiPath);
+        _session.Draft = _session.Draft with { SavedDraftId = saved.Id };
         IsDraftSaved = true;
         Status = $"Draft saved at {saved.SavedAt:HH:mm}. Reopen it from Saved drafts.";
     }
@@ -25,7 +25,7 @@ public partial class MainWindowViewModel
     public void RestoreDraft(SavedDraft savedDraft)
     {
         ArgumentNullException.ThrowIfNull(savedDraft);
-        _currentBaseUiPath = savedDraft.BaseUiPath is { } baseUiPath && Directory.Exists(baseUiPath) ? baseUiPath : null;
+        _session.BaseUiPath = savedDraft.BaseUiPath is { } baseUiPath && Directory.Exists(baseUiPath) ? baseUiPath : null;
         OpenDraft(() => _savedDraftStore.Restore(savedDraft), true);
         IsDraftSaved = true;
         Status = $"Resumed draft '{savedDraft.Name}' saved at {savedDraft.SavedAt:g}.";
@@ -35,15 +35,15 @@ public partial class MainWindowViewModel
     {
         ArgumentNullException.ThrowIfNull(savedDraft);
         _savedDraftStore.Delete(savedDraft.Id);
-        if (_draft?.SavedDraftId == savedDraft.Id)
+        if (_session.Draft?.SavedDraftId == savedDraft.Id)
         {
-            _draft = _draft with { SavedDraftId = null };
+            _session.Draft = _session.Draft with { SavedDraftId = null };
         }
     }
 
     private void ForgetSavedDraftAfterSave()
     {
-        if (_draft?.SavedDraftId is not { } id)
+        if (_session.Draft?.SavedDraftId is not { } id)
         {
             return;
         }
@@ -51,7 +51,7 @@ public partial class MainWindowViewModel
         try
         {
             _savedDraftStore.Delete(id);
-            _draft = _draft with { SavedDraftId = null };
+            _session.Draft = _session.Draft with { SavedDraftId = null };
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {

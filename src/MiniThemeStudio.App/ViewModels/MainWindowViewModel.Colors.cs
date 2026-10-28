@@ -69,7 +69,7 @@ public partial class MainWindowViewModel
 
     public bool ApplyPaletteColor()
     {
-        if (_draft is null || SelectedPalette is null || SelectedPaletteColor is null)
+        if (_session.Draft is null || SelectedPalette is null || SelectedPaletteColor is null)
         {
             Status = "Select a colour first.";
             return false;
@@ -83,7 +83,7 @@ public partial class MainWindowViewModel
 
         try
         {
-            _paletteEditor.SetColor(_draft.DraftPath, _currentBaseUiPath, color, targets);
+            _paletteEditor.SetColor(_session.Draft.DraftPath, _session.BaseUiPath, color, targets);
         }
         catch (Exception exception)
         {
@@ -99,7 +99,7 @@ public partial class MainWindowViewModel
 
     private void ReloadPalettes()
     {
-        if (_draft is null)
+        if (_session.Draft is null)
         {
             Palettes = [];
             SelectedPalette = null;
@@ -107,8 +107,8 @@ public partial class MainWindowViewModel
         }
 
         var previous = SelectedPalette?.RelativePath;
-        _allColorUsages = _paletteEditor.GetUsages(_draft.DraftPath, _currentBaseUiPath);
-        Palettes = _paletteEditor.GetPalettes(_draft.DraftPath, _currentBaseUiPath);
+        _allColorUsages = _paletteEditor.GetUsages(_session.Draft.DraftPath, _session.BaseUiPath);
+        Palettes = _paletteEditor.GetPalettes(_session.Draft.DraftPath, _session.BaseUiPath);
         SelectedPalette = Palettes.FirstOrDefault(p => p.RelativePath.Equals(previous, StringComparison.OrdinalIgnoreCase))
             ?? (Palettes.Count > 0 ? Palettes[0] : null);
     }

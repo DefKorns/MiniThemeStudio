@@ -22,6 +22,12 @@ public sealed record AnimationFrameView(double Time, string TextureId, string Na
     public double Opacity => IsLoopFrame ? 1 : 0.45;
 }
 
+// one image a character is drawn with (mario_run01 is "Run 1"), as the simple editing lists them
+public sealed record CharacterFrameRow(CharacterTexture Texture, string Label, Bitmap? Thumbnail)
+{
+    public string SizeText => string.Create(CultureInfo.InvariantCulture, $"{Texture.Width} × {Texture.Height}");
+}
+
 // The Characters tab: the animations of the characters running in the menu, their frames and timing.
 public sealed partial class CharactersViewModel : ViewModelBase
 {
@@ -30,7 +36,15 @@ public sealed partial class CharactersViewModel : ViewModelBase
     private readonly IThemeAssetManager _assetManager;
     private readonly IAppDialogs _appDialogs;
     private readonly IDialogService _dialogService;
+    private readonly IFileDialogService _fileDialogs;
     private readonly IErrorHandler _errorHandler;
+
+    // the words of the console's frame names, as people say them
+    private static readonly Dictionary<string, string> FrameWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["dush"] = "Dash",
+        ["look"] = "Look up",
+    };
 
     public CharactersViewModel(
         ThemeSession session,
@@ -38,8 +52,12 @@ public sealed partial class CharactersViewModel : ViewModelBase
         IThemeAssetManager assetManager,
         IAppDialogs appDialogs,
         IDialogService dialogService,
-        IErrorHandler errorHandler)
+        IFileDialogService fileDialogs,
+        IErrorHandler errorHandler,
+        EditingMode mode)
     {
+        _fileDialogs = fileDialogs;
+        Mode = mode;
         _session = session;
         _characterEditor = characterEditor;
         _assetManager = assetManager;
@@ -51,6 +69,12 @@ public sealed partial class CharactersViewModel : ViewModelBase
 
     private IReadOnlyDictionary<string, CharacterTexture> _characterTextures = new Dictionary<string, CharacterTexture>();
     private readonly Dictionary<string, Bitmap?> _thumbnails = [];
+
+    public EditingMode Mode { get; }
+
+    // the images of the selected character: the same frames as the official theme, replaced in place
+    [ObservableProperty]
+    private IReadOnlyList<CharacterFrameRow> characterFrames = [];
 
     [ObservableProperty]
     private IReadOnlyList<string> characters = [];
@@ -153,6 +177,35 @@ public sealed partial class CharactersViewModel : ViewModelBase
         var frameTimeMilliseconds = FrameTimeMilliseconds;
         AfterChange(animation.Name);
         _session.Status = string.Create(CultureInfo.InvariantCulture, $"{character} {animation.Name}: {frameCount} frames at {frameTimeMilliseconds} ms. Other animations of {character} still use their own frames.");
+    }
+
+    // a new picture for one frame; it keeps the size of the frame, which the scenes draw it at
+    [RelayCommand]
+    private async Task ReplaceFrameAsync(CharacterFrameRow? frame)
+    {
+        if (_session.Draft is not { } draft || frame is null
+            || await _fileDialogs.OpenFileAsync($"Select the new {frame.Label} of {SelectedCharacter}", new FileType("PNG image", "*.png")) is not { } imagePath)
+        {
+            return;
+        }
+
+        var texture = frame.Texture;
+        if (await RunAsync($"Cannot replace {frame.Label}", () =>
+        {
+            using var picture = new Bitmap(imagePath);
+            var (width, height) = (picture.PixelSize.Width, picture.PixelSize.Height);
+            if (width != texture.Width || height != texture.Height)
+            {
+                throw new OperationFailedException(string.Create(CultureInfo.InvariantCulture,
+                    $"{frame.Label} must be {texture.Width} × {texture.Height} pixels, like the frame it replaces; {Path.GetFileName(imagePath)} is {width} × {height}."));
+            }
+
+            _assetManager.ReplaceExtraAsset(Path.Combine(draft.DraftPath, RelativeToRoot(texture.ImagePath)), imagePath, Path.ChangeExtension(texture.ImagePath, ".json"));
+        }))
+        {
+            AfterChange(SelectedAnimation?.Name ?? "");
+            _session.Status = $"{SelectedCharacter}: replaced {frame.Label}.";
+        }
     }
 
     [RelayCommand]
@@ -263,6 +316,7 @@ public sealed partial class CharactersViewModel : ViewModelBase
         if (_session.Draft is null || value is null)
         {
             CharacterAnimations = [];
+            CharacterFrames = [];
             SelectedAnimation = null;
             CharacterSizeText = "";
             CurrentCharacterFrameSize = null;
@@ -274,6 +328,13 @@ public sealed partial class CharactersViewModel : ViewModelBase
         SelectedAnimation = CharacterAnimations.FirstOrDefault(animation => animation.Name == previousName)
             ?? CharacterAnimations.FirstOrDefault(animation => animation.Name == "run")
             ?? CharacterAnimations.FirstOrDefault();
+
+        // the frames are the images in the character's folder (layout/asset/sprite/mario/...)
+        CharacterFrames = _characterTextures.Values
+            .Where(texture => string.Equals(Path.GetFileName(Path.GetDirectoryName(texture.ImagePath)), value, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(texture => texture.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(texture => new CharacterFrameRow(texture, FrameLabel(value, texture.Name), Thumbnail(texture)))
+            .ToList();
 
         var node = _characterEditor.GetNodes(_session.Draft.DraftPath, _session.BaseUiPath, value).FirstOrDefault();
         CurrentCharacterFrameSize = SelectedAnimation is { } animation && PrimaryTrack(animation) is { Keys.Count: > 0 } track
@@ -303,6 +364,16 @@ public sealed partial class CharactersViewModel : ViewModelBase
         {
             FrameTimeMilliseconds = Math.Round((decimal)(value.Duration / loopFrames * 1000), 1);
         }
+    }
+
+    // mario_run01 is "Run 1", mario_look "Look up"
+    private static string FrameLabel(string character, string name)
+    {
+        var rest = name.StartsWith(character + "_", StringComparison.OrdinalIgnoreCase) ? name[(character.Length + 1)..] : name;
+        var word = rest.TrimEnd('0', '1', '2', '3', '4', '5', '6', '7', '8', '9');
+        var number = rest[word.Length..].TrimStart('0');
+        var label = FrameWords.TryGetValue(word, out var known) ? known : word.Length > 0 ? char.ToUpperInvariant(word[0]) + word[1..] : rest;
+        return number.Length > 0 ? $"{label} {number}" : label;
     }
 
     private static AnimationTrack? PrimaryTrack(CharacterAnimation animation)

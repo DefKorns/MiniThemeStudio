@@ -126,6 +126,7 @@ public partial class MainWindowViewModel
             return;
         }
 
+        Mode.IsAdvanced = details.AdvancedEditing;
         var request = new NewThemeRequest(
             details.BaseUiPath,
             Path.Combine(destinationParentPath, ThemeDirectoryName.FromDisplayName(details.Name)),

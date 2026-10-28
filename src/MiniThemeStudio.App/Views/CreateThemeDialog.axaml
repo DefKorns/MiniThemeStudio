@@ -1,9 +1,9 @@
 <Window xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-  xmlns:controls="using:MiniThemeStudio.App.Controls" x:Class="MiniThemeStudio.App.Views.CreateThemeDialog" Title="Create new theme" Width="520" Height="540" CanResize="False" ShowInTaskbar="False" SystemDecorations="None" TransparencyLevelHint="Transparent" WindowStartupLocation="CenterOwner" Background="Transparent" FontFamily="Segoe UI, Ubuntu, sans-serif">
+  xmlns:controls="using:MiniThemeStudio.App.Controls" x:Class="MiniThemeStudio.App.Views.CreateThemeDialog" Title="Create new theme" Width="520" Height="600" CanResize="False" ShowInTaskbar="False" SystemDecorations="None" TransparencyLevelHint="Transparent" WindowStartupLocation="CenterOwner" Background="Transparent" FontFamily="Segoe UI, Ubuntu, sans-serif">
 
   <Border Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="28">
-    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto">
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto">
       <TextBlock FontFamily="Georgia, serif" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="New theme" />
       <StackPanel Grid.Row="1" Margin="0,24,0,0" Spacing="6">
         <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Name" />
@@ -29,8 +29,13 @@
         <TextBlock Foreground="{DynamicResource SecondaryTextBrush}" Text="Folder:" />
         <TextBlock x:Name="DirectoryNameText" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" />
       </StackPanel>
-      <TextBlock x:Name="ValidationText" Grid.Row="6" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="{DynamicResource ErrorTextBrush}" />
-      <StackPanel Grid.Row="7" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="10">
+      <StackPanel Grid.Row="6" Margin="0,16,0,0" Spacing="4">
+        <CheckBox x:Name="AdvancedEditingCheckBox" Content="Advanced editing" />
+        <TextBlock Margin="28,0,0,0" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
+                   Text="A simple theme changes the sprites, the wallpapers, the character frames, the fonts and the music. Advanced editing adds the scenes, the colours, the scrolling layers and the character animations; it can be turned on later." />
+      </StackPanel>
+      <TextBlock x:Name="ValidationText" Grid.Row="7" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="{DynamicResource ErrorTextBrush}" />
+      <StackPanel Grid.Row="8" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="10">
         <Button Padding="16,8" Click="Cancel_Click" Content="Cancel" />
         <Button Padding="16,8" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Click="Continue_Click" Content="Continue" />
       </StackPanel>

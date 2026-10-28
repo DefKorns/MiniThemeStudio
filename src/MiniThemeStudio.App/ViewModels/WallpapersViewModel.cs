@@ -28,8 +28,11 @@ public sealed partial class WallpapersViewModel : ViewModelBase
         IFileDialogService fileDialogs,
         IDialogService dialogs,
         IErrorHandler errorHandler,
-        ParallaxViewModel parallax)
+        ParallaxViewModel parallax,
+        EditingMode mode)
     {
+        Mode = mode;
+        Mode.PropertyChanged += (_, _) => Reload();
         _dialogs = dialogs;
         _session = session;
         Parallax = parallax;
@@ -50,6 +53,9 @@ public sealed partial class WallpapersViewModel : ViewModelBase
 
     // the scrolling layers of the background, shown in the same tab
     public ParallaxViewModel Parallax { get; }
+
+    // simple editing lists wall, wall_near and wall_far; advanced editing every image of the folder
+    public EditingMode Mode { get; }
 
     [ObservableProperty]
     private IReadOnlyList<WallpaperAsset> wallpapers = [];
@@ -159,6 +165,7 @@ public sealed partial class WallpapersViewModel : ViewModelBase
                     // scenes use the id registered for the path, which may differ from the one in the image .json
                     UsedBy = report.UsageOf(report.TextureIdOf($"layout/asset/sprite/wallpaper/{wallpaper.Name}.png", wallpaper.TextureId)),
                 })
+                .Where(wallpaper => Mode.IsAdvanced || wallpaper.IsCore)
                 .ToList()
             : [];
         SelectedWallpaper = Wallpapers.FirstOrDefault(wallpaper => wallpaper.Name == selectedName)

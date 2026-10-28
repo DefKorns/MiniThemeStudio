@@ -11,4 +11,5 @@ public sealed record AppSettings(
     string FFmpegPath = "",
     bool ConvertBgmAudio = false,
     MiniThemeStudio.Core.Audio.BgmAudioChannels BgmChannels = MiniThemeStudio.Core.Audio.BgmAudioChannels.Stereo,
-    bool IncludeBgm = true);
+    bool IncludeBgm = true,
+    bool AdvancedEditing = false);

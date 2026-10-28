@@ -118,6 +118,40 @@ public sealed class CharactersViewModelTests : IDisposable
         Assert.StartsWith("hero run: 3 frames at 50 ms.", _app.Window.Status, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void SimpleEditingListsEveryFrameOfTheCharacter()
+    {
+        var characters = _app.Window.CharactersTab;
+
+        Assert.Equal(["Run 1", "Run 2"], characters.CharacterFrames.Select(frame => frame.Label));
+        Assert.Equal("24 × 32", characters.CharacterFrames[0].SizeText);
+        Assert.All(characters.CharacterFrames, frame => Assert.NotNull(frame.Thumbnail));
+    }
+
+    [Fact]
+    public async Task AFrameIsReplacedByAPictureOfItsSize()
+    {
+        var characters = _app.Window.CharactersTab;
+        var wrongSize = Path.Combine(_app.Root, "big.png");
+        SavePng(wrongSize, 30, 40);
+        _app.Files.Paths.Enqueue(wrongSize);
+
+        await characters.ReplaceFrameCommand.ExecuteAsync(characters.CharacterFrames[1]);
+
+        var (exception, _) = Assert.Single(_app.Errors.Failures);
+        Assert.Equal("Run 2 must be 24 × 32 pixels, like the frame it replaces; big.png is 30 × 40.", exception.Message);
+
+        var rightSize = Path.Combine(_app.Root, "run2.png");
+        SavePng(rightSize, 24, 32);
+        _app.Files.Paths.Enqueue(rightSize);
+        await characters.ReplaceFrameCommand.ExecuteAsync(characters.CharacterFrames[1]);
+
+        Assert.Single(_app.Errors.Failures);
+        Assert.True(File.Exists(Path.Combine(DraftPath, "resources", "layout", "asset", "sprite", "hero", "hero_run02.png")));
+        Assert.Equal("hero: replaced Run 2.", _app.Window.Status);
+        Assert.Equal(2, characters.CharacterFrames.Count);
+    }
+
     private static void SavePng(string path, int width, int height)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);

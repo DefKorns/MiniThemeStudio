@@ -42,6 +42,7 @@ public sealed class ParallaxViewModelTests : IDisposable
     [Fact]
     public async Task ANewLayerIsAddedFromAPngAndSelected()
     {
+        _app.Window.Mode.IsAdvanced = true;
         var parallax = OpenScrollingTheme();
         TestApp.WriteBytes(_app.Root, "hills.png", TestApp.Png);
         _app.Files.Paths.Enqueue(Path.Combine(_app.Root, "hills.png"));

@@ -58,6 +58,7 @@ public sealed class WallpapersViewModelTests : IDisposable
     [Fact]
     public async Task AnImageTheThemeAddedAndNoSceneDrawsCanBeDeleted()
     {
+        _app.Window.Mode.IsAdvanced = true;
         // an image left by a removed layer: registered, but drawn by nothing
         var draft = _app.Window.CurrentDraftPath!;
         TestApp.WriteFile(draft, "dependencies.json", """
@@ -81,6 +82,20 @@ public sealed class WallpapersViewModelTests : IDisposable
         Assert.DoesNotContain(wallpapers.Wallpapers, wallpaper => wallpaper.Name == "hills");
         Assert.DoesNotContain("hills", File.ReadAllText(Path.Combine(draft, "dependencies.json")), StringComparison.Ordinal);
         Assert.Empty(_app.Window.ValidationTab.MissingTextures);
+    }
+
+    [Fact]
+    public void SimpleEditingListsTheThreeWallsOnly()
+    {
+        TestApp.WriteBytes(_app.Window.CurrentDraftPath!, "resources/layout/asset/sprite/wallpaper/pole01.png", TestApp.Png);
+        _app.Session.Reload();
+        var wallpapers = _app.Window.WallpapersTab;
+
+        Assert.Equal(["wall", "wall_near", "wall_far"], wallpapers.Wallpapers.Select(wallpaper => wallpaper.Name));
+
+        _app.Window.Mode.IsAdvanced = true;
+
+        Assert.Contains(wallpapers.Wallpapers, wallpaper => wallpaper.Name == "pole01");
     }
 
     [Fact]

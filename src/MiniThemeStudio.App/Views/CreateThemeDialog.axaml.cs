@@ -112,7 +112,7 @@ public sealed partial class CreateThemeDialog : Window
             return;
         }
 
-        Close(new NewThemeDetails(name, author, selectedBase.LocalPath, _atlasImagePath));
+        Close(new NewThemeDetails(name, author, selectedBase.LocalPath, _atlasImagePath, AdvancedEditingCheckBox.IsChecked == true));
     }
 
     private void ThemeNameTextBox_TextChanged(object? sender, TextChangedEventArgs e)

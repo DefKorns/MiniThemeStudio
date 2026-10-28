@@ -50,8 +50,19 @@ public partial class MainWindowViewModel : ViewModelBase
         FontsViewModel fontsTab,
         ColorsViewModel colorsTab,
         AudioViewModel audioTab,
-        ValidationViewModel validationTab)
+        ValidationViewModel validationTab,
+        EditingMode mode)
     {
+        Mode = mode;
+
+        // the tabs of advanced editing go away with it, so the window leaves them for the first tab
+        Mode.PropertyChanged += (_, _) =>
+        {
+            if (Mode.IsSimple && SelectedTabIndex is ScenesTabIndex or ColorsTabIndex)
+            {
+                SelectedTabIndex = 0;
+            }
+        };
         _metadataReader = metadataReader;
         _themeDraftService = themeDraftService;
         _baseFirmwareManager = baseFirmwareManager;
@@ -100,6 +111,13 @@ public partial class MainWindowViewModel : ViewModelBase
             ValidationTab.Run();
         };
     }
+
+    // the order of the tabs in the window
+    private const int ScenesTabIndex = 2;
+    private const int ColorsTabIndex = 5;
+
+    // simple or advanced editing: which tabs, and which parts of them, show
+    public EditingMode Mode { get; }
 
     public ScenesViewModel ScenesTab { get; }
 

@@ -152,7 +152,7 @@ public sealed partial class CharactersViewModel : ViewModelBase
 
         var frameTimeMilliseconds = FrameTimeMilliseconds;
         AfterChange(animation.Name);
-        _session.Status = $"{character} {animation.Name}: {frameCount} frames at {frameTimeMilliseconds} ms. Other animations of {character} still use their own frames.";
+        _session.Status = string.Create(CultureInfo.InvariantCulture, $"{character} {animation.Name}: {frameCount} frames at {frameTimeMilliseconds} ms. Other animations of {character} still use their own frames.");
     }
 
     [RelayCommand]
@@ -189,7 +189,7 @@ public sealed partial class CharactersViewModel : ViewModelBase
         }))
         {
             AfterChange(animation.Name);
-            _session.Status = $"{SelectedCharacter} {animation.Name}: {loopKeys.Count} frames at {frameTimeMilliseconds} ms ({duration:0.###} s per loop).";
+            _session.Status = string.Create(CultureInfo.InvariantCulture, $"{SelectedCharacter} {animation.Name}: {loopKeys.Count} frames at {frameTimeMilliseconds} ms ({duration:0.###} s per loop).");
         }
     }
 
@@ -282,7 +282,7 @@ public sealed partial class CharactersViewModel : ViewModelBase
             : null;
         CharacterSizeText = node is null
             ? ""
-            : $"Frames {CurrentCharacterFrameSize?.Width} x {CurrentCharacterFrameSize?.Height}, drawn at {node.Width:0} x {node.Height:0} in {node.Scene}";
+            : string.Create(CultureInfo.InvariantCulture, $"Frames {CurrentCharacterFrameSize?.Width} x {CurrentCharacterFrameSize?.Height}, drawn at {node.Width:0} x {node.Height:0} in {node.Scene}");
     }
 
     partial void OnSelectedAnimationChanged(CharacterAnimation? value)

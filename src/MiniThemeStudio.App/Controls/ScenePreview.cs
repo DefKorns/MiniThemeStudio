@@ -223,7 +223,7 @@ public sealed class ScenePreview : Control
             drag.IsMoving = true;
             drag.Offset = new Vector(Math.Round(drag.OriginX + delta.X) - drag.OriginX, Math.Round(drag.OriginY + delta.Y) - drag.OriginY);
             Cursor = new Cursor(StandardCursorType.SizeAll);
-            ToolTip.SetTip(this, $"{drag.OriginX + drag.Offset.X:0.##}, {drag.OriginY + drag.Offset.Y:0.##}");
+            ToolTip.SetTip(this, string.Create(CultureInfo.InvariantCulture, $"{drag.OriginX + drag.Offset.X:0.##}, {drag.OriginY + drag.Offset.Y:0.##}"));
             InvalidateVisual();
             return;
         }

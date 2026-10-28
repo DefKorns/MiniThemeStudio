@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -261,7 +262,7 @@ public sealed partial class ScenesViewModel : ViewModelBase
             return Task.CompletedTask;
         }))
         {
-            ShowEditedNode(node.Path, $"{scene.FileName}: moved {node.Name} to {move.X:0.##}, {move.Y:0.##}.");
+            ShowEditedNode(node.Path, string.Create(CultureInfo.InvariantCulture, $"{scene.FileName}: moved {node.Name} to {move.X:0.##}, {move.Y:0.##}."));
         }
     }
 

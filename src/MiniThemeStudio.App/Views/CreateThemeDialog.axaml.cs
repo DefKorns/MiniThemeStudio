@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using Avalonia.Controls;
@@ -72,7 +73,7 @@ public sealed partial class CreateThemeDialog : Window
                 matches
                     .Select(match => new BaseChoice(
                         match.Base,
-                        $"{match.Base.Definition.DisplayName} v{match.Base.Definition.Version} ({match.CoveragePercent:0.0}% fit)"))
+                        string.Create(CultureInfo.InvariantCulture, $"{match.Base.Definition.DisplayName} v{match.Base.Definition.Version} ({match.CoveragePercent:0.0}% fit)")))
                     .ToList(),
                 matches[0].Base);
             ValidationText.Text = matches[0].CoveragePercent < 90

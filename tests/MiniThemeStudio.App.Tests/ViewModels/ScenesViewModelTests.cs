@@ -155,6 +155,44 @@ public sealed class ScenesViewModelTests : IDisposable
     }
 
     [Fact]
+    public void AnAnimationOfTheScenePlaysInThePreviewOnly()
+    {
+        // the wall slides 100 px to the right over one second
+        TestApp.WriteFile(_app.Window.CurrentDraftPath!, "dependencies.json", """
+            {"resources":[
+              {"id":"scene","type":"Scene","dependencies":[{"id":"wall","refCount":1}],"path":"/prefab/bg.scn","groupId":"1"},
+              {"id":"wall","type":"TextureResource","path":"/layout/asset/sprite/wallpaper/wall.png","groupId":"2"},
+              {"id":"slide","type":"SceneAnimation","path":"/layout/lyt_slide.sceneanimation","groupId":"3"}
+            ],"resourceGroups":[]}
+            """);
+        TestApp.WriteFile(_app.Window.CurrentDraftPath!, "resources/layout/lyt_slide.sceneanimation", """
+            {"duration":1,"animations":[{"worldNodePath":["wall"],"type":"float","propertyId":"LocalPositionX","keyCurves":[{"time":0,"interp":"linear","value":[0,100]},{"time":1,"value":100}]}]}
+            """);
+        _app.Session.Reload();
+        var scenes = _app.Window.ScenesTab;
+        Assert.Same(scenes.CurrentScene!.Root, scenes.PreviewRoot);
+
+        scenes.SelectedAnimation = Assert.Single(scenes.SceneAnimations);
+        scenes.AnimationTime = 0.25;
+
+        Assert.Equal("", scenes.SelectedScenePath);
+        Assert.Equal(25, scenes.PreviewRoot!.Children[0].Transform.X, 6);
+        Assert.Equal(0, scenes.CurrentScene!.Root.Children[0].Transform.X);
+        Assert.Equal("0.25 / 1.00 s", scenes.AnimationTimeText);
+
+        scenes.TogglePlayCommand.Execute(null);
+        Assert.True(scenes.IsPlaying);
+        scenes.TogglePlayCommand.Execute(null);
+        Assert.False(scenes.IsPlaying);
+
+        scenes.StopAnimationCommand.Execute(null);
+
+        Assert.Null(scenes.SelectedAnimation);
+        Assert.Same(scenes.CurrentScene!.Root, scenes.PreviewRoot);
+        Assert.False(scenes.TogglePlayCommand.CanExecute(null));
+    }
+
+    [Fact]
     public void ASpriteNodeAsksTheWindowToShowItsSprite()
     {
         // a scene node drawing an atlas sprite that no atlas of the theme has

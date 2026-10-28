@@ -257,25 +257,26 @@ public sealed class ScenePreview : Control
             || !int.TryParse(BranchPath, NumberStyles.None, CultureInfo.InvariantCulture, out var index)
             || index >= root.Children.Count)
         {
-            Collect(root, screenMatrix, false);
+            Collect(root, screenMatrix, false, 1);
             return;
         }
 
         var rootWorld = ToMatrix(root.Transform) * screenMatrix;
         _worlds[root.Path] = rootWorld;
         var branch = root.Children[index];
-        Collect(branch, rootWorld, !root.Visible || !root.Enabled);
+        Collect(branch, rootWorld, !root.Visible || !root.Enabled, root.Alpha);
 
         // menus waiting off screen (e.g. at y=720) are slid in by scripts: show them where they are used
         if (_items.Count > 0 && !_items.SelectMany(Corners).Any(_screen.Contains))
         {
             _items = [];
             _worlds = new Dictionary<string, Matrix> { [root.Path] = rootWorld };
-            Collect(branch with { Transform = branch.Transform with { X = 0, Y = 0 } }, rootWorld, !root.Visible || !root.Enabled);
+            Collect(branch with { Transform = branch.Transform with { X = 0, Y = 0 } }, rootWorld, !root.Visible || !root.Enabled, root.Alpha);
         }
     }
 
-    private void Collect(SceneNode node, Matrix parentWorld, bool hiddenAncestor)
+    // alpha is what the node's ancestors leave of its opacity
+    private void Collect(SceneNode node, Matrix parentWorld, bool hiddenAncestor, double alpha)
     {
         var hidden = hiddenAncestor || !node.Visible || !node.Enabled;
         if (hidden && !ShowHidden)
@@ -288,18 +289,19 @@ public sealed class ScenePreview : Control
             : node.Transform;
         var world = ToMatrix(transform) * parentWorld;
         _worlds[node.Path] = world;
-        if (node.Visual is { } visual && CreateItem(node, visual, world, hidden) is { } item)
+        alpha *= Math.Clamp(node.Alpha, 0, 1);
+        if (node.Visual is { } visual && CreateItem(node, visual, world, hidden, alpha) is { } item)
         {
             _items.Add(item);
         }
 
         foreach (var child in node.Children.OrderBy(child => child.ZIndex))
         {
-            Collect(child, world, hidden);
+            Collect(child, world, hidden, alpha);
         }
     }
 
-    private DrawItem? CreateItem(SceneNode node, SceneVisual visual, Matrix world, bool hidden)
+    private DrawItem? CreateItem(SceneNode node, SceneVisual visual, Matrix world, bool hidden, double alpha)
     {
         FormattedText? text = null;
         SceneImage? image = null;
@@ -340,13 +342,13 @@ public sealed class ScenePreview : Control
             imageToNode = new Matrix(-1, 0, 0, 1, width, 0) * imageToNode;
         }
 
-        return new DrawItem(node, visual, imageToNode * world, new Size(width, height), image, text, hidden);
+        return new DrawItem(node, visual, imageToNode * world, new Size(width, height), image, text, hidden, alpha);
     }
 
     private static void Draw(DrawingContext context, DrawItem item)
     {
         using var transform = context.PushTransform(item.Transform);
-        using var opacity = context.PushOpacity(Math.Clamp(item.Visual.Opacity, 0, 1) * (item.Hidden ? 0.35 : 1));
+        using var opacity = context.PushOpacity(Math.Clamp(item.Visual.Opacity, 0, 1) * item.Alpha * (item.Hidden ? 0.35 : 1));
         if (item.Text is { } text)
         {
             context.DrawText(text, default);
@@ -365,12 +367,18 @@ public sealed class ScenePreview : Control
         var tile = new Size(item.Size.Width / columns, item.Size.Height / rows);
         var scaleX = tile.Width / Math.Max(1, image.LogicalSize.Width);
         var scaleY = tile.Height / Math.Max(1, image.LogicalSize.Height);
+
+        // uvOffset slides the texture inside the node (scrolling backgrounds animate it): the tiles move left and
+        // wrap around, so one more column fills the gap they leave
+        var shift = item.Visual.OffsetX - Math.Floor(item.Visual.OffsetX);
+        using var clip = shift > 0 ? context.PushClip(new Rect(item.Size)) : default(DrawingContext.PushedState?);
+        var lastColumn = shift > 0 ? columns : columns - 1;
         for (var row = 0; row < rows; row++)
         {
-            for (var column = 0; column < columns; column++)
+            for (var column = 0; column <= lastColumn; column++)
             {
                 var destination = new Rect(
-                    column * tile.Width + image.Placement.X * scaleX,
+                    (column - shift) * tile.Width + image.Placement.X * scaleX,
                     row * tile.Height + image.Placement.Y * scaleY,
                     image.Placement.Width * scaleX,
                     image.Placement.Height * scaleY);
@@ -481,5 +489,6 @@ public sealed class ScenePreview : Control
         Size Size,
         SceneImage? Image,
         FormattedText? Text,
-        bool Hidden);
+        bool Hidden,
+        double Alpha);
 }

@@ -409,19 +409,37 @@
 
           <!-- Preview -->
           <Border Grid.Column="1" Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
-            <Grid RowDefinitions="Auto,*,Auto">
+            <Grid RowDefinitions="Auto,Auto,*,Auto">
               <StackPanel Margin="12,8" Orientation="Horizontal" Spacing="16">
                 <CheckBox IsChecked="{Binding IsolateSceneBranch}" Content="Only the selected branch" ToolTip.Tip="Draw only the menu or background the selected node belongs to" />
                 <CheckBox IsChecked="{Binding ShowHiddenSceneNodes}" Content="Show hidden nodes" />
               </StackPanel>
-              <controls:ScenePreview Grid.Row="1" Margin="12,0"
-                                     Root="{Binding CurrentScene.Root}"
+              <Grid Grid.Row="1" Margin="12,0,12,8" ColumnDefinitions="240,Auto,Auto,*,Auto" ColumnSpacing="8">
+                <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding SceneAnimations}" SelectedItem="{Binding SelectedAnimation}" PlaceholderText="Play an animation..."
+                          ToolTip.Tip="The animations whose nodes are all in this scene; scripts start them on the console">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="scenes:SceneAnimationBinding">
+                      <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <ToggleButton Grid.Column="1" Padding="10,5" IsChecked="{Binding IsPlaying, Mode=OneWay}" Command="{Binding TogglePlayCommand}" ToolTip.Tip="Play in a loop, or pause">
+                  <lucide:LucideIcon Kind="Play" Size="14" />
+                </ToggleButton>
+                <Button Grid.Column="2" Padding="10,5" Command="{Binding StopAnimationCommand}" ToolTip.Tip="Back to the scene as it is saved">
+                  <lucide:LucideIcon Kind="Square" Size="14" />
+                </Button>
+                <Slider Grid.Column="3" VerticalAlignment="Center" Minimum="0" Maximum="{Binding AnimationDuration}" Value="{Binding AnimationTime}" IsEnabled="{Binding HasAnimation}" />
+                <TextBlock Grid.Column="4" MinWidth="90" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding AnimationTimeText}" />
+              </Grid>
+              <controls:ScenePreview Grid.Row="2" Margin="12,0"
+                                     Root="{Binding PreviewRoot}"
                                      SelectedPath="{Binding SelectedScenePath}"
                                      BranchPath="{Binding PreviewBranchPath}"
                                      ShowHidden="{Binding ShowHiddenSceneNodes}"
                                      Images="{Binding SceneImages}"
                                      MoveCommand="{Binding MoveNodeCommand}" />
-              <TextBlock Grid.Row="2" Margin="12,8" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
+              <TextBlock Grid.Row="3" Margin="12,8" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
                          Text="Click an image to select its node and drag it to move it; drag inside a selected group to move the whole group. This is the layout saved in the scene; scripts and animations can still move, show or hide nodes on the console." />
             </Grid>
           </Border>

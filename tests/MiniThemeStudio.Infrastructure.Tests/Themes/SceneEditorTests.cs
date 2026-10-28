@@ -238,6 +238,38 @@ public sealed class SceneEditorTests : IDisposable
         Assert.False(File.Exists(Path.Combine(_themePath, "resources", "prefab", "bg.scn")));
     }
 
+    [Fact]
+    public void FindsTheAnimationsTheSceneCanPlay()
+    {
+        var dependencies = File.ReadAllText(Path.Combine(_basePath, "dependencies.json"));
+        WriteFile(_basePath, "dependencies.json", dependencies.Replace(
+            """{"id":"missing",""",
+            """{"id":"blink","type":"SceneAnimation","path":"/layout/lyt_blink.sceneanimation","groupId":"7"},{"id":"other","type":"SceneAnimation","path":"/layout/lyt_other.sceneanimation","groupId":"8"},{"id":"missing",""",
+            StringComparison.Ordinal));
+        WriteFile(_basePath, "resources/layout/lyt_blink.sceneanimation", """
+            {"duration":0.5,"animations":[
+              {"worldNodePath":["cursor"],"type":"float","propertyId":"LocalPositionX","keyCurves":[{"time":0,"interp":"linear","value":[0,40]},{"time":0.5,"value":40}]},
+              {"worldNodePath":["title"],"type":"bool","propertyId":"Visible","keyCurves":[{"time":0,"value":true},{"time":0.25,"value":false}]},
+              {"worldNodePath":["title"],"type":"resource","componentType":"TextureComponent","propertyId":"Texture","keyCurves":[{"time":0,"value":"t1"}]},
+              {"worldNodePath":["cursor"],"type":"float","propertyId":"Alpha","keyCurves":[{"time":0,"interp":"hermite","value":[1,0,-2,-2]}]}
+            ]}
+            """);
+        WriteFile(_basePath, "resources/layout/lyt_other.sceneanimation", """
+            {"duration":1,"animations":[{"worldNodePath":["Sprite_Mario"],"type":"float","propertyId":"Alpha","keyCurves":[{"time":0,"value":1}]}]}
+            """);
+        var editor = new SceneEditor();
+
+        var binding = Assert.Single(editor.GetAnimations(_themePath, _basePath, editor.Load(_themePath, _basePath, "/prefab/bg.scn")));
+
+        Assert.Equal(("lyt_blink", "1", "Pane"), (binding.Clip.Name, binding.AnimatorPath, binding.AnimatorName));
+        Assert.Equal(0.5, binding.Clip.Duration);
+        var keys = binding.Clip.Tracks.Select(track => track.Keys[0]).ToList();
+        Assert.Equal(new CurveKey(0, CurveInterpolation.Linear, 0, 40), keys[0]);
+        Assert.Equal(true, keys[1].Flag);
+        Assert.Equal("t1", keys[2].Text);
+        Assert.Equal(new CurveKey(0, CurveInterpolation.Hermite, 1, 0, -2, -2), keys[3]);
+    }
+
     private JsonObject SceneRoot()
     {
         return JsonNode.Parse(File.ReadAllText(Path.Combine(_themePath, "resources", "prefab", "bg.scn")))!["rootWorldNode"]!.AsObject();

@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MiniThemeStudio.App.Controls;
@@ -48,6 +50,9 @@ public sealed partial class ScenesViewModel : ViewModelBase
     private readonly IFileDialogService _fileDialogs;
     private readonly IDialogService _dialogs;
     private readonly IErrorHandler _errorHandler;
+    private readonly Stopwatch _playClock = new();
+    private DispatcherTimer? _playTimer;
+    private double _playStart;
     private IReadOnlyList<SceneTreeRow> _allSceneRows = [];
     private Dictionary<string, string> _textureImagePaths = new(StringComparer.Ordinal);
 
@@ -82,6 +87,25 @@ public sealed partial class ScenesViewModel : ViewModelBase
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(AddImageCommand))]
     private SceneDocument? currentScene;
+
+    // what the preview draws: the saved scene, or the scene as the selected animation shows it at AnimationTime
+    [ObservableProperty]
+    private SceneNode? previewRoot;
+
+    [ObservableProperty]
+    private IReadOnlyList<SceneAnimationBinding> sceneAnimations = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAnimation), nameof(AnimationDuration), nameof(AnimationTimeText))]
+    [NotifyCanExecuteChangedFor(nameof(TogglePlayCommand), nameof(StopAnimationCommand))]
+    private SceneAnimationBinding? selectedAnimation;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AnimationTimeText))]
+    private double animationTime;
+
+    [ObservableProperty]
+    private bool isPlaying;
 
     [ObservableProperty]
     private IReadOnlyList<SceneTreeRow> sceneRows = [];
@@ -141,6 +165,14 @@ public sealed partial class ScenesViewModel : ViewModelBase
     private SceneTextureChoice? sceneNodeTexture;
 
     public bool HasSelectedSceneNode => SelectedSceneNode is not null;
+
+    public bool HasAnimation => SelectedAnimation is not null;
+
+    public double AnimationDuration => SelectedAnimation?.Clip.Duration ?? 0;
+
+    public string AnimationTimeText => SelectedAnimation is null
+        ? ""
+        : string.Create(CultureInfo.InvariantCulture, $"{AnimationTime:0.00} / {AnimationDuration:0.00} s");
 
     public bool SelectedNodeDrawsImage => SelectedSceneNode?.Visual is { Kind: SceneVisualKind.Texture or SceneVisualKind.Sprite };
 
@@ -303,6 +335,30 @@ public sealed partial class ScenesViewModel : ViewModelBase
         }
     }
 
+    // plays the selected animation in a loop, or pauses it where it is
+    [RelayCommand(CanExecute = nameof(HasAnimation))]
+    private void TogglePlay()
+    {
+        if (IsPlaying)
+        {
+            StopTimer();
+            return;
+        }
+
+        _playClock.Restart();
+        _playStart = AnimationTime >= AnimationDuration ? 0 : AnimationTime;
+        _playTimer ??= new DispatcherTimer(TimeSpan.FromSeconds(1.0 / 60), DispatcherPriority.Render, (_, _) => AdvanceAnimation());
+        _playTimer.Start();
+        IsPlaying = true;
+    }
+
+    // back to the scene as it is saved
+    [RelayCommand(CanExecute = nameof(HasAnimation))]
+    private void StopAnimation()
+    {
+        SelectedAnimation = null;
+    }
+
     [RelayCommand]
     private void ResetSceneNodeFields()
     {
@@ -444,8 +500,59 @@ public sealed partial class ScenesViewModel : ViewModelBase
             AddRows(scene.Root, 0, rows);
         }
 
+        // the animation keeps playing over the reloaded scene when the scene still has it
+        var previousAnimation = SelectedAnimation?.Clip.ResourcePath;
+        SceneAnimations = CurrentScene is { } loaded ? _sceneEditor.GetAnimations(_session.Draft.DraftPath, _session.BaseUiPath, loaded) : [];
+        SelectedAnimation = SceneAnimations.FirstOrDefault(binding => binding.Clip.ResourcePath == previousAnimation);
+
         _allSceneRows = rows;
         ApplySceneSearch();
+    }
+
+    partial void OnCurrentSceneChanged(SceneDocument? value) => UpdatePreviewRoot();
+
+    partial void OnAnimationTimeChanged(double value) => UpdatePreviewRoot();
+
+    partial void OnSelectedAnimationChanged(SceneAnimationBinding? oldValue, SceneAnimationBinding? newValue)
+    {
+        if (newValue is null)
+        {
+            StopTimer();
+            AnimationTime = 0;
+        }
+        else if (oldValue?.Clip.ResourcePath != newValue.Clip.ResourcePath)
+        {
+            // a new animation starts from the beginning, with the node that plays it selected so its branch shows
+            AnimationTime = 0;
+            SelectedScenePath = newValue.AnimatorPath;
+        }
+
+        UpdatePreviewRoot();
+    }
+
+    private void UpdatePreviewRoot()
+    {
+        PreviewRoot = CurrentScene?.Root is { } root && SelectedAnimation is { } animation
+            ? SceneAnimationEvaluator.Apply(root, animation, AnimationTime)
+            : CurrentScene?.Root;
+    }
+
+    private void AdvanceAnimation()
+    {
+        if (AnimationDuration <= 0)
+        {
+            StopTimer();
+            return;
+        }
+
+        AnimationTime = (_playStart + _playClock.Elapsed.TotalSeconds) % AnimationDuration;
+    }
+
+    private void StopTimer()
+    {
+        _playTimer?.Stop();
+        _playClock.Stop();
+        IsPlaying = false;
     }
 
     partial void OnSceneSearchTextChanged(string value)

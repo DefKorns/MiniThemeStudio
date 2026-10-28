@@ -139,6 +139,32 @@ public sealed class SceneEditor : ISceneEditor
         layer.WriteThemeResource(sceneResourcePath, EngineJson.ToCompactString(scene));
     }
 
+    public IReadOnlyList<SceneAnimationBinding> GetAnimations(string themePath, string? baseUiPath, SceneDocument scene)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+        var layer = new ThemeLayer(themePath, baseUiPath);
+
+        // the console's animators are the nodes with an AnimatorComponent; any node may hold the tracks' nodes
+        var candidates = scene.Root.SelfAndDescendants()
+            .OrderByDescending(node => node.ComponentTypes.Contains("AnimatorComponent"))
+            .ToList();
+        var bindings = new List<SceneAnimationBinding>();
+        foreach (var path in (DependencyManifest.TryLoad(layer)?.OfType(DependencyManifest.SceneAnimation) ?? []).Select(resource => resource.Path).OfType<string>().Distinct(StringComparer.Ordinal))
+        {
+            if (layer.Resolve(path) is not { } file || ReadClip(path, file) is not { Tracks.Count: > 0 } clip)
+            {
+                continue;
+            }
+
+            if (candidates.FirstOrDefault(node => clip.Tracks.All(track => SceneAnimationEvaluator.Resolve(node, track.NodePath) is not null)) is { } animator)
+            {
+                bindings.Add(new SceneAnimationBinding(clip, animator.Path, animator.Name));
+            }
+        }
+
+        return bindings.OrderBy(binding => binding.Clip.Name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
     public string ImportTexture(string themeDraftPath, string? baseUiPath, string sourceImagePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceImagePath);
@@ -257,6 +283,35 @@ public sealed class SceneEditor : ISceneEditor
             : throw new InvalidDataException($"Node {nodePath} not found.");
     }
 
+    private static SceneAnimationClip? ReadClip(string resourcePath, string file)
+    {
+        var animation = ParseScene(file);
+        var tracks = (animation["animations"] as JsonArray ?? []).OfType<JsonObject>()
+            .Where(track => track["worldNodePath"] is JsonArray { Count: > 0 } && String(track["propertyId"]) is not null)
+            .Select(track => new SceneAnimationTrack(
+                ((JsonArray)track["worldNodePath"]!).Select(String).OfType<string>().ToList(),
+                String(track["propertyId"])!,
+                String(track["componentType"]),
+                (track["keyCurves"] as JsonArray ?? []).OfType<JsonObject>().Select(ReadKey).OrderBy(key => key.Time).ToList()))
+            .ToList();
+        return new SceneAnimationClip(resourcePath, Double(animation["duration"]) ?? 0, tracks);
+    }
+
+    // "value" is a number, a texture id or a flag held until the next key, or [from, to] ("linear"),
+    // or [from, to, tangent out, tangent in] ("hermite")
+    private static CurveKey ReadKey(JsonObject key)
+    {
+        var time = Double(key["time"]) ?? 0;
+        if (key["value"] is JsonArray curve)
+        {
+            double At(int index) => index < curve.Count ? Double(curve[index]) ?? 0 : 0;
+            var interpolation = String(key["interp"]) == "hermite" && curve.Count >= 4 ? CurveInterpolation.Hermite : CurveInterpolation.Linear;
+            return new CurveKey(time, interpolation, At(0), At(1), At(2), At(3));
+        }
+
+        return new CurveKey(time, CurveInterpolation.Constant, Double(key["value"]) ?? 0, Text: String(key["value"]), Flag: Bool(key["value"]));
+    }
+
     private static SceneNode ReadNode(JsonObject node, string path)
     {
         var components = (node["components"] as JsonArray ?? []).OfType<JsonObject>().ToList();
@@ -273,7 +328,8 @@ public sealed class SceneEditor : ISceneEditor
             Bool(node["enabled"]) ?? true,
             components.Select(component => String(component["type"]) ?? "?").ToList(),
             ReadVisual(components),
-            children);
+            children,
+            node["color"] is JsonArray { Count: 4 } color ? Double(color[3]) ?? 1 : 1);
     }
 
     private static SceneTransform ReadTransform(JsonNode? value)
@@ -319,7 +375,8 @@ public sealed class SceneEditor : ISceneEditor
                 repeat?.First ?? 1,
                 repeat?.Second ?? 1,
                 Bool(component["hFlip"]) ?? false,
-                color is { Count: 4 } ? Double(color[3]) ?? 1 : 1);
+                color is { Count: 4 } ? Double(color[3]) ?? 1 : 1,
+                Pair(component["uvOffset"])?.First ?? 0);
         }
 
         return null;

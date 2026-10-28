@@ -14,7 +14,8 @@ public enum SceneVisualKind
     Label,
 }
 
-// what a node draws: a whole texture (TextureComponent), an atlas sprite (SpriteComponent) or text (LabelComponent)
+// what a node draws: a whole texture (TextureComponent), an atlas sprite (SpriteComponent) or text (LabelComponent);
+// OffsetX slides the texture inside the node, in widths of the node (uvOffset, which scrolling backgrounds animate)
 public sealed record SceneVisual(
     SceneVisualKind Kind,
     string? TextureId,
@@ -27,11 +28,13 @@ public sealed record SceneVisual(
     double RepeatX,
     double RepeatY,
     bool HorizontalFlip,
-    double Opacity)
+    double Opacity,
+    double OffsetX = 0)
 {
     public bool HasSize => Width > 0 && Height > 0;
 }
 
+// Alpha is the node's own opacity, which its children inherit
 public sealed record SceneNode(
     string Path,
     string Name,
@@ -41,7 +44,8 @@ public sealed record SceneNode(
     bool Enabled,
     IReadOnlyList<string> ComponentTypes,
     SceneVisual? Visual,
-    IReadOnlyList<SceneNode> Children)
+    IReadOnlyList<SceneNode> Children,
+    double Alpha = 1)
 {
     public string ComponentsText => ComponentTypes.Count == 0 ? "" : string.Join(", ", ComponentTypes.Select(type => type.Replace("Component", "", StringComparison.Ordinal)));
 
@@ -82,6 +86,9 @@ public interface ISceneEditor
 
     // the node is addressed by its child indexes from the root ("" is the root, "2/0" the first child of the third child)
     void EditNode(string themeDraftPath, string? baseUiPath, string sceneResourcePath, string nodePath, SceneNodeEdit edit);
+
+    // the .sceneanimation files whose tracks all name nodes of the scene, with the node that plays each one
+    IReadOnlyList<SceneAnimationBinding> GetAnimations(string themePath, string? baseUiPath, SceneDocument scene);
 
     // registers a PNG as a new texture of the theme and returns its texture id
     string ImportTexture(string themeDraftPath, string? baseUiPath, string sourceImagePath);

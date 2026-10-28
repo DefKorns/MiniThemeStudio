@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Avalonia.Media.Imaging;
 using MiniThemeStudio.App.Models;
 using MiniThemeStudio.Core.Firmware;
 using MiniThemeStudio.Core.Settings;
@@ -20,4 +21,7 @@ public interface IAppDialogs
     Task<InstalledBaseInfo?> SelectBaseAsync(IReadOnlyList<InstalledBaseInfo> installedBases, InstalledBaseInfo? preferred, string message);
 
     Task<SavedDraft?> PickSavedDraftAsync(Func<IReadOnlyList<SavedDraft>> listDrafts, Func<SavedDraft, Task<bool>> deleteDraft);
+
+    // frames cut from a sprite sheet; referenceFrame is shown next to them for comparison
+    Task<SpriteSheetResult?> ImportSpriteSheetAsync(string title, AtlasSize? currentFrameSize, Bitmap? referenceFrame);
 }

@@ -56,7 +56,8 @@ public partial class MainWindowViewModel : ViewModelBase
         ThemeSession session,
         ScenesViewModel scenesTab,
         SpritesViewModel spritesTab,
-        WallpapersViewModel wallpapersTab)
+        WallpapersViewModel wallpapersTab,
+        CharactersViewModel charactersTab)
     {
         _metadataReader = metadataReader;
         _themeDraftService = themeDraftService;
@@ -78,6 +79,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ScenesTab = scenesTab;
         SpritesTab = spritesTab;
         WallpapersTab = wallpapersTab;
+        CharactersTab = charactersTab;
         ScenesTab.SpriteRequested += (_, request) =>
         {
             if (SpritesTab.ShowSprite(request))
@@ -109,6 +111,8 @@ public partial class MainWindowViewModel : ViewModelBase
     public SpritesViewModel SpritesTab { get; }
 
     public WallpapersViewModel WallpapersTab { get; }
+
+    public CharactersViewModel CharactersTab { get; }
 
     // the workspace tab shown; 0 is Sprites
     [ObservableProperty]
@@ -422,7 +426,6 @@ public partial class MainWindowViewModel : ViewModelBase
             UnusedImages = [];
             MissingTextures = [];
             Fonts = [];
-            ReloadCharacters();
             ReloadBgmTracks();
             SelectedFont = null;
             _session.Reload();
@@ -445,7 +448,6 @@ public partial class MainWindowViewModel : ViewModelBase
 
         MissingTextures = report.MissingTextures;
         SelectedMissingTexture = MissingTextures.Count > 0 ? MissingTextures[0] : null;
-        ReloadCharacters();
         ReloadFonts();
         ReloadPalettes();
         ReloadBgmTracks();

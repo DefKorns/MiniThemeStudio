@@ -9,11 +9,11 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using MiniThemeStudio.App.Models;
 using MiniThemeStudio.Core.Themes;
 
 namespace MiniThemeStudio.App.Views;
 
-public sealed record SpriteSheetResult(IReadOnlyList<string> FramePaths, AtlasSize FrameSize);
 
 public sealed partial class SpriteSheetDialog : Window
 {

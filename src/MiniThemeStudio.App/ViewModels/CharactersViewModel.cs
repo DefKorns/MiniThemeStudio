@@ -1,10 +1,16 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using MiniThemeStudio.App.Dialogs;
+using MiniThemeStudio.App.Errors;
+using MiniThemeStudio.App.Services;
 using MiniThemeStudio.Core.Themes;
 
 namespace MiniThemeStudio.App.ViewModels;
@@ -16,8 +22,33 @@ public sealed record AnimationFrameView(double Time, string TextureId, string Na
     public double Opacity => IsLoopFrame ? 1 : 0.45;
 }
 
-public partial class MainWindowViewModel
+// The Characters tab: the animations of the characters running in the menu, their frames and timing.
+public sealed partial class CharactersViewModel : ViewModelBase
 {
+    private readonly ThemeSession _session;
+    private readonly ICharacterAnimationEditor _characterEditor;
+    private readonly IThemeAssetManager _assetManager;
+    private readonly IAppDialogs _appDialogs;
+    private readonly IDialogService _dialogService;
+    private readonly IErrorHandler _errorHandler;
+
+    public CharactersViewModel(
+        ThemeSession session,
+        ICharacterAnimationEditor characterEditor,
+        IThemeAssetManager assetManager,
+        IAppDialogs appDialogs,
+        IDialogService dialogService,
+        IErrorHandler errorHandler)
+    {
+        _session = session;
+        _characterEditor = characterEditor;
+        _assetManager = assetManager;
+        _appDialogs = appDialogs;
+        _dialogService = dialogService;
+        _errorHandler = errorHandler;
+        _session.Reloaded += (_, _) => Reload();
+    }
+
     private IReadOnlyDictionary<string, CharacterTexture> _characterTextures = new Dictionary<string, CharacterTexture>();
     private readonly Dictionary<string, Bitmap?> _thumbnails = [];
 
@@ -42,139 +73,175 @@ public partial class MainWindowViewModel
     [ObservableProperty]
     private decimal frameTimeMilliseconds = 50;
 
+    // the window preview is drawn flipped; turned off once the frames themselves were flipped
+    [ObservableProperty]
+    private bool isPreviewMirrored;
+
     public AtlasSize? CurrentCharacterFrameSize { get; private set; }
 
-    public bool ReplaceAnimationFrames(IReadOnlyList<string> framePaths, AtlasSize frameSize, bool resizeCharacter)
+    [RelayCommand]
+    private async Task ReplaceFramesAsync()
     {
         if (_session.Draft is null || SelectedCharacter is not { } character || SelectedAnimation is not { } animation || PrimaryTrack(animation) is not { } track)
         {
-            Status = "Select a character animation first.";
-            return false;
+            return;
         }
 
-        try
+        var sheet = await _appDialogs.ImportSpriteSheetAsync(
+            $"Frames for {character} {animation.Name}",
+            CurrentCharacterFrameSize,
+            AnimationFrames.FirstOrDefault(frame => frame.IsLoopFrame)?.Thumbnail);
+        if (sheet is null)
         {
+            return;
+        }
+
+        var resizeCharacter = false;
+        if (CurrentCharacterFrameSize is { } current
+            && (current.Width != sheet.FrameSize.Width || current.Height != sheet.FrameSize.Height))
+        {
+            resizeCharacter = await _dialogService.ShowConfirmationAsync(
+                "Resize the character?",
+                $"The new frames are {sheet.FrameSize.Width} x {sheet.FrameSize.Height} but {character} is drawn from {current.Width} x {current.Height} frames. "
+                + "Resize the character in the scenes so the new frames are not stretched? Its other animations will then need frames of the same size.",
+                DialogVariant.Warning,
+                "Resize character",
+                "Keep current size",
+                false);
+        }
+
+        var draftPath = _session.Draft.DraftPath;
+        var frameTime = (double)FrameTimeMilliseconds / 1000;
+        var frameCount = 0;
+        if (!await RunAsync("Cannot replace frames", () =>
+        {
+            // the loop frames are replaced in place, extra frames become new textures
             var loopIds = track.Keys.Where(key => key.Time < animation.Duration).Select(key => key.TextureId).Distinct().ToList();
             var frameIds = new List<string>();
-            for (var index = 0; index < framePaths.Count; index++)
+            for (var index = 0; index < sheet.FramePaths.Count; index++)
             {
                 if (index < loopIds.Count && _characterTextures.TryGetValue(loopIds[index], out var existing))
                 {
-                    var relativePath = RelativeToRoot(existing.ImagePath);
                     _assetManager.ReplaceExtraAsset(
-                        Path.Combine(_session.Draft.DraftPath, relativePath),
-                        framePaths[index],
+                        Path.Combine(draftPath, RelativeToRoot(existing.ImagePath)),
+                        sheet.FramePaths[index],
                         Path.ChangeExtension(existing.ImagePath, ".json"));
                     frameIds.Add(loopIds[index]);
                 }
                 else
                 {
-                    frameIds.Add(_characterEditor.AddTexture(_session.Draft.DraftPath, _session.BaseUiPath, NextFrameRelativePath(loopIds), framePaths[index]));
+                    frameIds.Add(_characterEditor.AddTexture(draftPath, _session.BaseUiPath, NextFrameRelativePath(loopIds), sheet.FramePaths[index]));
                 }
             }
 
-            var frameTime = (double)FrameTimeMilliseconds / 1000;
             var duration = frameTime * frameIds.Count;
             var keys = frameIds.Select((id, index) => new AnimationKey(index * frameTime, id))
                 .Concat(track.Keys.Where(key => key.Time >= animation.Duration).Select(key => key with { Time = key.Time - animation.Duration + duration }))
                 .ToList();
-            _characterEditor.SetTrackKeys(_session.Draft.DraftPath, _session.BaseUiPath, animation.ResourcePath, track.NodeName, keys, duration);
+            _characterEditor.SetTrackKeys(draftPath, _session.BaseUiPath, animation.ResourcePath, track.NodeName, keys, duration);
             if (resizeCharacter)
             {
-                _characterEditor.SetFrameSize(_session.Draft.DraftPath, _session.BaseUiPath, character, frameSize);
+                _characterEditor.SetFrameSize(draftPath, _session.BaseUiPath, character, sheet.FrameSize);
             }
 
-            var animationName = animation.Name;
-            MarkChanged();
-            ReloadAssets();
-            SelectedAnimation = CharacterAnimations.FirstOrDefault(candidate => candidate.Name == animationName);
-            RunValidation();
-            Status = $"{character} {animationName}: {frameIds.Count} frames at {FrameTimeMilliseconds} ms. Other animations of {character} still use their own frames.";
-            return true;
-        }
-        catch (Exception exception) when (
-            exception is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException)
+            frameCount = frameIds.Count;
+        }))
         {
-            Status = exception.Message;
-            return false;
+            return;
+        }
+
+        var frameTimeMilliseconds = FrameTimeMilliseconds;
+        AfterChange(animation.Name);
+        _session.Status = $"{character} {animation.Name}: {frameCount} frames at {frameTimeMilliseconds} ms. Other animations of {character} still use their own frames.";
+    }
+
+    [RelayCommand]
+    private Task MirrorSelectedFramesAsync(IList? selectedFrames)
+    {
+        return MirrorFramesAsync((selectedFrames ?? Array.Empty<object>()).OfType<AnimationFrameView>().Select(frame => frame.TextureId).ToList());
+    }
+
+    [RelayCommand]
+    private Task MirrorAllFramesAsync()
+    {
+        return MirrorFramesAsync(SelectedAnimation?.Tracks.SelectMany(track => track.Keys).Select(key => key.TextureId).ToList() ?? []);
+    }
+
+    [RelayCommand]
+    private async Task ApplyFrameTimeAsync()
+    {
+        if (_session.Draft is null || SelectedAnimation is not { } animation || PrimaryTrack(animation) is not { } track)
+        {
+            return;
+        }
+
+        var draftPath = _session.Draft.DraftPath;
+        var loopKeys = track.Keys.Where(key => key.Time < animation.Duration).OrderBy(key => key.Time).ToList();
+        var frameTimeMilliseconds = FrameTimeMilliseconds;
+        var frameTime = (double)frameTimeMilliseconds / 1000;
+        var duration = frameTime * loopKeys.Count;
+        if (await RunAsync("Cannot change the frame time", () =>
+        {
+            var keys = loopKeys.Select((key, index) => key with { Time = index * frameTime })
+                .Concat(track.Keys.Where(key => key.Time >= animation.Duration).Select(key => key with { Time = key.Time - animation.Duration + duration }))
+                .ToList();
+            _characterEditor.SetTrackKeys(draftPath, _session.BaseUiPath, animation.ResourcePath, track.NodeName, keys, duration);
+        }))
+        {
+            AfterChange(animation.Name);
+            _session.Status = $"{SelectedCharacter} {animation.Name}: {loopKeys.Count} frames at {frameTimeMilliseconds} ms ({duration:0.###} s per loop).";
         }
     }
 
-    public bool MirrorFrames(IReadOnlyCollection<string> textureIds)
+    private async Task MirrorFramesAsync(List<string> textureIds)
     {
         if (_session.Draft is null || SelectedCharacter is not { } character || SelectedAnimation is not { } animation)
         {
-            Status = "Select a character animation first.";
-            return false;
+            return;
         }
 
         if (textureIds.Count == 0)
         {
-            Status = "Select the frames to flip.";
-            return false;
+            _session.Status = "Select the frames to flip.";
+            return;
         }
 
-        try
+        var draftPath = _session.Draft.DraftPath;
+        var distinct = textureIds.ToHashSet(StringComparer.Ordinal);
+        if (!await RunAsync("Cannot flip frames", () => _characterEditor.MirrorTextures(draftPath, _session.BaseUiPath, distinct)))
         {
-            var distinct = textureIds.ToHashSet(StringComparer.Ordinal);
-            _characterEditor.MirrorTextures(_session.Draft.DraftPath, _session.BaseUiPath, distinct);
-            var shared = CharacterAnimations
-                .Where(candidate => candidate.Name != animation.Name
-                    && candidate.Tracks.Any(track => track.Keys.Any(key => distinct.Contains(key.TextureId))))
-                .Select(candidate => candidate.Name)
-                .ToList();
+            return;
+        }
 
-            var animationName = animation.Name;
-            MarkChanged();
-            ReloadAssets();
-            SelectedAnimation = CharacterAnimations.FirstOrDefault(candidate => candidate.Name == animationName);
-            Status = $"{character} {animationName}: flipped {distinct.Count} frame{(distinct.Count == 1 ? "" : "s")} horizontally."
-                + (shared.Count > 0 ? $" Also used by {string.Join(", ", shared)}." : "");
-            return true;
-        }
-        catch (Exception exception) when (
-            exception is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException)
-        {
-            Status = exception.Message;
-            return false;
-        }
+        // frames are textures, so other animations showing them flip too
+        var shared = CharacterAnimations
+            .Where(candidate => candidate.Name != animation.Name
+                && candidate.Tracks.Any(track => track.Keys.Any(key => distinct.Contains(key.TextureId))))
+            .Select(candidate => candidate.Name)
+            .ToList();
+        IsPreviewMirrored = false;
+        AfterChange(animation.Name);
+        _session.Status = $"{character} {animation.Name}: flipped {distinct.Count} frame{(distinct.Count == 1 ? "" : "s")} horizontally."
+            + (shared.Count > 0 ? $" Also used by {string.Join(", ", shared)}." : "");
     }
 
-    public bool ApplyFrameTime()
+    // the theme reloads after a change; the animation that was edited stays selected
+    private void AfterChange(string animationName)
     {
-        if (_session.Draft is null || SelectedAnimation is not { } animation || PrimaryTrack(animation) is not { } track)
-        {
-            Status = "Select a character animation first.";
-            return false;
-        }
-
-        try
-        {
-            var loopKeys = track.Keys.Where(key => key.Time < animation.Duration).OrderBy(key => key.Time).ToList();
-            var frameTime = (double)FrameTimeMilliseconds / 1000;
-            var duration = frameTime * loopKeys.Count;
-            var keys = loopKeys.Select((key, index) => key with { Time = index * frameTime })
-                .Concat(track.Keys.Where(key => key.Time >= animation.Duration).Select(key => key with { Time = key.Time - animation.Duration + duration }))
-                .ToList();
-            _characterEditor.SetTrackKeys(_session.Draft.DraftPath, _session.BaseUiPath, animation.ResourcePath, track.NodeName, keys, duration);
-
-            var animationName = animation.Name;
-            var frameTimeMilliseconds = FrameTimeMilliseconds;
-            MarkChanged();
-            ReloadAssets();
-            SelectedAnimation = CharacterAnimations.FirstOrDefault(candidate => candidate.Name == animationName);
-            Status = $"{SelectedCharacter} {animationName}: {loopKeys.Count} frames at {frameTimeMilliseconds} ms ({duration:0.###} s per loop).";
-            return true;
-        }
-        catch (Exception exception) when (
-            exception is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException)
-        {
-            Status = exception.Message;
-            return false;
-        }
+        _session.NotifyContentChanged();
+        SelectedAnimation = CharacterAnimations.FirstOrDefault(candidate => candidate.Name == animationName) ?? SelectedAnimation;
     }
 
-    private void ReloadCharacters()
+    private Task<bool> RunAsync(string failure, Action action)
+    {
+        return _errorHandler.TryRunAsync(failure, () =>
+        {
+            action();
+            return Task.CompletedTask;
+        });
+    }
+
+    private void Reload()
     {
         if (_session.Draft is null)
         {

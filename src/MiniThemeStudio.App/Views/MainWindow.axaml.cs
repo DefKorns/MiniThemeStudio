@@ -25,7 +25,6 @@ namespace MiniThemeStudio.App.Views;
 public sealed partial class MainWindow : Window, IDisposable
 {
     private readonly IDialogService _dialogService;
-    private readonly ISpriteSheetImporter _spriteSheetImporter;
 
     private string _atlasImagePath = "";
     private bool _isCloseConfirmed;
@@ -38,17 +37,15 @@ public sealed partial class MainWindow : Window, IDisposable
 
     // for the XAML previewer only: the app builds the window through the service container
     public MainWindow()
-        : this(null!, null!, null)
+        : this(null!, null)
     {
     }
 
     public MainWindow(
         IDialogService dialogService,
-        ISpriteSheetImporter spriteSheetImporter,
         MainWindowViewModel? viewModel)
     {
         _dialogService = dialogService;
-        _spriteSheetImporter = spriteSheetImporter;
         DataContext = viewModel;
 
         InitializeComponent();
@@ -265,6 +262,7 @@ public sealed partial class MainWindow : Window, IDisposable
         {
             viewModel.PropertyChanged += ViewModel_PropertyChanged;
             viewModel.SpritesTab.PropertyChanged += SpritesTab_PropertyChanged;
+            viewModel.CharactersTab.PropertyChanged += CharactersTab_PropertyChanged;
         }
     }
 
@@ -280,11 +278,7 @@ public sealed partial class MainWindow : Window, IDisposable
             DisposePreview();
             _atlasImagePath = "";
         }
-        else if (e.PropertyName == nameof(MainWindowViewModel.AnimationFrames))
-        {
-            AnimationPreviewImage.Source = null;
-            _animationClock.Restart();
-        }
+
     }
 
     private void SpritesTab_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -305,9 +299,19 @@ public sealed partial class MainWindow : Window, IDisposable
         }
     }
 
+    // the animation preview starts again from its first frame when the frames change
+    private void CharactersTab_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(CharactersViewModel.AnimationFrames))
+        {
+            AnimationPreviewImage.Source = null;
+            _animationClock.Restart();
+        }
+    }
+
     private void AnimationTimer_Tick(object? sender, EventArgs e)
     {
-        if (DataContext is not MainWindowViewModel { SelectedAnimation.Duration: > 0 } viewModel)
+        if (DataContext is not MainWindowViewModel { CharactersTab: { SelectedAnimation.Duration: > 0 } viewModel })
         {
             return;
         }
@@ -344,87 +348,9 @@ public sealed partial class MainWindow : Window, IDisposable
         }
     }
 
-    private async void ApplyFrameTime_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainWindowViewModel viewModel && !viewModel.ApplyFrameTime())
-        {
-            await ShowErrorAsync("Cannot change the frame time", viewModel.Status);
-        }
-    }
-
     private void MirrorPreview_IsCheckedChanged(object? sender, RoutedEventArgs e)
     {
         AnimationPreviewImage.RenderTransform = MirrorPreviewCheckBox.IsChecked == true ? new ScaleTransform(-1, 1) : null;
-    }
-
-    private async void MirrorSelectedFrames_Click(object? sender, RoutedEventArgs e)
-    {
-        var textureIds = AnimationFramesList.SelectedItems?.OfType<AnimationFrameView>().Select(frame => frame.TextureId).ToList() ?? [];
-        await MirrorFramesAsync(textureIds);
-    }
-
-    private async void MirrorAllFrames_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainWindowViewModel { SelectedAnimation: { } animation })
-        {
-            await MirrorFramesAsync(animation.Tracks.SelectMany(track => track.Keys).Select(key => key.TextureId).ToList());
-        }
-    }
-
-    private async Task MirrorFramesAsync(IReadOnlyCollection<string> textureIds)
-    {
-        if (DataContext is not MainWindowViewModel viewModel)
-        {
-            return;
-        }
-
-        AnimationPreviewImage.Source = null;
-        if (viewModel.MirrorFrames(textureIds))
-        {
-            MirrorPreviewCheckBox.IsChecked = false;
-        }
-        else
-        {
-            await ShowErrorAsync("Cannot flip frames", viewModel.Status);
-        }
-    }
-
-    private async void ReplaceAnimationFrames_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel { SelectedAnimation: { } animation, SelectedCharacter: { } character } viewModel)
-        {
-            return;
-        }
-
-        var result = await new SpriteSheetDialog(
-            _spriteSheetImporter,
-            $"Frames for {character} {animation.Name}",
-            viewModel.CurrentCharacterFrameSize,
-            viewModel.AnimationFrames.FirstOrDefault(frame => frame.IsLoopFrame)?.Thumbnail).ShowDialog<SpriteSheetResult?>(this);
-        if (result is null)
-        {
-            return;
-        }
-
-        var resize = false;
-        if (viewModel.CurrentCharacterFrameSize is { } current
-            && (current.Width != result.FrameSize.Width || current.Height != result.FrameSize.Height))
-        {
-            resize = await _dialogService.ShowConfirmationAsync(
-                "Resize the character?",
-                $"The new frames are {result.FrameSize.Width} x {result.FrameSize.Height} but {character} is drawn from {current.Width} x {current.Height} frames. "
-                + "Resize the character in the scenes so the new frames are not stretched? Its other animations will then need frames of the same size.",
-                DialogVariant.Warning,
-                "Resize character",
-                "Keep current size",
-                false);
-        }
-
-        AnimationPreviewImage.Source = null;
-        if (!viewModel.ReplaceAnimationFrames(result.FramePaths, result.FrameSize, resize))
-        {
-            await ShowErrorAsync("Cannot replace frames", viewModel.Status);
-        }
     }
 
     private void AtlasZoom1x_Click(object? sender, RoutedEventArgs e) => AtlasCanvas.Zoom = 1;

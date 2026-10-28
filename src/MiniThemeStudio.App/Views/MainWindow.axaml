@@ -423,7 +423,7 @@
 
       <!-- CHARACTERS -->
       <TabItem Header="Characters">
-        <Grid ColumnDefinitions="260,*,320" Margin="16,12">
+        <Grid DataContext="{Binding CharactersTab}" x:DataType="vm:CharactersViewModel" ColumnDefinitions="260,*,320" Margin="16,12">
           <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid RowDefinitions="Auto,*" Margin="12">
               <StackPanel Spacing="8">
@@ -476,22 +476,22 @@
                 <Border Height="220" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
                   <Image x:Name="AnimationPreviewImage" Margin="12" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
                 </Border>
-                <CheckBox x:Name="MirrorPreviewCheckBox" Content="Preview flipped" IsCheckedChanged="MirrorPreview_IsCheckedChanged"
+                <CheckBox x:Name="MirrorPreviewCheckBox" Content="Preview flipped" IsChecked="{Binding IsPreviewMirrored}" IsCheckedChanged="MirrorPreview_IsCheckedChanged"
                           ToolTip.Tip="Show the animation flipped horizontally without changing any frame" />
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                  <Button Padding="12,8" Click="MirrorSelectedFrames_Click" Content="Flip selected"
+                  <Button Padding="12,8" Command="{Binding MirrorSelectedFramesCommand}" CommandParameter="{Binding #AnimationFramesList.SelectedItems}" Content="Flip selected"
                           ToolTip.Tip="Flip the pixels of the selected frames horizontally" />
-                  <Button Padding="12,8" Click="MirrorAllFrames_Click" Content="Flip all frames"
+                  <Button Padding="12,8" Command="{Binding MirrorAllFramesCommand}" Content="Flip all frames"
                           ToolTip.Tip="Flip every frame of this animation horizontally, each texture once" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="8">
                   <TextBlock VerticalAlignment="Center" Text="Frame time (ms)" />
                   <NumericUpDown Width="130" Minimum="10" Maximum="1000" Increment="5" FormatString="0.#" Value="{Binding FrameTimeMilliseconds}" />
                 </StackPanel>
-                <Button Padding="12,8" HorizontalAlignment="Stretch" Click="ApplyFrameTime_Click" Content="Apply frame time"
+                <Button Padding="12,8" HorizontalAlignment="Stretch" Command="{Binding ApplyFrameTimeCommand}" Content="Apply frame time"
                         ToolTip.Tip="Space the loop frames of this animation evenly at this frame time" />
                 <Button Padding="12,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold"
-                        Click="ReplaceAnimationFrames_Click" Content="Replace frames from sprite sheet..." />
+                        Command="{Binding ReplaceFramesCommand}" Content="Replace frames from sprite sheet..." />
                 <TextBlock FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
                            Text="The loop frames are replaced in place and extra frames are added as new textures. Other animations of the character keep their own frames." />
               </StackPanel>

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Avalonia.Media.Imaging;
 using MiniThemeStudio.App.Dialogs;
 using MiniThemeStudio.App.Errors;
 using MiniThemeStudio.App.Models;
@@ -15,6 +16,7 @@ public sealed class AppDialogs(
     IBaseFirmwareManager baseFirmwareManager,
     IAppSettingsStore settingsStore,
     IAtlasLayoutMatcher atlasLayoutMatcher,
+    ISpriteSheetImporter spriteSheetImporter,
     IDialogService dialogService,
     IErrorHandler errorHandler) : IAppDialogs
 {
@@ -41,5 +43,10 @@ public sealed class AppDialogs(
     public Task<SavedDraft?> PickSavedDraftAsync(Func<IReadOnlyList<SavedDraft>> listDrafts, Func<SavedDraft, Task<bool>> deleteDraft)
     {
         return new SavedDraftsDialog(listDrafts, deleteDraft, dialogService).ShowDialog<SavedDraft?>(ActiveWindow.Get());
+    }
+
+    public Task<SpriteSheetResult?> ImportSpriteSheetAsync(string title, AtlasSize? currentFrameSize, Bitmap? referenceFrame)
+    {
+        return new SpriteSheetDialog(spriteSheetImporter, title, currentFrameSize, referenceFrame).ShowDialog<SpriteSheetResult?>(ActiveWindow.Get());
     }
 }

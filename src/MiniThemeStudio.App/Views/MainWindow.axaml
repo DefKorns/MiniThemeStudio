@@ -19,6 +19,22 @@
         Background="{DynamicResource PageBackgroundBrush}"
         FontFamily="Segoe UI, Ubuntu, sans-serif">
 
+  <Window.DataTemplates>
+    <!-- play / pause, the time slider and the time, for every animation preview -->
+    <DataTemplate DataType="vm:AnimationClock">
+      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+        <ToggleButton Padding="10,5" IsChecked="{Binding IsPlaying, Mode=OneWay}" Command="{Binding TogglePlayCommand}" ToolTip.Tip="Play in a loop, or pause">
+          <Panel>
+            <lucide:LucideIcon Kind="Play" Size="14" IsVisible="{Binding !IsPlaying}" />
+            <lucide:LucideIcon Kind="Pause" Size="14" IsVisible="{Binding IsPlaying}" />
+          </Panel>
+        </ToggleButton>
+        <Slider Grid.Column="1" VerticalAlignment="Center" Minimum="0" Maximum="{Binding Duration}" Value="{Binding Time}" IsEnabled="{Binding HasDuration}" />
+        <TextBlock Grid.Column="2" MinWidth="90" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding TimeText}" />
+      </Grid>
+    </DataTemplate>
+  </Window.DataTemplates>
+
   <Grid RowDefinitions="56,*,28" ColumnDefinitions="56,*">
     <!-- Left Navigation Bar -->
     <Border Grid.RowSpan="3" Background="{DynamicResource HeaderBackgroundBrush}" BorderBrush="{DynamicResource HeaderBorderBrush}" BorderThickness="0,0,1,0">
@@ -263,9 +279,27 @@
       <!-- TAB 2: WALLPAPERS -->
       <TabItem Header="Wallpapers">
         <Grid ColumnDefinitions="*,380" Margin="16,12" DataContext="{Binding WallpapersTab}" x:DataType="vm:WallpapersViewModel">
-          <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+          <!-- the list takes the whole column when the Base has no scrolling background -->
+          <DockPanel Margin="0,0,12,0">
+          <Border DockPanel.Dock="Top" Height="390" Margin="0,0,0,12" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                  DataContext="{Binding Parallax}" x:DataType="vm:ParallaxViewModel" IsVisible="{Binding HasBackgrounds}">
+            <Grid RowDefinitions="Auto,*,Auto">
+              <Grid Margin="12,8" ColumnDefinitions="Auto,*">
+                <TextBlock VerticalAlignment="Center" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Background as the console plays it" />
+                <ContentControl Grid.Column="1" Margin="16,0,0,0" Content="{Binding Clock}" />
+              </Grid>
+              <controls:ScenePreview Grid.Row="1" Margin="12,0"
+                                     Root="{Binding PreviewRoot}"
+                                     BranchPath="{Binding PreviewBranchPath}"
+                                     SelectedPath="{Binding PreviewSelectedPath}"
+                                     Images="{Binding Images}" />
+              <TextBlock Grid.Row="2" Margin="12,8" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
+                         Text="The framed layer is the one selected on the right; click a layer here to select it. A new speed shows here before you apply it." />
+            </Grid>
+          </Border>
+          <Border Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid RowDefinitions="Auto,*">
-              <TextBlock Margin="16,12" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Background Wallpapers (wall, wall_near, wall_far)" />
+              <TextBlock Margin="16,10" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Wallpaper images" />
               <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding Wallpapers}" SelectedItem="{Binding SelectedWallpaper}">
                 <ListBox.Styles>
                   <Style Selector="ListBoxItem">
@@ -294,12 +328,13 @@
               </ListBox>
             </Grid>
           </Border>
+          </DockPanel>
 
           <Border Grid.Column="1" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <ScrollViewer>
               <StackPanel Margin="20" Spacing="14">
-                <TextBlock FontFamily="Georgia, serif" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Wallpaper Preview" />
-                <Border Height="240" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                <TextBlock FontFamily="Georgia, serif" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Wallpaper Image" />
+                <Border Height="150" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
                   <controls:FileImage Margin="8" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" FilePath="{Binding SelectedWallpaper.ImagePath}" Revision="{Binding PreviewRevision}" />
                 </Border>
                 <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedWallpaper.DisplayName}" />
@@ -335,11 +370,12 @@
                         </DataTemplate>
                       </ListBox.ItemTemplate>
                     </ListBox>
-                    <Grid ColumnDefinitions="110,*,Auto" ColumnSpacing="8" IsEnabled="{Binding HasSelectedLayer}">
-                      <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Loops per cycle" />
+                    <Grid ColumnDefinitions="110,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="4" IsEnabled="{Binding HasSelectedLayer}">
+                      <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Speed" />
                       <NumericUpDown Grid.Column="1" Value="{Binding LayerLoops}" Increment="1" FormatString="0" Minimum="-16" Maximum="16"
-                                     ToolTip.Tip="Whole loops keep the cycle seamless; negative ones scroll the other way, 0 stops the layer" />
+                                     ToolTip.Tip="Loops per cycle: how many times the layer slides by its own width. Negative scrolls the other way, 0 stops it" />
                       <Button Grid.Column="2" Padding="10,6" Command="{Binding ApplySpeedCommand}" Content="Apply" />
+                      <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SpeedText}" />
                     </Grid>
                     <Button Padding="10,6" HorizontalAlignment="Stretch" Command="{Binding RemoveLayerCommand}" Content="Remove layer..." />
 
@@ -414,7 +450,7 @@
                 <CheckBox IsChecked="{Binding IsolateSceneBranch}" Content="Only the selected branch" ToolTip.Tip="Draw only the menu or background the selected node belongs to" />
                 <CheckBox IsChecked="{Binding ShowHiddenSceneNodes}" Content="Show hidden nodes" />
               </StackPanel>
-              <Grid Grid.Row="1" Margin="12,0,12,8" ColumnDefinitions="240,Auto,Auto,*,Auto" ColumnSpacing="8">
+              <Grid Grid.Row="1" Margin="12,0,12,8" ColumnDefinitions="240,Auto,*" ColumnSpacing="8">
                 <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding SceneAnimations}" SelectedItem="{Binding SelectedAnimation}" PlaceholderText="Play an animation..."
                           ToolTip.Tip="The animations whose nodes are all in this scene; scripts start them on the console">
                   <ComboBox.ItemTemplate>
@@ -423,14 +459,10 @@
                     </DataTemplate>
                   </ComboBox.ItemTemplate>
                 </ComboBox>
-                <ToggleButton Grid.Column="1" Padding="10,5" IsChecked="{Binding IsPlaying, Mode=OneWay}" Command="{Binding TogglePlayCommand}" ToolTip.Tip="Play in a loop, or pause">
-                  <lucide:LucideIcon Kind="Play" Size="14" />
-                </ToggleButton>
-                <Button Grid.Column="2" Padding="10,5" Command="{Binding StopAnimationCommand}" ToolTip.Tip="Back to the scene as it is saved">
+                <Button Grid.Column="1" Padding="10,5" Command="{Binding StopAnimationCommand}" ToolTip.Tip="Back to the scene as it is saved">
                   <lucide:LucideIcon Kind="Square" Size="14" />
                 </Button>
-                <Slider Grid.Column="3" VerticalAlignment="Center" Minimum="0" Maximum="{Binding AnimationDuration}" Value="{Binding AnimationTime}" IsEnabled="{Binding HasAnimation}" />
-                <TextBlock Grid.Column="4" MinWidth="90" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding AnimationTimeText}" />
+                <ContentControl Grid.Column="2" Content="{Binding Clock}" />
               </Grid>
               <controls:ScenePreview Grid.Row="2" Margin="12,0"
                                      Root="{Binding PreviewRoot}"

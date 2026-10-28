@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -5,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using MiniThemeStudio.App.Controls;
 using MiniThemeStudio.App.Dialogs;
 using MiniThemeStudio.App.Errors;
 using MiniThemeStudio.App.Services;
@@ -19,24 +21,62 @@ public sealed record ParallaxLayerRow(ParallaxLayer Layer)
     public string Detail => string.Create(CultureInfo.InvariantCulture, $"layer {Layer.ZIndex} · {Layer.PixelsPerSecond:0} px/s");
 }
 
-// The scrolling layers of the background, in the Wallpapers tab: their speed, and new layers from a PNG.
+// The scrolling layers of the background, in the Wallpapers tab: their speed, and new layers from a PNG, with the
+// background playing in a preview as the console shows it (and the speed being tried before it is applied).
 public sealed partial class ParallaxViewModel : ViewModelBase
 {
     private readonly ThemeSession _session;
     private readonly IParallaxEditor _parallaxEditor;
+    private readonly ISceneEditor _sceneEditor;
+    private readonly SceneImageLibrary _images;
     private readonly IFileDialogService _fileDialogs;
     private readonly IDialogService _dialogs;
     private readonly IErrorHandler _errorHandler;
 
-    public ParallaxViewModel(ThemeSession session, IParallaxEditor parallaxEditor, IFileDialogService fileDialogs, IDialogService dialogs, IErrorHandler errorHandler)
+    private SceneDocument? _scene;
+    private SceneAnimationBinding? _animation;
+
+    public ParallaxViewModel(
+        ThemeSession session,
+        IParallaxEditor parallaxEditor,
+        ISceneEditor sceneEditor,
+        SceneImageLibrary images,
+        IFileDialogService fileDialogs,
+        IDialogService dialogs,
+        IErrorHandler errorHandler)
     {
         _session = session;
         _parallaxEditor = parallaxEditor;
+        _sceneEditor = sceneEditor;
+        _images = images;
         _fileDialogs = fileDialogs;
         _dialogs = dialogs;
         _errorHandler = errorHandler;
         _session.Reloaded += (_, _) => Reload();
+        Clock.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(AnimationClock.Time))
+            {
+                UpdatePreview();
+            }
+        };
     }
+
+    public AnimationClock Clock { get; } = new();
+
+    // the background as it moves at Clock.Time, drawn alone (PreviewBranchPath) with the selected layer framed
+    [ObservableProperty]
+    private SceneNode? previewRoot;
+
+    [ObservableProperty]
+    private string? previewBranchPath;
+
+    [ObservableProperty]
+    private SceneImageSource images = SceneImageSource.Empty;
+
+    // the node of the selected layer; clicking a layer in the preview selects it
+    [ObservableProperty]
+    private string? previewSelectedPath;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasBackgrounds))]
@@ -55,8 +95,9 @@ public sealed partial class ParallaxViewModel : ViewModelBase
     [NotifyCanExecuteChangedFor(nameof(ApplySpeedCommand), nameof(RemoveLayerCommand))]
     private ParallaxLayerRow? selectedLayer;
 
-    // how many times the selected layer slides by its own width every cycle
+    // how many times the selected layer slides by its own width every cycle; the preview shows it before Apply
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SpeedText))]
     private decimal? layerLoops;
 
     [ObservableProperty]
@@ -77,6 +118,11 @@ public sealed partial class ParallaxViewModel : ViewModelBase
     public bool HasBackgrounds => Backgrounds.Count > 0;
 
     public bool HasSelectedLayer => SelectedLayer is not null;
+
+    public string SpeedText => SelectedLayer is { } row && LayerLoops is { } loops
+        ? string.Create(CultureInfo.InvariantCulture, $"{(double)loops * row.Layer.TileWidth / Math.Max(0.001, row.Layer.CycleSeconds):0} px/s")
+            + ((double)loops == row.Layer.LoopsPerCycle ? "" : " (not applied yet)")
+        : "";
 
     public string CycleText => SelectedBackground is { } background
         ? string.Create(CultureInfo.InvariantCulture, $"Every layer slides a whole number of times its own width in each {background.CycleSeconds:0.##} s cycle; wider and faster layers look nearer.")
@@ -161,16 +207,91 @@ public sealed partial class ParallaxViewModel : ViewModelBase
     {
         var previous = SelectedLayer?.Name;
         Layers = value?.Layers.Select(layer => new ParallaxLayerRow(layer)).ToList() ?? [];
+        LoadPreview(value);
         SelectedLayer = Layers.FirstOrDefault(row => row.Name == previous) ?? (Layers.Count > 0 ? Layers[0] : null);
     }
 
     partial void OnSelectedLayerChanged(ParallaxLayerRow? value)
     {
         LayerLoops = value is null ? null : (decimal)value.Layer.LoopsPerCycle;
+        PreviewSelectedPath = value?.Layer.NodePath;
+        OnPropertyChanged(nameof(SpeedText));
+        UpdatePreview();
+    }
+
+    partial void OnLayerLoopsChanged(decimal? value) => UpdatePreview();
+
+    partial void OnPreviewSelectedPathChanged(string? value)
+    {
+        if (value is not null && Layers.FirstOrDefault(row => row.Layer.NodePath == value) is { } row && row != SelectedLayer)
+        {
+            SelectedLayer = row;
+        }
+    }
+
+    // the scene and the animation of the background, played from the start
+    private void LoadPreview(ParallaxBackground? background)
+    {
+        _scene = null;
+        _animation = null;
+        if (_session.Draft is { } draft && background is not null)
+        {
+            try
+            {
+                _scene = _sceneEditor.Load(draft.DraftPath, _session.BaseUiPath, background.SceneResourcePath);
+                _animation = _sceneEditor.GetAnimations(draft.DraftPath, _session.BaseUiPath, _scene)
+                    .FirstOrDefault(binding => binding.Clip.ResourcePath == background.AnimationResourcePath && binding.AnimatorPath == background.AnimatorPath);
+            }
+            catch (Exception exception) when (exception is IOException or InvalidDataException)
+            {
+                _scene = null;
+            }
+        }
+
+        PreviewBranchPath = background?.AnimatorPath.Split('/')[0];
+        if (_animation is { } animation)
+        {
+            Clock.Reset(animation.Clip.Duration);
+            Clock.TogglePlayCommand.Execute(null);
+        }
+        else
+        {
+            Clock.Reset(0);
+        }
+
+        UpdatePreview();
+    }
+
+    private void UpdatePreview()
+    {
+        if (_scene is not { } scene || _animation is not { } animation)
+        {
+            PreviewRoot = _scene?.Root;
+            return;
+        }
+
+        // the speed being tried replaces the saved one of the selected layer, as Apply would write it
+        if (SelectedLayer is { } row && LayerLoops is { } loops && (double)loops != row.Layer.LoopsPerCycle)
+        {
+            var cycle = animation.Clip.Duration;
+            var slope = cycle > 0 ? (double)loops / cycle : 0;
+            var tried = new CurveKey[]
+            {
+                new(0, CurveInterpolation.Hermite, 0, (double)loops, slope, slope),
+                new(cycle, CurveInterpolation.Constant, (double)loops),
+            };
+            var tracks = animation.Clip.Tracks
+                .Select(track => track.PropertyId == "TextureOffsetX" && track.NodePath is [var name] && name == row.Name ? track with { Keys = tried } : track)
+                .ToList();
+            animation = animation with { Clip = animation.Clip with { Tracks = tracks } };
+        }
+
+        PreviewRoot = SceneAnimationEvaluator.Apply(scene.Root, animation, Clock.Time);
     }
 
     private void Reload()
     {
+        Images = _images.Images;
         var previous = SelectedBackground?.AnimationResourcePath;
         var previousLayer = SelectedLayer?.Name;
         Backgrounds = _session.Draft is { } draft ? _parallaxEditor.GetBackgrounds(draft.DraftPath, _session.BaseUiPath) : [];

@@ -173,23 +173,23 @@ public sealed class ScenesViewModelTests : IDisposable
         Assert.Same(scenes.CurrentScene!.Root, scenes.PreviewRoot);
 
         scenes.SelectedAnimation = Assert.Single(scenes.SceneAnimations);
-        scenes.AnimationTime = 0.25;
+        scenes.Clock.Time = 0.25;
 
         Assert.Equal("", scenes.SelectedScenePath);
         Assert.Equal(25, scenes.PreviewRoot!.Children[0].Transform.X, 6);
         Assert.Equal(0, scenes.CurrentScene!.Root.Children[0].Transform.X);
-        Assert.Equal("0.25 / 1.00 s", scenes.AnimationTimeText);
+        Assert.Equal("0.25 / 1.00 s", scenes.Clock.TimeText);
 
-        scenes.TogglePlayCommand.Execute(null);
-        Assert.True(scenes.IsPlaying);
-        scenes.TogglePlayCommand.Execute(null);
-        Assert.False(scenes.IsPlaying);
+        scenes.Clock.TogglePlayCommand.Execute(null);
+        Assert.True(scenes.Clock.IsPlaying);
+        scenes.Clock.TogglePlayCommand.Execute(null);
+        Assert.False(scenes.Clock.IsPlaying);
 
         scenes.StopAnimationCommand.Execute(null);
 
         Assert.Null(scenes.SelectedAnimation);
         Assert.Same(scenes.CurrentScene!.Root, scenes.PreviewRoot);
-        Assert.False(scenes.TogglePlayCommand.CanExecute(null));
+        Assert.False(scenes.Clock.TogglePlayCommand.CanExecute(null));
     }
 
     [Fact]

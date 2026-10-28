@@ -1,12 +1,10 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MiniThemeStudio.App.Controls;
@@ -46,21 +44,17 @@ public sealed partial class ScenesViewModel : ViewModelBase
     private readonly ThemeSession _session;
     private readonly ISceneEditor _sceneEditor;
     private readonly IThemeAssetManager _assetManager;
-    private readonly ITextureAtlasReader _atlasReader;
+    private readonly SceneImageLibrary _images;
     private readonly IFileDialogService _fileDialogs;
     private readonly IDialogService _dialogs;
     private readonly IErrorHandler _errorHandler;
-    private readonly Stopwatch _playClock = new();
-    private DispatcherTimer? _playTimer;
-    private double _playStart;
     private IReadOnlyList<SceneTreeRow> _allSceneRows = [];
-    private Dictionary<string, string> _textureImagePaths = new(StringComparer.Ordinal);
 
     public ScenesViewModel(
         ThemeSession session,
         ISceneEditor sceneEditor,
         IThemeAssetManager assetManager,
-        ITextureAtlasReader atlasReader,
+        SceneImageLibrary images,
         IFileDialogService fileDialogs,
         IDialogService dialogs,
         IErrorHandler errorHandler)
@@ -68,12 +62,22 @@ public sealed partial class ScenesViewModel : ViewModelBase
         _session = session;
         _sceneEditor = sceneEditor;
         _assetManager = assetManager;
-        _atlasReader = atlasReader;
+        _images = images;
         _fileDialogs = fileDialogs;
         _dialogs = dialogs;
         _errorHandler = errorHandler;
         _session.Reloaded += (_, _) => Reload();
+        Clock.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(AnimationClock.Time))
+            {
+                UpdatePreviewRoot();
+            }
+        };
     }
+
+    // the time of the selected animation in the preview
+    public AnimationClock Clock { get; } = new();
 
     // "Edit sprite in Sprites tab": the window selects the sprite and switches tab
     public event EventHandler<SceneSpriteRequest>? SpriteRequested;
@@ -96,16 +100,9 @@ public sealed partial class ScenesViewModel : ViewModelBase
     private IReadOnlyList<SceneAnimationBinding> sceneAnimations = [];
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasAnimation), nameof(AnimationDuration), nameof(AnimationTimeText))]
-    [NotifyCanExecuteChangedFor(nameof(TogglePlayCommand), nameof(StopAnimationCommand))]
+    [NotifyPropertyChangedFor(nameof(HasAnimation))]
+    [NotifyCanExecuteChangedFor(nameof(StopAnimationCommand))]
     private SceneAnimationBinding? selectedAnimation;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(AnimationTimeText))]
-    private double animationTime;
-
-    [ObservableProperty]
-    private bool isPlaying;
 
     [ObservableProperty]
     private IReadOnlyList<SceneTreeRow> sceneRows = [];
@@ -167,12 +164,6 @@ public sealed partial class ScenesViewModel : ViewModelBase
     public bool HasSelectedSceneNode => SelectedSceneNode is not null;
 
     public bool HasAnimation => SelectedAnimation is not null;
-
-    public double AnimationDuration => SelectedAnimation?.Clip.Duration ?? 0;
-
-    public string AnimationTimeText => SelectedAnimation is null
-        ? ""
-        : string.Create(CultureInfo.InvariantCulture, $"{AnimationTime:0.00} / {AnimationDuration:0.00} s");
 
     public bool SelectedNodeDrawsImage => SelectedSceneNode?.Visual is { Kind: SceneVisualKind.Texture or SceneVisualKind.Sprite };
 
@@ -335,23 +326,6 @@ public sealed partial class ScenesViewModel : ViewModelBase
         }
     }
 
-    // plays the selected animation in a loop, or pauses it where it is
-    [RelayCommand(CanExecute = nameof(HasAnimation))]
-    private void TogglePlay()
-    {
-        if (IsPlaying)
-        {
-            StopTimer();
-            return;
-        }
-
-        _playClock.Restart();
-        _playStart = AnimationTime >= AnimationDuration ? 0 : AnimationTime;
-        _playTimer ??= new DispatcherTimer(TimeSpan.FromSeconds(1.0 / 60), DispatcherPriority.Render, (_, _) => AdvanceAnimation());
-        _playTimer.Start();
-        IsPlaying = true;
-    }
-
     // back to the scene as it is saved
     [RelayCommand(CanExecute = nameof(HasAnimation))]
     private void StopAnimation()
@@ -411,7 +385,7 @@ public sealed partial class ScenesViewModel : ViewModelBase
         if (SelectedSceneNode?.Visual is { Kind: SceneVisualKind.Sprite, SpriteId: { } spriteId } && spriteId.IndexOf('.') is var dot and > 0)
         {
             var textureId = spriteId[..dot];
-            SpriteRequested?.Invoke(this, new SceneSpriteRequest(textureId, spriteId[(dot + 1)..], _textureImagePaths.GetValueOrDefault(textureId)));
+            SpriteRequested?.Invoke(this, new SceneSpriteRequest(textureId, spriteId[(dot + 1)..], _images.TextureImagePaths.GetValueOrDefault(textureId)));
         }
     }
 
@@ -425,40 +399,16 @@ public sealed partial class ScenesViewModel : ViewModelBase
 
     private void Reload()
     {
-        var previousImages = SceneImages;
+        SceneTextureChoices = _images.TextureChoices;
+        SceneImages = _images.Images;
         if (_session.Draft is null)
         {
             SceneResources = [];
             CurrentScene = null;
-            SceneTextureChoices = [];
-            _textureImagePaths = new Dictionary<string, string>(StringComparer.Ordinal);
-            SceneImages = SceneImageSource.Empty;
-            DisposeSceneImages(previousImages);
             return;
         }
 
         var draftPath = _session.Draft.DraftPath;
-        _textureImagePaths = new Dictionary<string, string>(StringComparer.Ordinal);
-        var choices = new List<SceneTextureChoice>();
-        foreach (var (relativePath, textureId) in _session.Report.TextureIdsByImagePath)
-        {
-            var imagePath = new[] { draftPath, _session.BaseUiPath }
-                .Where(root => root is not null)
-                .Select(root => Path.Combine(root!, "resources", relativePath))
-                .FirstOrDefault(File.Exists);
-            if (imagePath is null)
-            {
-                continue;
-            }
-
-            _textureImagePaths.TryAdd(textureId, imagePath);
-            choices.Add(new SceneTextureChoice(textureId, Path.GetFileNameWithoutExtension(relativePath), relativePath));
-        }
-
-        SceneTextureChoices = choices.OrderBy(choice => choice.Name, StringComparer.OrdinalIgnoreCase).ToList();
-        SceneImages = new SceneImageSource(_textureImagePaths, _atlasReader.ReadAll(draftPath, _session.BaseUiPath));
-        DisposeSceneImages(previousImages);
-
         var previousScene = SelectedSceneResource;
         var previousPath = SelectedScenePath;
         SceneResources = _sceneEditor.GetScenes(draftPath, _session.BaseUiPath);
@@ -511,19 +461,16 @@ public sealed partial class ScenesViewModel : ViewModelBase
 
     partial void OnCurrentSceneChanged(SceneDocument? value) => UpdatePreviewRoot();
 
-    partial void OnAnimationTimeChanged(double value) => UpdatePreviewRoot();
-
     partial void OnSelectedAnimationChanged(SceneAnimationBinding? oldValue, SceneAnimationBinding? newValue)
     {
         if (newValue is null)
         {
-            StopTimer();
-            AnimationTime = 0;
+            Clock.Reset(0);
         }
         else if (oldValue?.Clip.ResourcePath != newValue.Clip.ResourcePath)
         {
             // a new animation starts from the beginning, with the node that plays it selected so its branch shows
-            AnimationTime = 0;
+            Clock.Reset(newValue.Clip.Duration);
             SelectedScenePath = newValue.AnimatorPath;
         }
 
@@ -533,26 +480,8 @@ public sealed partial class ScenesViewModel : ViewModelBase
     private void UpdatePreviewRoot()
     {
         PreviewRoot = CurrentScene?.Root is { } root && SelectedAnimation is { } animation
-            ? SceneAnimationEvaluator.Apply(root, animation, AnimationTime)
+            ? SceneAnimationEvaluator.Apply(root, animation, Clock.Time)
             : CurrentScene?.Root;
-    }
-
-    private void AdvanceAnimation()
-    {
-        if (AnimationDuration <= 0)
-        {
-            StopTimer();
-            return;
-        }
-
-        AnimationTime = (_playStart + _playClock.Elapsed.TotalSeconds) % AnimationDuration;
-    }
-
-    private void StopTimer()
-    {
-        _playTimer?.Stop();
-        _playClock.Stop();
-        IsPlaying = false;
     }
 
     partial void OnSceneSearchTextChanged(string value)
@@ -619,13 +548,5 @@ public sealed partial class ScenesViewModel : ViewModelBase
     private static string SpriteName(string? spriteId)
     {
         return spriteId is null ? "" : spriteId[(spriteId.IndexOf('.') + 1)..];
-    }
-
-    private static void DisposeSceneImages(SceneImageSource images)
-    {
-        if (!ReferenceEquals(images, SceneImageSource.Empty))
-        {
-            images.Dispose();
-        }
     }
 }

@@ -24,6 +24,15 @@ public sealed partial class WallpapersViewModel : ViewModelBase
     {
         _session = session;
         Parallax = parallax;
+        Parallax.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(ParallaxViewModel.SelectedLayer)
+                && Parallax.SelectedLayer is { } layer
+                && Wallpapers.FirstOrDefault(wallpaper => wallpaper.Name == layer.Name) is { } drawn)
+            {
+                SelectedWallpaper = drawn;
+            }
+        };
         _assetManager = assetManager;
         _fileDialogs = fileDialogs;
         _errorHandler = errorHandler;
@@ -85,6 +94,14 @@ public sealed partial class WallpapersViewModel : ViewModelBase
         }))
         {
             _session.Status = $"Exported wallpaper {wallpaper.DisplayName}.";
+        }
+    }
+
+    partial void OnSelectedWallpaperChanged(WallpaperAsset? value)
+    {
+        if (value is not null && Parallax.Layers.FirstOrDefault(layer => layer.Name == value.Name) is { } layer)
+        {
+            Parallax.SelectedLayer = layer;
         }
     }
 

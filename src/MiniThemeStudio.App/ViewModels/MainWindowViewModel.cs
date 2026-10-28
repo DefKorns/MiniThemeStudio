@@ -3,6 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using MiniThemeStudio.App.Dialogs;
+using MiniThemeStudio.App.Errors;
+using MiniThemeStudio.App.Services;
 using MiniThemeStudio.Core.Audio;
 using MiniThemeStudio.Core.Firmware;
 using MiniThemeStudio.Core.Scenes;
@@ -28,6 +32,11 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly IAppSettingsStore _settingsStore;
     private readonly ISceneEditor _sceneEditor;
     private readonly IFFmpegAudioConverter _audioConverter;
+    private readonly IDialogService _dialogService;
+    private readonly IFileDialogService _fileDialogs;
+    private readonly IAppDialogs _appDialogs;
+    private readonly IAppearanceService _appearance;
+    private readonly IErrorHandler _errorHandler;
 
     private ThemeDraft? _draft;
     private string? _currentBaseUiPath;
@@ -48,7 +57,12 @@ public partial class MainWindowViewModel : ViewModelBase
         IThemePaletteEditor paletteEditor,
         IAppSettingsStore settingsStore,
         ISceneEditor sceneEditor,
-        IFFmpegAudioConverter audioConverter)
+        IFFmpegAudioConverter audioConverter,
+        IDialogService dialogService,
+        IFileDialogService fileDialogs,
+        IAppDialogs appDialogs,
+        IAppearanceService appearance,
+        IErrorHandler errorHandler)
     {
         _metadataReader = metadataReader;
         _textureAtlasReader = textureAtlasReader;
@@ -65,6 +79,11 @@ public partial class MainWindowViewModel : ViewModelBase
         _settingsStore = settingsStore;
         _sceneEditor = sceneEditor;
         _audioConverter = audioConverter;
+        _dialogService = dialogService;
+        _fileDialogs = fileDialogs;
+        _appDialogs = appDialogs;
+        _appearance = appearance;
+        _errorHandler = errorHandler;
     }
 
     [ObservableProperty]
@@ -188,17 +207,17 @@ public partial class MainWindowViewModel : ViewModelBase
     public string? CurrentDraftPath => _draft?.DraftPath;
     public string? CurrentBaseUiPath => _currentBaseUiPath;
 
-    public bool OpenTheme(string rootPath, string? baseUiPath = null)
+    public void OpenTheme(string rootPath, string? baseUiPath = null)
     {
         _currentBaseUiPath = baseUiPath ?? _baseFirmwareManager.FindCompatibleBaseUiPath(rootPath);
-        return OpenDraft(() => _themeDraftService.OpenExisting(rootPath), false);
+        OpenDraft(() => _themeDraftService.OpenExisting(rootPath), false);
     }
 
-    public bool ChangeBase(string baseUiPath)
+    public void ChangeBase(string baseUiPath)
     {
         if (_draft is null)
         {
-            return false;
+            return;
         }
 
         var hadUnsavedChanges = HasUnsavedChanges;
@@ -206,7 +225,6 @@ public partial class MainWindowViewModel : ViewModelBase
         LoadDraft(_draft);
         HasUnsavedChanges = hadUnsavedChanges;
         Status = $"Using {CurrentBaseLabel} - {Sprites.Count} sprites, {Wallpapers.Count} wallpapers.";
-        return true;
     }
 
     private static bool PathsEqual(string first, string? second)
@@ -217,43 +235,26 @@ public partial class MainWindowViewModel : ViewModelBase
             StringComparison.OrdinalIgnoreCase);
     }
 
-    public bool CreateTheme(NewThemeRequest request)
+    public void CreateTheme(NewThemeRequest request)
     {
         _currentBaseUiPath = request.BaseThemePath;
-        return OpenDraft(() => _themeDraftService.CreateNew(request), true);
+        OpenDraft(() => _themeDraftService.CreateNew(request), true);
     }
 
-    public bool SaveTheme()
+    public void SaveTheme()
     {
         if (_draft is null || !HasUnsavedChanges)
         {
-            return false;
+            return;
         }
 
-        if (!ValidateBeforeOutput("saving"))
-        {
-            return false;
-        }
-
-        try
-        {
-            _draft = _themeDraftService.Save(_draft);
-            HasUnsavedChanges = false;
-            Status = _draft.LastBackupPath is null
-                ? $"Saved to {_draft.SavePath}"
-                : $"Saved to {_draft.SavePath} (previous version backed up to {_draft.LastBackupPath})";
-            ForgetSavedDraftAfterSave();
-            return true;
-        }
-        catch (Exception exception) when (
-            exception is IOException
-                or UnauthorizedAccessException
-                or ArgumentException
-                or InvalidOperationException)
-        {
-            Status = exception.Message;
-            return false;
-        }
+        ValidateBeforeOutput("saving");
+        _draft = _themeDraftService.Save(_draft);
+        HasUnsavedChanges = false;
+        Status = _draft.LastBackupPath is null
+            ? $"Saved to {_draft.SavePath}"
+            : $"Saved to {_draft.SavePath} (previous version backed up to {_draft.LastBackupPath})";
+        ForgetSavedDraftAfterSave();
     }
 
     public bool ReplaceSelectedSprite(string replacementImagePath)
@@ -412,54 +413,32 @@ public partial class MainWindowViewModel : ViewModelBase
         ? ""
         : ThemeDirectoryName.FromDisplayName(Path.GetFileName(Path.TrimEndingDirectorySeparator(_draft.SavePath)));
 
-    public bool ExportPackage(string outputDirectory)
+    public void ExportPackage(string outputDirectory)
     {
-        if (!CanPackage(out var system) || !ValidateBeforeOutput("exporting"))
-        {
-            return false;
-        }
-
-        try
-        {
-            var previewPath = $"{Path.TrimEndingDirectorySeparator(_draft!.SavePath)}.png";
-            var exportOptions = new ThemeExportOptions(
-                ConvertBgmAudio: ConvertBgmAudio,
-                FFmpegPath: _settingsStore.Current.FFmpegPath,
-                BgmChannels: BgmChannels,
-                IncludeBgm: IncludeBgm);
-            var result = _themeExporter.ExportPackage(_draft.DraftPath, outputDirectory, system, PackagingName, previewPath, _currentBaseUiPath, exportOptions);
-            var summary = $"Exported {result.FileCount} changed files to {result.PackagePath} ({result.UnchangedFilesSkipped} unchanged Base files left out)";
-            Status = result.IncludesPreview
-                ? $"{summary}."
-                : $"{summary}, without a preview (no {Path.GetFileName(previewPath)} next to the theme folder).";
-            return true;
-        }
-        catch (Exception exception) when (
-            exception is IOException or UnauthorizedAccessException or ArgumentException or InvalidDataException)
-        {
-            Status = exception.Message;
-            return false;
-        }
-    }
-
-    private bool CanPackage(out string system)
-    {
-        system = PackagingSystem ?? "";
         if (_draft is null)
         {
-            return false;
+            return;
         }
 
-        if (system.Length == 0)
-        {
-            Status = "Choose the Base of this theme first (click the console badge in the header).";
-            return false;
-        }
+        var system = PackagingSystem
+            ?? throw new OperationFailedException("Choose the Base of this theme first (click the console badge in the header).");
+        ValidateBeforeOutput("exporting");
 
-        return true;
+        var previewPath = $"{Path.TrimEndingDirectorySeparator(_draft.SavePath)}.png";
+        var exportOptions = new ThemeExportOptions(
+            ConvertBgmAudio: ConvertBgmAudio,
+            FFmpegPath: _settingsStore.Current.FFmpegPath,
+            BgmChannels: BgmChannels,
+            IncludeBgm: IncludeBgm);
+        var result = _themeExporter.ExportPackage(_draft.DraftPath, outputDirectory, system, PackagingName, previewPath, _currentBaseUiPath, exportOptions);
+        var summary = $"Exported {result.FileCount} changed files to {result.PackagePath} ({result.UnchangedFilesSkipped} unchanged Base files left out)";
+        Status = result.IncludesPreview
+            ? $"{summary}."
+            : $"{summary}, without a preview (no {Path.GetFileName(previewPath)} next to the theme folder).";
     }
 
-    private bool ValidateBeforeOutput(string action)
+    // throws when the theme has validation errors, so nothing broken is saved or exported
+    private void ValidateBeforeOutput(string action)
     {
         var validationOptions = new ThemeValidationOptions(
             ConvertBgmAudio: ConvertBgmAudio,
@@ -471,14 +450,14 @@ public partial class MainWindowViewModel : ViewModelBase
         IsThemeValid = validation.IsValid;
         if (!validation.HasErrors)
         {
-            return true;
+            return;
         }
 
         var errors = validation.Issues.Where(issue => issue.IsError).ToList();
-        Status = $"Fix {errors.Count} validation error(s) before {action}: {errors[0].Message}";
-        return false;
+        throw new OperationFailedException($"Fix {errors.Count} validation error(s) before {action}: {errors[0].Message}");
     }
 
+    [RelayCommand]
     public void RunValidation()
     {
         if (_draft is null)
@@ -503,6 +482,8 @@ public partial class MainWindowViewModel : ViewModelBase
     public void ShowHome()
     {
         DiscardTheme();
+        Atlases = [];
+        SelectedAtlas = null;
         IsThemeOpen = false;
         IsHomeVisible = true;
         Status = "Draft discarded";
@@ -521,7 +502,7 @@ public partial class MainWindowViewModel : ViewModelBase
         IsDraftSaved = false;
     }
 
-    private bool OpenDraft(Func<ThemeDraft> createDraft, bool isNewTheme)
+    private void OpenDraft(Func<ThemeDraft> createDraft, bool isNewTheme)
     {
         DiscardTheme();
 
@@ -530,18 +511,12 @@ public partial class MainWindowViewModel : ViewModelBase
             _draft = createDraft();
             LoadDraft(_draft);
             HasUnsavedChanges = isNewTheme;
-            return true;
         }
-        catch (Exception exception) when (
-            exception is IOException
-                or InvalidDataException
-                or UnauthorizedAccessException
-                or ArgumentException
-                or InvalidOperationException)
+        catch
         {
+            // a draft that failed to load is not left half open
             DiscardTheme();
-            Status = exception.Message;
-            return false;
+            throw;
         }
     }
 

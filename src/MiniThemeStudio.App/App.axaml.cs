@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MiniThemeStudio.App.Composition;
 using MiniThemeStudio.App.Errors;
+using MiniThemeStudio.App.Services;
 using MiniThemeStudio.App.Views;
 using MiniThemeStudio.Core.Settings;
 
@@ -28,17 +29,12 @@ public partial class App : Application
                 .AddMiniThemeStudio()
                 .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
             desktop.Exit += (_, _) => services.Dispose();
-            services.GetRequiredService<GlobalExceptionHandler>().Register(desktop);
+            services.GetRequiredService<GlobalExceptionHandler>().Register();
             var logger = services.GetRequiredService<ILogger<App>>();
             var version = typeof(App).Assembly.GetName().Version?.ToString() ?? "?";
             LogStarting(logger, version);
 
-            RequestedThemeVariant = services.GetRequiredService<IAppSettingsStore>().Current.Theme switch
-            {
-                ApplicationThemePreference.Light => Avalonia.Styling.ThemeVariant.Light,
-                ApplicationThemePreference.Dark => Avalonia.Styling.ThemeVariant.Dark,
-                _ => Avalonia.Styling.ThemeVariant.Default,
-            };
+            services.GetRequiredService<IAppearanceService>().Apply(services.GetRequiredService<IAppSettingsStore>().Current.Theme);
 
             desktop.MainWindow = services.GetRequiredService<MainWindow>();
         }

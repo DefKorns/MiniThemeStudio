@@ -609,7 +609,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         using var bmp = SKBitmap.Decode(newPngBytes);
         if (bmp == null)
         {
-            throw new InvalidOperationException("The replacement image is not a valid PNG.");
+            throw new InvalidDataException("The replacement image is not a valid PNG.");
         }
 
         miniFont.TexturePngBytes = newPngBytes;

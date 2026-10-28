@@ -9,60 +9,35 @@ public partial class MainWindowViewModel
 {
     public IReadOnlyList<SavedDraft> ListSavedDrafts() => _savedDraftStore.List();
 
-    public bool SaveDraft()
+    public void SaveDraft()
     {
         if (_draft is null)
         {
-            return false;
+            return;
         }
 
-        try
-        {
-            var saved = _savedDraftStore.Save(_draft, ThemeName, _currentBaseUiPath);
-            _draft = _draft with { SavedDraftId = saved.Id };
-            IsDraftSaved = true;
-            Status = $"Draft saved at {saved.SavedAt:HH:mm}. Reopen it from Saved drafts.";
-            return true;
-        }
-        catch (Exception exception) when (
-            exception is IOException or UnauthorizedAccessException or ArgumentException)
-        {
-            Status = exception.Message;
-            return false;
-        }
+        var saved = _savedDraftStore.Save(_draft, ThemeName, _currentBaseUiPath);
+        _draft = _draft with { SavedDraftId = saved.Id };
+        IsDraftSaved = true;
+        Status = $"Draft saved at {saved.SavedAt:HH:mm}. Reopen it from Saved drafts.";
     }
 
-    public bool RestoreDraft(SavedDraft savedDraft)
+    public void RestoreDraft(SavedDraft savedDraft)
     {
         ArgumentNullException.ThrowIfNull(savedDraft);
         _currentBaseUiPath = savedDraft.BaseUiPath is { } baseUiPath && Directory.Exists(baseUiPath) ? baseUiPath : null;
-        if (!OpenDraft(() => _savedDraftStore.Restore(savedDraft), true))
-        {
-            return false;
-        }
-
+        OpenDraft(() => _savedDraftStore.Restore(savedDraft), true);
         IsDraftSaved = true;
         Status = $"Resumed draft '{savedDraft.Name}' saved at {savedDraft.SavedAt:g}.";
-        return true;
     }
 
-    public bool DeleteSavedDraft(SavedDraft savedDraft)
+    public void DeleteSavedDraft(SavedDraft savedDraft)
     {
         ArgumentNullException.ThrowIfNull(savedDraft);
-        try
+        _savedDraftStore.Delete(savedDraft.Id);
+        if (_draft?.SavedDraftId == savedDraft.Id)
         {
-            _savedDraftStore.Delete(savedDraft.Id);
-            if (_draft?.SavedDraftId == savedDraft.Id)
-            {
-                _draft = _draft with { SavedDraftId = null };
-            }
-
-            return true;
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
-        {
-            Status = exception.Message;
-            return false;
+            _draft = _draft with { SavedDraftId = null };
         }
     }
 

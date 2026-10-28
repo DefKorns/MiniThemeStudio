@@ -25,10 +25,6 @@ namespace MiniThemeStudio.App.Views;
 public sealed partial class MainWindow : Window, IDisposable
 {
     private readonly IDialogService _dialogService;
-    private readonly IErrorHandlingService _errorHandlingService;
-    private readonly IAppSettingsStore _settingsStore;
-    private readonly IBaseFirmwareManager _baseFirmwareManager;
-    private readonly IAtlasLayoutMatcher _atlasLayoutMatcher;
     private readonly ISpriteSheetImporter _spriteSheetImporter;
 
     private string _atlasImagePath = "";
@@ -43,24 +39,16 @@ public sealed partial class MainWindow : Window, IDisposable
 
     // for the XAML previewer only: the app builds the window through the service container
     public MainWindow()
-        : this(null!, null!, null!, null!, null!, null!, null)
+        : this(null!, null!, null)
     {
     }
 
     public MainWindow(
-        IAppSettingsStore settingsStore,
-        IBaseFirmwareManager baseFirmwareManager,
         IDialogService dialogService,
-        IErrorHandlingService errorHandlingService,
-        IAtlasLayoutMatcher atlasLayoutMatcher,
         ISpriteSheetImporter spriteSheetImporter,
         MainWindowViewModel? viewModel)
     {
-        _settingsStore = settingsStore;
-        _baseFirmwareManager = baseFirmwareManager;
         _dialogService = dialogService;
-        _errorHandlingService = errorHandlingService;
-        _atlasLayoutMatcher = atlasLayoutMatcher;
         _spriteSheetImporter = spriteSheetImporter;
         DataContext = viewModel;
 
@@ -76,170 +64,12 @@ public sealed partial class MainWindow : Window, IDisposable
         }
     }
 
-    private async void ShowSettings_Click(object? sender, RoutedEventArgs e)
-    {
-        await ShowSettingsAsync(false);
-    }
-
-    private async void ManageBases_Click(object? sender, RoutedEventArgs e)
-    {
-        await ShowBaseManagementAsync();
-    }
-
-    private Task ShowBaseManagementAsync()
-    {
-        return new BaseManagementDialog(_baseFirmwareManager, _settingsStore.Current, _errorHandlingService).ShowDialog(this);
-    }
-
     private async void MainWindow_Opened(object? sender, EventArgs e)
     {
         Opened -= MainWindow_Opened;
-        if (DataContext is MainWindowViewModel startViewModel)
-        {
-            startViewModel.FillFontPath = _settingsStore.Current.FillFontPath;
-        }
-
-        if (!_settingsStore.Current.InitialSetupCompleted && !await ShowSettingsAsync(true))
+        if (DataContext is MainWindowViewModel viewModel && !await viewModel.StartAsync())
         {
             Close();
-            return;
-        }
-
-        if (_baseFirmwareManager.FindCompatibleBaseUiPath() is null)
-        {
-            await ShowBaseManagementAsync();
-        }
-
-        if (DataContext is MainWindowViewModel { IsThemeOpen: false } viewModel
-            && viewModel.ListSavedDrafts() is { Count: > 0 } drafts
-            && await _dialogService.ShowConfirmationAsync(
-                this,
-                "Resume your work?",
-                $"'{drafts[0].Name}' was saved as a draft at {drafts[0].SavedAt:g}.",
-                DialogVariant.Info,
-                "Resume draft",
-                "Not now"))
-        {
-            await OpenSavedDraftAsync(drafts[0]);
-        }
-    }
-
-    private async void SaveDraft_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainWindowViewModel viewModel && !viewModel.SaveDraft())
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot save draft", viewModel.Status);
-        }
-    }
-
-    private async void ShowSavedDrafts_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel viewModel)
-        {
-            return;
-        }
-
-        var draft = await new SavedDraftsDialog(viewModel).ShowDialog<SavedDraft?>(this);
-        if (draft is not null)
-        {
-            await OpenSavedDraftAsync(draft);
-        }
-    }
-
-    private async Task OpenSavedDraftAsync(SavedDraft draft)
-    {
-        if (DataContext is not MainWindowViewModel viewModel || !await ConfirmDiscardDraftAsync())
-        {
-            return;
-        }
-
-        if (viewModel.RestoreDraft(draft))
-        {
-            LoadAtlasImage(viewModel.AtlasImagePath);
-            ShowSpritePreview(viewModel.SelectedSprite);
-        }
-        else
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot open draft", viewModel.Status);
-        }
-    }
-
-    private async Task<bool> ShowSettingsAsync(bool isInitialSetup)
-    {
-        var settings = await new SettingsDialog(
-            _settingsStore.Current,
-            isInitialSetup).ShowDialog<AppSettings?>(this);
-        if (settings is null)
-        {
-            return false;
-        }
-
-        try
-        {
-            _settingsStore.Save(settings);
-            if (DataContext is MainWindowViewModel viewModel)
-            {
-                viewModel.FillFontPath = settings.FillFontPath;
-            }
-
-            if (Application.Current is { } application)
-            {
-                application.RequestedThemeVariant = settings.Theme switch
-                {
-                    ApplicationThemePreference.Light => ThemeVariant.Light,
-                    ApplicationThemePreference.Dark => ThemeVariant.Dark,
-                    _ => ThemeVariant.Default,
-                };
-            }
-
-            return true;
-        }
-        catch (Exception exception) when (exception is IOException
-            or UnauthorizedAccessException
-            or ArgumentException)
-        {
-            await _errorHandlingService.ShowErrorAsync(
-                this,
-                "Cannot save settings",
-                exception.Message);
-            return false;
-        }
-    }
-
-    private async void OpenTheme_Click(object? sender, RoutedEventArgs e)
-    {
-        if (!await ConfirmDiscardDraftAsync())
-        {
-            return;
-        }
-
-        var path = await PickFolderAsync("Edit existing theme");
-        if (path is not null && DataContext is MainWindowViewModel viewModel)
-        {
-            var baseUiPath = _baseFirmwareManager.FindCompatibleBaseUiPath(path);
-            if (baseUiPath is null)
-            {
-                baseUiPath = await AskForBaseAsync(
-                    path,
-                    "The console of this theme could not be detected. Choose the Base it was made for.");
-                if (baseUiPath is null && !HasAtlasDefinition(path))
-                {
-                    return;
-                }
-            }
-
-            if (viewModel.OpenTheme(path, baseUiPath))
-            {
-                LoadAtlasImage(viewModel.AtlasImagePath);
-                ShowSpritePreview(viewModel.SelectedSprite);
-            }
-            else
-            {
-                await _errorHandlingService.ShowErrorAsync(
-                    this,
-                    "Cannot open theme",
-                    viewModel.Status);
-            }
         }
     }
 
@@ -277,9 +107,7 @@ public sealed partial class MainWindow : Window, IDisposable
 
         if (!replaced)
         {
-            await _errorHandlingService.ShowErrorAsync(
-                this,
-                "Cannot replace sprite",
+            await ShowErrorAsync("Cannot replace sprite",
                 viewModel.Status);
         }
     }
@@ -306,39 +134,6 @@ public sealed partial class MainWindow : Window, IDisposable
         if (savePath != null)
         {
             viewModel.ExportSelectedSprite(savePath);
-        }
-    }
-
-    private async void SaveTheme_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainWindowViewModel viewModel && !viewModel.SaveTheme())
-        {
-            await _errorHandlingService.ShowErrorAsync(
-                this,
-                "Cannot save theme",
-                viewModel.Status);
-        }
-    }
-
-    private async void ExportPackage_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel { CurrentDraftPath: not null } viewModel)
-        {
-            return;
-        }
-
-        var outputDirectory = await PickFolderAsync("Select the output folder for the .tar.gz package");
-        if (outputDirectory is not null && !viewModel.ExportPackage(outputDirectory))
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot export package", viewModel.Status);
-        }
-    }
-
-    private void RunValidation_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainWindowViewModel viewModel)
-        {
-            viewModel.RunValidation();
         }
     }
 
@@ -398,53 +193,6 @@ public sealed partial class MainWindow : Window, IDisposable
         viewModel.MuteBgmTrack(trackName);
     }
 
-    private async void CreateTheme_Click(object? sender, RoutedEventArgs e)
-    {
-        if (!await ConfirmDiscardDraftAsync())
-        {
-            return;
-        }
-
-        var installedBases = _baseFirmwareManager.GetInstalledBases()
-            .Where(info => info.Status == BaseInstallStatus.Valid)
-            .ToList();
-        var details = await new CreateThemeDialog(installedBases, _atlasLayoutMatcher).ShowDialog<NewThemeDetails?>(this);
-        if (details is null)
-        {
-            return;
-        }
-
-        var destinationParentPath = await GetThemeDestinationParentPathAsync();
-        if (destinationParentPath is null || DataContext is not MainWindowViewModel viewModel)
-        {
-            return;
-        }
-
-        var destinationPath = Path.Combine(
-            destinationParentPath,
-            ThemeDirectoryName.FromDisplayName(details.Name));
-
-        var request = new NewThemeRequest(
-            details.BaseUiPath,
-            destinationPath,
-            details.Name,
-            details.Author,
-            details.AtlasImagePath);
-
-        if (viewModel.CreateTheme(request))
-        {
-            LoadAtlasImage(viewModel.AtlasImagePath);
-            ShowSpritePreview(viewModel.SelectedSprite);
-        }
-        else
-        {
-            await _errorHandlingService.ShowErrorAsync(
-                this,
-                "Cannot create theme",
-                viewModel.Status);
-        }
-    }
-
     // Wallpapers Handlers
     private void WallpaperList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
@@ -500,7 +248,7 @@ public sealed partial class MainWindow : Window, IDisposable
         }
         else
         {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot replace wallpaper", viewModel.Status);
+            await ShowErrorAsync("Cannot replace wallpaper", viewModel.Status);
         }
     }
 
@@ -554,7 +302,7 @@ public sealed partial class MainWindow : Window, IDisposable
         var replacementPath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
         if (replacementPath is not null && !viewModel.ReplaceSelectedSceneImage(replacementPath))
         {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot replace image", viewModel.Status);
+            await ShowErrorAsync("Cannot replace image", viewModel.Status);
         }
     }
 
@@ -601,7 +349,6 @@ public sealed partial class MainWindow : Window, IDisposable
         }
 
         var confirmed = await _dialogService.ShowConfirmationAsync(
-            this,
             "Delete unused image?",
             image.OverridesBase
                 ? $"No scene draws resources/{image.RelativePath}. Its replacement is removed and the Base image is kept."
@@ -612,7 +359,7 @@ public sealed partial class MainWindow : Window, IDisposable
             true);
         if (confirmed && !viewModel.DeleteSelectedUnusedImage())
         {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot delete image", viewModel.Status);
+            await ShowErrorAsync("Cannot delete image", viewModel.Status);
         }
     }
 
@@ -633,7 +380,7 @@ public sealed partial class MainWindow : Window, IDisposable
         var sourcePath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
         if (sourcePath is not null && !viewModel.ProvideSelectedMissingTexture(sourcePath))
         {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot add texture", viewModel.Status);
+            await ShowErrorAsync("Cannot add texture", viewModel.Status);
         }
     }
 
@@ -650,112 +397,6 @@ public sealed partial class MainWindow : Window, IDisposable
             viewModel.SpriteZoom = zoomLevel;
             SpritePreviewImage.Stretch = zoomLevel == 0 ? Avalonia.Media.Stretch.Uniform : Avalonia.Media.Stretch.None;
         }
-    }
-
-    private async Task<string?> GetThemeDestinationParentPathAsync()
-    {
-        var configuredPath = _settingsStore.Current.DefaultThemeDestinationPath;
-        if (string.IsNullOrWhiteSpace(configuredPath))
-        {
-            return await PickFolderAsync("Select destination parent folder");
-        }
-
-        try
-        {
-            Directory.CreateDirectory(configuredPath);
-            return configuredPath;
-        }
-        catch (Exception exception) when (
-            exception is IOException or UnauthorizedAccessException or ArgumentException)
-        {
-            await _errorHandlingService.ShowErrorAsync(
-                this,
-                "Cannot use theme destination",
-                exception.Message);
-            return null;
-        }
-    }
-
-    private async Task<string?> AskForBaseAsync(string themePath, string message, string? currentBaseUiPath = null)
-    {
-        var installedBases = GetValidBases();
-        if (installedBases.Count == 0)
-        {
-            await ShowBaseManagementAsync();
-            installedBases = GetValidBases();
-            if (installedBases.Count == 0)
-            {
-                return null;
-            }
-        }
-
-        var preferredPath = currentBaseUiPath ?? _baseFirmwareManager.FindCompatibleBaseUiPath(themePath);
-        var preferred = installedBases.FirstOrDefault(info => info.LocalPath == preferredPath);
-        var selected = await new SelectBaseDialog(installedBases, preferred, message).ShowDialog<InstalledBaseInfo?>(this);
-        return selected?.LocalPath;
-    }
-
-    private System.Collections.Generic.List<InstalledBaseInfo> GetValidBases()
-    {
-        return _baseFirmwareManager.GetInstalledBases()
-            .Where(info => info.Status == BaseInstallStatus.Valid)
-            .ToList();
-    }
-
-    private async void ChangeBase_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel { CurrentDraftPath: not null } viewModel)
-        {
-            return;
-        }
-
-        var baseUiPath = await AskForBaseAsync(
-            viewModel.ThemePath,
-            "Choose the Base this theme is edited against. Changes in the draft are kept.",
-            viewModel.CurrentBaseUiPath);
-        if (baseUiPath is not null && viewModel.ChangeBase(baseUiPath))
-        {
-            LoadAtlasImage(viewModel.AtlasImagePath);
-            ShowSpritePreview(viewModel.SelectedSprite);
-        }
-    }
-
-    private static bool HasAtlasDefinition(string rootPath)
-    {
-        return File.Exists(Path.Combine(rootPath, "resources", "sprites", "packed.json"));
-    }
-
-    private async void ShowHome_Click(object? sender, RoutedEventArgs e)
-    {
-        if (!await ConfirmDiscardDraftAsync())
-        {
-            return;
-        }
-
-        DisposePreview();
-        _atlasImagePath = "";
-
-        if (DataContext is MainWindowViewModel viewModel)
-        {
-            viewModel.ShowHome();
-        }
-    }
-
-    private async Task<bool> ConfirmDiscardDraftAsync()
-    {
-        if (DataContext is not MainWindowViewModel { HasUnsavedWork: true })
-        {
-            return true;
-        }
-
-        return await _dialogService.ShowConfirmationAsync(
-            this,
-            "Discard draft?",
-            "The unsaved changes in this draft will be lost.",
-            DialogVariant.Warning,
-            "Discard draft",
-            "Keep editing",
-            true);
     }
 
     private void ThemeMode_Click(object? sender, RoutedEventArgs e)
@@ -785,17 +426,6 @@ public sealed partial class MainWindow : Window, IDisposable
         ThemeModeIcon.Kind = isDarkMode
             ? LucideIconKind.Sun
             : LucideIconKind.Moon;
-    }
-
-    private async Task<string?> PickFolderAsync(string title)
-    {
-        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = title,
-            AllowMultiple = false,
-        });
-
-        return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
     }
 
     private void SpriteList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
@@ -843,7 +473,12 @@ public sealed partial class MainWindow : Window, IDisposable
             return;
         }
 
-        if (e.PropertyName == nameof(MainWindowViewModel.AtlasImagePath) && viewModel.AtlasImagePath != _atlasImagePath)
+        if (e.PropertyName == nameof(MainWindowViewModel.IsThemeOpen) && !viewModel.IsThemeOpen)
+        {
+            DisposePreview();
+            _atlasImagePath = "";
+        }
+        else if (e.PropertyName == nameof(MainWindowViewModel.AtlasImagePath) && viewModel.AtlasImagePath != _atlasImagePath)
         {
             LoadAtlasImage(viewModel.AtlasImagePath);
             ShowSpritePreview(viewModel.SelectedSprite);
@@ -886,7 +521,7 @@ public sealed partial class MainWindow : Window, IDisposable
     {
         if (DataContext is MainWindowViewModel viewModel && !viewModel.CompleteSelectedFont())
         {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot fill the font", viewModel.Status);
+            await ShowErrorAsync("Cannot fill the font", viewModel.Status);
         }
     }
 
@@ -894,7 +529,7 @@ public sealed partial class MainWindow : Window, IDisposable
     {
         if (DataContext is MainWindowViewModel viewModel && !viewModel.ApplyPaletteColor())
         {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot change the colour", viewModel.Status);
+            await ShowErrorAsync("Cannot change the colour", viewModel.Status);
         }
     }
 
@@ -902,7 +537,7 @@ public sealed partial class MainWindow : Window, IDisposable
     {
         if (DataContext is MainWindowViewModel viewModel && !viewModel.ApplyFrameTime())
         {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot change the frame time", viewModel.Status);
+            await ShowErrorAsync("Cannot change the frame time", viewModel.Status);
         }
     }
 
@@ -939,7 +574,7 @@ public sealed partial class MainWindow : Window, IDisposable
         }
         else
         {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot flip frames", viewModel.Status);
+            await ShowErrorAsync("Cannot flip frames", viewModel.Status);
         }
     }
 
@@ -965,7 +600,6 @@ public sealed partial class MainWindow : Window, IDisposable
             && (current.Width != result.FrameSize.Width || current.Height != result.FrameSize.Height))
         {
             resize = await _dialogService.ShowConfirmationAsync(
-                this,
                 "Resize the character?",
                 $"The new frames are {result.FrameSize.Width} x {result.FrameSize.Height} but {character} is drawn from {current.Width} x {current.Height} frames. "
                 + "Resize the character in the scenes so the new frames are not stretched? Its other animations will then need frames of the same size.",
@@ -978,7 +612,7 @@ public sealed partial class MainWindow : Window, IDisposable
         AnimationPreviewImage.Source = null;
         if (!viewModel.ReplaceAnimationFrames(result.FramePaths, result.FrameSize, resize))
         {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot replace frames", viewModel.Status);
+            await ShowErrorAsync("Cannot replace frames", viewModel.Status);
         }
     }
 
@@ -1034,16 +668,15 @@ public sealed partial class MainWindow : Window, IDisposable
 
     protected override async void OnClosing(WindowClosingEventArgs e)
     {
-        if (_isCloseConfirmed
-            || DataContext is not MainWindowViewModel { IsThemeOpen: true, HasUnsavedWork: true } viewModel)
+        if (_isCloseConfirmed || DataContext is not MainWindowViewModel viewModel)
         {
             base.OnClosing(e);
             return;
         }
 
+        // the dialog is asynchronous, so the close is cancelled now and repeated once the user has chosen
         e.Cancel = true;
         base.OnClosing(e);
-
         if (_isCloseConfirmationOpen)
         {
             return;
@@ -1052,32 +685,21 @@ public sealed partial class MainWindow : Window, IDisposable
         _isCloseConfirmationOpen = true;
         try
         {
-            var choice = await _dialogService.ShowChoiceAsync(
-                this,
-                "Save draft before exiting?",
-                "The open theme has unsaved changes. Save them as a draft to resume next time, or exit and discard them.",
-                "Save draft and exit",
-                "Exit without saving",
-                "Cancel",
-                DialogVariant.Info);
-            if (choice == DialogResult.Cancelled)
+            if (await viewModel.ConfirmCloseAsync())
             {
-                return;
+                _isCloseConfirmed = true;
+                Close();
             }
-
-            if (choice == DialogResult.Accepted && !viewModel.SaveDraft())
-            {
-                await _errorHandlingService.ShowErrorAsync(this, "Cannot save draft", viewModel.Status);
-                return;
-            }
-
-            _isCloseConfirmed = true;
-            Close();
         }
         finally
         {
             _isCloseConfirmationOpen = false;
         }
+    }
+
+    private Task ShowErrorAsync(string title, string message)
+    {
+        return _dialogService.ShowInformationAsync(title, message, DialogVariant.Error);
     }
 
     protected override void OnClosed(EventArgs e)
@@ -1124,7 +746,7 @@ public sealed partial class MainWindow : Window, IDisposable
 
         if (!viewModel.ImportSelectedTrueTypeFont(fontPath))
         {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot convert font", viewModel.Status);
+            await ShowErrorAsync("Cannot convert font", viewModel.Status);
         }
     }
 
@@ -1150,7 +772,7 @@ public sealed partial class MainWindow : Window, IDisposable
 
         if (!viewModel.ReplaceSelectedFontTexture(replacementPath))
         {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot replace font texture", viewModel.Status);
+            await ShowErrorAsync("Cannot replace font texture", viewModel.Status);
         }
     }
 
@@ -1176,7 +798,7 @@ public sealed partial class MainWindow : Window, IDisposable
 
         if (!viewModel.ReplaceSelectedFontFile(replacementPath))
         {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot replace font file", viewModel.Status);
+            await ShowErrorAsync("Cannot replace font file", viewModel.Status);
         }
     }
 
@@ -1203,7 +825,7 @@ public sealed partial class MainWindow : Window, IDisposable
 
         if (!viewModel.ExportSelectedFontTexture(destinationPath))
         {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot export font texture", viewModel.Status);
+            await ShowErrorAsync("Cannot export font texture", viewModel.Status);
         }
     }
 
@@ -1231,7 +853,7 @@ public sealed partial class MainWindow : Window, IDisposable
 
         if (!viewModel.ExportSelectedFontFile(destinationPath))
         {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot export font", viewModel.Status);
+            await ShowErrorAsync("Cannot export font", viewModel.Status);
         }
     }
 

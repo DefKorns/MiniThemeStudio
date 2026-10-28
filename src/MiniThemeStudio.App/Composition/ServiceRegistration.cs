@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MiniThemeStudio.App.Diagnostics;
 using MiniThemeStudio.App.Dialogs;
 using MiniThemeStudio.App.Errors;
+using MiniThemeStudio.App.Services;
 using MiniThemeStudio.App.ViewModels;
 using MiniThemeStudio.App.Views;
 using MiniThemeStudio.Core.Audio;
@@ -61,7 +62,10 @@ public static class ServiceRegistration
 
         // user interface
         services.AddSingleton<IDialogService, DialogService>();
-        services.AddSingleton<IErrorHandlingService, ErrorHandlingService>();
+        services.AddSingleton<IFileDialogService, FileDialogService>();
+        services.AddSingleton<IAppDialogs, AppDialogs>();
+        services.AddSingleton<IAppearanceService, AppearanceService>();
+        services.AddSingleton<IErrorHandler, ErrorHandler>();
         services.AddSingleton<GlobalExceptionHandler>();
         services.AddSingleton<MainWindowViewModel>();
         services.AddSingleton<MainWindow>();

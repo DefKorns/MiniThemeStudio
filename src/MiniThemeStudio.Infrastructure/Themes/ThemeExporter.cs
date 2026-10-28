@@ -154,7 +154,7 @@ public sealed partial class ThemeExporter(MiniThemeStudio.Core.Audio.IFFmpegAudi
 
         if (string.IsNullOrWhiteSpace(options.FFmpegPath) || !File.Exists(options.FFmpegPath))
         {
-            throw new InvalidOperationException("Convert BGM audio is enabled, but the FFmpeg executable path is not configured or does not exist.");
+            throw new FileNotFoundException("Convert BGM audio is enabled, but the FFmpeg executable path is not configured or does not exist.", options.FFmpegPath);
         }
 
         foreach (var audioFile in audioFiles)
@@ -198,7 +198,7 @@ public sealed partial class ThemeExporter(MiniThemeStudio.Core.Audio.IFFmpegAudi
 
                 if (!result.Success)
                 {
-                    throw new InvalidOperationException($"Failed to convert '{Path.GetFileName(audioFile)}': {result.ErrorMessage}");
+                    throw new IOException($"Failed to convert '{Path.GetFileName(audioFile)}': {result.ErrorMessage}");
                 }
             }
         }

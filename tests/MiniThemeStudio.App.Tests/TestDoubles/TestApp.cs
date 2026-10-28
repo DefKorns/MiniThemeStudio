@@ -23,6 +23,7 @@ public sealed class TestApp : IDisposable
 
     public TestApp()
     {
+        HeadlessAvalonia.EnsureStarted();
         try
         {
             var settings = new JsonAppSettingsStore(Path.Combine(Root, "settings.json"));

@@ -21,11 +21,20 @@ public static class FontCharsets
     {
         IEnumerable<char> chars = Base.Value;
         if (scripts.HasFlag(ExtraScripts.Cyrillic))
+        {
             chars = chars.Concat(Cyrillic.Value);
+        }
+
         if (scripts.HasFlag(ExtraScripts.Greek))
+        {
             chars = chars.Concat(Greek.Value);
+        }
+
         if (scripts.HasFlag(ExtraScripts.Japanese))
+        {
             chars = chars.Concat(Japanese.Value);
+        }
+
         return chars.Distinct().ToList();
     }
 

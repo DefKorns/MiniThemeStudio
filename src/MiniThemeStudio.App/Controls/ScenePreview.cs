@@ -312,11 +312,11 @@ public sealed class ScenePreview : Control
         context.DrawLine(SelectionPen, origin - new Vector(0, 8), origin + new Vector(0, 8));
     }
 
-    private static void DrawOutline(DrawingContext context, IReadOnlyList<Point> corners, IPen pen)
+    private static void DrawOutline(DrawingContext context, Point[] corners, IPen pen)
     {
-        for (var index = 0; index < corners.Count; index++)
+        for (var index = 0; index < corners.Length; index++)
         {
-            context.DrawLine(pen, corners[index], corners[(index + 1) % corners.Count]);
+            context.DrawLine(pen, corners[index], corners[(index + 1) % corners.Length]);
         }
     }
 

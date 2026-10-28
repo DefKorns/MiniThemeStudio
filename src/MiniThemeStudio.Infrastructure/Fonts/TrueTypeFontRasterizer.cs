@@ -24,7 +24,9 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
                 e.FullName.EndsWith(".otf", StringComparison.OrdinalIgnoreCase));
 
             if (entry is null)
+            {
                 throw new InvalidDataException($"No .ttf or .otf font found inside zip archive: {fontOrZipPath}");
+            }
 
             using var entryStream = entry.Open();
             using var ms = new MemoryStream();
@@ -44,7 +46,9 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
 
         using var typeface = SKTypeface.FromStream(fontStream);
         if (typeface is null)
+        {
             throw new InvalidDataException("Invalid TrueType or OpenType font stream.");
+        }
 
         var effectiveFontName = !string.IsNullOrWhiteSpace(fontName) ? fontName
             : !string.IsNullOrWhiteSpace(typeface.FamilyName) ? typeface.FamilyName
@@ -63,7 +67,10 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
         paint.GetFontMetrics(out var metrics);
         var lineHeight = (int)Math.Ceiling(metrics.Descent - metrics.Ascent + metrics.Leading);
         var baseOffset = (int)Math.Ceiling(-metrics.Ascent);
-        if (lineHeight <= 0) lineHeight = fontSize + 4;
+        if (lineHeight <= 0)
+        {
+            lineHeight = fontSize + 4;
+        }
 
         // ── Build full character set ──────────────────────────────────────────
         var charset = BuildCharacterSet(options);
@@ -120,7 +127,10 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
 
         foreach (var item in pendingGlyphs)
         {
-            if (item.Ch == ' ') continue;
+            if (item.Ch == ' ')
+            {
+                continue;
+            }
 
             var w = (int)Math.Ceiling(item.Bounds.Width);
             var h = (int)Math.Ceiling(item.Bounds.Height);
@@ -192,7 +202,11 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
     private static int NextPowerOfTwo(int value)
     {
         var power = 64;
-        while (power < value && power < 4096) power *= 2;
+        while (power < value && power < 4096)
+        {
+            power *= 2;
+        }
+
         return Math.Max(power, value);
     }
 }

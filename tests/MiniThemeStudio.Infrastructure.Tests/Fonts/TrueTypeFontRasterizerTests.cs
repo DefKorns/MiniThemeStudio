@@ -72,10 +72,18 @@ public sealed class FontComparisonDiagnosticsTests(ITestOutputHelper output)
                 .Where(id => !assigned.Contains(id) && match(id))
                 .ToList();
 
-            if (inGroup.Count == 0) continue;
+            if (inGroup.Count == 0)
+            {
+                continue;
+            }
 
             if (label != "Other Unicode")
-                foreach (var id in inGroup) assigned.Add(id);
+            {
+                foreach (var id in inGroup)
+                {
+                    assigned.Add(id);
+                }
+            }
 
             output.WriteLine($"-- {label} ({inGroup.Count} missing) --");
             for (var i = 0; i < inGroup.Count; i += 8)

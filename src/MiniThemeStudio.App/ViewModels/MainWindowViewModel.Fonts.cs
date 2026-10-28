@@ -192,10 +192,25 @@ public partial class MainWindowViewModel
         foreach (var g in font.Glyphs)
         {
             var c = (char)g.Id;
-            if (!hasJapanese && IsJapaneseChar(c)) hasJapanese = true;
-            if (!hasCyrillic && IsCyrillicChar(c)) hasCyrillic = true;
-            if (!hasGreek    && IsGreekChar(c))    hasGreek    = true;
-            if (hasJapanese && hasCyrillic && hasGreek) break;
+            if (!hasJapanese && IsJapaneseChar(c))
+            {
+                hasJapanese = true;
+            }
+
+            if (!hasCyrillic && IsCyrillicChar(c))
+            {
+                hasCyrillic = true;
+            }
+
+            if (!hasGreek && IsGreekChar(c))
+            {
+                hasGreek = true;
+            }
+
+            if (hasJapanese && hasCyrillic && hasGreek)
+            {
+                break;
+            }
         }
 
         _isUpdatingScriptCheckboxes = true;

@@ -287,7 +287,7 @@ public sealed class SceneEditor : ISceneEditor
         }
     }
 
-    private static JsonNode Number(double value)
+    private static JsonValue Number(double value)
     {
         return value == Math.Floor(value) && Math.Abs(value) < 1e15 ? JsonValue.Create((long)value) : JsonValue.Create(value);
     }

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json.Nodes;
 using SkiaSharp;
 
@@ -30,6 +31,20 @@ internal static class ThemeTextures
                 ["sprites"] = new JsonObject(),
             }));
         return textureId;
+    }
+
+    // folder/name.png, or name_2.png, name_3.png... when the theme, its Base or the manifest already has it
+    public static string FreeResourcePath(ThemeLayer layer, DependencyManifest manifest, string folder, string name)
+    {
+        ArgumentNullException.ThrowIfNull(layer);
+        ArgumentNullException.ThrowIfNull(manifest);
+        var resourcePath = $"{folder}/{name}.png";
+        for (var number = 2; manifest.Resources.Any(resource => resource.Path == resourcePath) || layer.Resolve(resourcePath) is not null; number++)
+        {
+            resourcePath = $"{folder}/{name}_{number.ToString(CultureInfo.InvariantCulture)}.png";
+        }
+
+        return resourcePath;
     }
 
     // the pixel size of a registered texture: from its sprite sheet definition, or from the image itself

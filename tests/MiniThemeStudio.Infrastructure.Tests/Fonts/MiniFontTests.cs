@@ -138,22 +138,11 @@ public sealed class MiniFontTests
         Assert.Empty(fullResult.MissingAccentChars);
     }
 
-    [Fact]
-    public void CanParseExistingInstalledBaseFontIfPresent()
+    [Theory]
+    [InlineDataWhenPresent(@"%APPDATA%\MiniThemeStudio\Bases\shonen\jpn\3.0.1\resources\fonts\copyright.fnt")]
+    [InlineDataWhenPresent(@"%APPDATA%\MiniThemeStudio\Bases\snes\eur\2.0.13\resources\fonts\l.font")]
+    public void CanParseExistingInstalledBaseFontIfPresent(string baseFontPath)
     {
-        string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        string baseFontPath = Path.Combine(appData, "MiniThemeStudio", "Bases", "shonen", "jpn", "3.0.1", "resources", "fonts", "copyright.fnt");
-
-        if (!File.Exists(baseFontPath))
-        {
-            // Fallback check in snes eur
-            baseFontPath = Path.Combine(appData, "MiniThemeStudio", "Bases", "snes", "eur", "2.0.13", "resources", "fonts", "l.font");
-            if (!File.Exists(baseFontPath))
-            {
-                return; // Base not installed on this machine, test skipped safely
-            }
-        }
-
         MiniFont font = MiniFontReader.Read(baseFontPath);
         Assert.NotNull(font);
         Assert.True(font.Glyphs.Count > 0);

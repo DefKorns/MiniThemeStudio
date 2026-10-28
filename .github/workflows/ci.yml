@@ -18,12 +18,11 @@ env:
 jobs:
   build-and-test:
     name: build-and-test (${{ matrix.os }})
-    # Windows and Linux on every run; macOS minutes cost ten times more, so it runs only when work reaches
-    # development or main, or when the workflow is started by hand
+    # every system the app is built for, on every run (Actions minutes are free for public repositories)
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(github.event_name == 'pull_request' && '["windows-latest","ubuntu-24.04"]' || '["windows-latest","ubuntu-24.04","macos-latest"]') }}
+        os: [windows-latest, ubuntu-24.04, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Create the runtime folder

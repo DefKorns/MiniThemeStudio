@@ -8,16 +8,11 @@ namespace MiniThemeStudio.Infrastructure.Tests.Themes;
 public sealed class RealThemesIntegrationTests
 {
     [Theory]
-    [InlineData(@"Z:\_organize\minis\nes\dp_hvcj_release_v3.0.1_0_gad315e1_trimmed.hsqs", "shonen-jpn-3.0.1")]
-    [InlineData(@"Z:\_organize\minis\nes\dp-nes-release-v1.0.7-0-g4ea4041.hsqs", "nes-usa-eur-1.0.2")]
-    [InlineData(@"Z:\_organize\minis\snes\dp-sneseur-release-v2.0.14-0-gd8b65c6.tar.gz", "snes-eur-2.0.13")]
+    [InlineDataWhenPresent(@"Z:\_organize\minis\nes\dp_hvcj_release_v3.0.1_0_gad315e1_trimmed.hsqs", "shonen-jpn-3.0.1")]
+    [InlineDataWhenPresent(NesUsaImage, "nes-usa-eur-1.0.2")]
+    [InlineDataWhenPresent(@"Z:\_organize\minis\snes\dp-sneseur-release-v2.0.14-0-gd8b65c6.tar.gz", "snes-eur-2.0.13")]
     public async Task ImportsRealFirmwareFilesIfPresent(string firmwarePath, string expectedId)
     {
-        if (!File.Exists(firmwarePath))
-        {
-            return;
-        }
-
         string tempBases = Directory.CreateTempSubdirectory().FullName;
         try
         {
@@ -38,15 +33,10 @@ public sealed class RealThemesIntegrationTests
         }
     }
 
-    [Fact]
+    [FactWhenPresent(NesUsaImage)]
     public async Task ReadsRealNesAtlasesIfPresent()
     {
-        string firmwarePath = @"Z:\_organize\minis\nes\dp-nes-release-v1.0.7-0-g4ea4041.hsqs";
-        if (!File.Exists(firmwarePath))
-        {
-            return;
-        }
-
+        string firmwarePath = NesUsaImage;
         string tempBases = Directory.CreateTempSubdirectory().FullName;
         string emptyTheme = Directory.CreateTempSubdirectory().FullName;
         try
@@ -68,15 +58,10 @@ public sealed class RealThemesIntegrationTests
         }
     }
 
-    [Fact]
+    [FactWhenPresent(NesDataTar)]
     public async Task RejectsNesDataTarIfPresent()
     {
-        string dataTar = @"Z:\_organize\minis\nes\dp-nes-release-v1.0.7-0-g4ea4041.tar";
-        if (!File.Exists(dataTar))
-        {
-            return;
-        }
-
+        string dataTar = NesDataTar;
         string tempBases = Directory.CreateTempSubdirectory().FullName;
         try
         {
@@ -91,18 +76,12 @@ public sealed class RealThemesIntegrationTests
         }
     }
 
-    [Theory]
-    [InlineData("shonen_jump_50th_ui")]
-    [InlineData("chrono_trigger")]
-    [InlineData("wii_theme")]
-    public async Task RealSnesThemesValidateAgainstRealBaseIfPresent(string themeName)
+    [TheoryWhenPresent(SnesEuropeImage)]
+    [InlineDataWhenPresent(SnesThemes + "shonen_jump_50th_ui")]
+    [InlineDataWhenPresent(SnesThemes + "chrono_trigger")]
+    [InlineDataWhenPresent(SnesThemes + "wii_theme")]
+    public async Task RealSnesThemesValidateAgainstRealBaseIfPresent(string themePath)
     {
-        string themePath = Path.Combine(@"E:\Documents\_projects\hmods\om_themes\new-packaging\snes\themes", themeName);
-        if (!Directory.Exists(themePath) || !File.Exists(SnesEuropeImage))
-        {
-            return;
-        }
-
         string tempBases = Directory.CreateTempSubdirectory().FullName;
         try
         {
@@ -122,15 +101,10 @@ public sealed class RealThemesIntegrationTests
         }
     }
 
-    [Fact]
+    [FactWhenPresent(SnesThemes + "shonen_jump_50th_ui", SnesEuropeImage)]
     public async Task ShonenCharactersAreUsedByItsBackgroundSceneIfPresent()
     {
-        string themePath = @"E:\Documents\_projects\hmods\om_themes\new-packaging\snes\themes\shonen_jump_50th_ui";
-        if (!Directory.Exists(themePath) || !File.Exists(SnesEuropeImage))
-        {
-            return;
-        }
-
+        string themePath = SnesThemes + "shonen_jump_50th_ui";
         string tempBases = Directory.CreateTempSubdirectory().FullName;
         try
         {
@@ -149,16 +123,11 @@ public sealed class RealThemesIntegrationTests
         }
     }
 
-    [Fact]
+    [FactWhenPresent(OldPackedPng, SnesEuropeImage, NesUsaImage)]
     public async Task OldPackedPngFitsSnesLayoutBestIfPresent()
     {
-        string packedPath = @"E:\Documents\_projects\hmods\om_themes\wip\packed.png";
-        string nesImage = @"Z:\_organize\minis\nes\dp-nes-release-v1.0.7-0-g4ea4041.hsqs";
-        if (!File.Exists(packedPath) || !File.Exists(SnesEuropeImage) || !File.Exists(nesImage))
-        {
-            return;
-        }
-
+        string packedPath = OldPackedPng;
+        string nesImage = NesUsaImage;
         string tempBases = Directory.CreateTempSubdirectory().FullName;
         try
         {
@@ -177,14 +146,9 @@ public sealed class RealThemesIntegrationTests
         }
     }
 
-    [Fact]
+    [FactWhenPresent(SnesEuropeImage)]
     public async Task SixFrameRunAnimationValidatesOnRealSnesBaseIfPresent()
     {
-        if (!File.Exists(SnesEuropeImage))
-        {
-            return;
-        }
-
         string tempRoot = Directory.CreateTempSubdirectory().FullName;
         try
         {
@@ -222,4 +186,8 @@ public sealed class RealThemesIntegrationTests
     }
 
     private const string SnesEuropeImage = @"Z:\_organize\minis\snes\dp-sneseur-release-v2.0.14-0-gd8b65c6.hsqs";
+    private const string NesUsaImage = @"Z:\_organize\minis\nes\dp-nes-release-v1.0.7-0-g4ea4041.hsqs";
+    private const string NesDataTar = @"Z:\_organize\minis\nes\dp-nes-release-v1.0.7-0-g4ea4041.tar";
+    private const string SnesThemes = @"E:\Documents\_projects\hmods\om_themes\new-packaging\snes\themes\";
+    private const string OldPackedPng = @"E:\Documents\_projects\hmods\om_themes\wip\packed.png";
 }

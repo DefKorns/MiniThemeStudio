@@ -15,23 +15,11 @@ public sealed class FontComparisonDiagnosticsTests(ITestOutputHelper output)
     private const string OtfZipPath = @"E:\Downloads\super-metroid-intro-snes.otf.zip";
     private const string TtfZipPath = @"E:\Downloads\super-metroid-intro-snes.ttf.zip";
 
-    [Fact]
-    public void CompareHakchiTitleFntWithRasterizer()
+    [TheoryWhenPresent(HakchiFntPath)]
+    [InlineDataWhenPresent(OtfZipPath)]
+    [InlineDataWhenPresent(TtfZipPath)]
+    public void CompareHakchiTitleFntWithRasterizer(string fontPath)
     {
-        if (!File.Exists(HakchiFntPath))
-        {
-            output.WriteLine($"[SKIP] {HakchiFntPath} not found.");
-            return;
-        }
-        string? fontPath = File.Exists(OtfZipPath) ? OtfZipPath
-                     : File.Exists(TtfZipPath) ? TtfZipPath
-                     : null;
-        if (fontPath is null)
-        {
-            output.WriteLine("[SKIP] Super Metroid font .zip not found.");
-            return;
-        }
-
         MiniFont reference = MiniFontReader.Read(HakchiFntPath);
         var rasterizer = new TrueTypeFontRasterizer();
         MiniFont rasterized = rasterizer.Rasterize(fontPath, new TrueTypeRasterOptions(

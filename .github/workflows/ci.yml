@@ -14,9 +14,9 @@ jobs:
     # SkiaSharp in Infrastructure only ships the Windows native libraries
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
@@ -31,17 +31,26 @@ jobs:
         run: dotnet test MiniThemeStudio.slnx --configuration Release --no-build
 
   pre-commit:
-    # the same hooks as .pre-commit-config.yaml, for commits made without them installed
-    runs-on: ubuntu-latest
+    # the same hooks as .pre-commit-config.yaml, for commits made without them installed;
+    # pinned so the ubuntu-latest migrations do not change the job unnoticed
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.x"
 
-      - uses: pre-commit/action@v3.0.1
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      - name: Run the hooks
+        run: |
+          pip install pre-commit
+          pre-commit run --all-files --show-diff-on-failure

@@ -425,8 +425,9 @@ public sealed class ThemeAssetManager : IThemeAssetManager
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
 
-        var fontFiles = new Dictionary<string, (string Path, string Extension, bool FromBase)>(StringComparer.OrdinalIgnoreCase);
-        foreach (var file in new ThemeLayer(themeDraftPath, baseUiPath).ListFiles("fonts", "*.*", recursive: false))
+        // the NES and Famicom keep their menu fonts in a folder of the console (fonts/nes, fonts/hvc)
+        var fontFiles = new Dictionary<string, (string Path, string Resource, string Extension, bool FromBase)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var file in new ThemeLayer(themeDraftPath, baseUiPath).ListFiles("fonts", "*.*", recursive: true))
         {
             var ext = Path.GetExtension(file.FilePath);
             var name = Path.GetFileNameWithoutExtension(file.FilePath);
@@ -436,18 +437,18 @@ public sealed class ThemeAssetManager : IThemeAssetManager
                 // a theme font named like a Base font with the other extension replaces it
                 if (!fontFiles.TryGetValue(name, out var existing) || existing.FromBase)
                 {
-                    fontFiles[name] = (file.FilePath, ext, file.IsFromBase);
+                    fontFiles[name] = (file.FilePath, file.ResourcePath, ext, file.IsFromBase);
                 }
             }
         }
 
         var result = new List<MiniThemeStudio.Core.Fonts.FontAsset>();
-        foreach (var (name, (filePath, ext, fromBase)) in fontFiles.OrderBy(kvp => GetFontSortKey(kvp.Key)))
+        foreach (var (name, (filePath, resource, _, fromBase)) in fontFiles.OrderBy(kvp => GetFontSortKey(kvp.Key)))
         {
+            var relPath = "resources" + resource;
             try
             {
                 var font = MiniThemeStudio.Infrastructure.Fonts.MiniFontReader.Read(filePath);
-                var relPath = $"resources/fonts/{name}{ext}";
                 var (displayName, roles) = GetFontMetadata(name);
 
                 result.Add(new MiniThemeStudio.Core.Fonts.FontAsset(
@@ -467,7 +468,6 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             catch
             {
                 // If corrupted or unreadable, still register with fallback metrics
-                var relPath = $"resources/fonts/{name}{ext}";
                 var (displayName, roles) = GetFontMetadata(name);
                 result.Add(new MiniThemeStudio.Core.Fonts.FontAsset(
                     Name: name,

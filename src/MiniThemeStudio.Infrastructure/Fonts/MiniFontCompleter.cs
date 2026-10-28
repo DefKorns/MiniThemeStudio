@@ -173,9 +173,11 @@ public static class MiniFontCompleter
         long inked = 0, partial = 0;
         foreach (var glyph in font.Glyphs.Where(g => g.Width > 0 && g.Height > 0).Take(40))
         {
-            for (var y = glyph.Y; y < glyph.Y + glyph.Height; y++)
+            // a glyph outside the texture (the 1 x 1 placeholder fonts of some UIs) has no pixels to tell
+            var box = Inside(atlas, new SKRectI(glyph.X, glyph.Y, glyph.X + glyph.Width, glyph.Y + glyph.Height));
+            for (var y = box.Top; y < box.Bottom; y++)
             {
-                for (var x = glyph.X; x < glyph.X + glyph.Width; x++)
+                for (var x = box.Left; x < box.Right; x++)
                 {
                     var alpha = pixels[y * atlas.RowBytes + x * 4 + 3];
                     inked += alpha > 0 ? 1 : 0;
@@ -186,6 +188,13 @@ public static class MiniFontCompleter
 
         return inked == 0 ? font.Info.Smooth : partial > inked / 5;
     }
+
+    // the part of the box that lies on the bitmap
+    private static SKRectI Inside(SKBitmap bitmap, SKRectI box) => new(
+        Math.Clamp(box.Left, 0, bitmap.Width),
+        Math.Clamp(box.Top, 0, bitmap.Height),
+        Math.Clamp(box.Right, 0, bitmap.Width),
+        Math.Clamp(box.Bottom, 0, bitmap.Height));
 
     private static double RenderedCoverage(SKPaint paint, char c)
     {
@@ -207,6 +216,12 @@ public static class MiniFontCompleter
     // the share of the box the glyph's ink covers; alpha is the 4th byte in both RGBA and BGRA
     private static double Coverage(SKBitmap bitmap, SKRectI box)
     {
+        box = Inside(bitmap, box);
+        if (box.Width <= 0 || box.Height <= 0)
+        {
+            return 0;
+        }
+
         var pixels = bitmap.GetPixelSpan();
         var rowBytes = bitmap.RowBytes;
         long alpha = 0;

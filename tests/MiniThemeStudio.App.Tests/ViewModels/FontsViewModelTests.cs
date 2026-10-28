@@ -83,6 +83,38 @@ public sealed class FontsViewModelTests : IDisposable
         Assert.True(new FileInfo(textureTarget).Length > 0);
     }
 
+    [Fact]
+    public async Task TheNesFontsInTheConsolesFolderAreListedAndAPlaceholderCanBeFilled()
+    {
+        // the NES keeps l, m and s in fonts/nes; its title font is a 1 x 1 placeholder with a space only
+        var basePath = Path.Combine(_app.Root, "base");
+        MiniFontWriter.Write(SmallFont(), Path.Combine(Directory.CreateDirectory(Path.Combine(basePath, "resources", "fonts", "nes")).FullName, "m.fnt"));
+        using (var pixel = new SKBitmap(1, 1))
+        using (var png = SKImage.FromBitmap(pixel).Encode(SKEncodedImageFormat.Png, 100))
+        {
+            MiniFontWriter.Write(new MiniFont(
+                formatType: 1,
+                info: new FontInfo("Title", 47, false, false, true, false, 0, 100, 0, 0, 0, 0, 0, 0, 0, 0),
+                common: new FontCommon(47, 40, 1, 1, 1, false, 0, 0, 0, 0),
+                pageNames: ["title.png"],
+                glyphs: [new FontGlyph(' ', 0, 0, 2, 2, 0, 0, 12, 0, 15)],
+                kerningPairs: [],
+                texturePngBytes: png.ToArray()), Path.Combine(basePath, "resources", "fonts", "title.fnt"));
+        }
+
+        _app.Session.Reload();
+        var fonts = _app.Window.FontsTab;
+
+        Assert.Equal(["title", "m", "s"], fonts.Fonts.Select(font => font.Name));
+        Assert.Equal("resources/fonts/nes/m.fnt", fonts.Fonts.Single(font => font.Name == "m").RelativePath);
+
+        fonts.SelectedFont = fonts.Fonts[0];
+        await fonts.CompleteFontCommand.ExecuteAsync(null);
+
+        Assert.Empty(_app.Errors.Failures.Select(failure => $"{failure.Failure}: {failure.Exception.Message}"));
+        Assert.True(fonts.FontGlyphs.Count > 1);
+    }
+
     // capitals 20px tall standing on y = 24, plus one Cyrillic letter
     private static MiniFont SmallFont()
     {

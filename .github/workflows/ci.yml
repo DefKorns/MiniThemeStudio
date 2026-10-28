@@ -43,8 +43,9 @@ jobs:
       - name: Build
         run: dotnet build MiniThemeStudio.slnx --configuration Release --no-restore
 
+      # every test with its duration, so a test that is slow on one system shows in the log
       - name: Test
-        run: dotnet test MiniThemeStudio.slnx --configuration Release --no-build
+        run: dotnet test MiniThemeStudio.slnx --configuration Release --no-build --logger "console;verbosity=normal"
 
   pre-commit:
     # the same hooks as .pre-commit-config.yaml, for commits made without them installed;

@@ -64,8 +64,8 @@ public static class MiniFontCompleter
                 continue;
             }
 
-            var bounds = new SKRect();
-            var advance = paint.MeasureText(c.ToString(), ref bounds);
+            var bounds = InkBounds(paint, c);
+            var advance = paint.MeasureText(c.ToString());
             var width = (int)Math.Ceiling(bounds.Width);
             var height = (int)Math.Ceiling(bounds.Height);
             SKBitmap? bitmap = null;
@@ -124,8 +124,7 @@ public static class MiniFontCompleter
         var bottoms = new List<double>();
         foreach (var glyph in font.Glyphs.Where(g => g.Height > 0 && g.Id is (>= 'A' and <= 'Z') or (>= '0' and <= '9')))
         {
-            var bounds = new SKRect();
-            measure.MeasureText(((char)glyph.Id).ToString(), ref bounds);
+            var bounds = InkBounds(measure, (char)glyph.Id);
             if (bounds.Height > 0)
             {
                 ratios.Add(glyph.Height / bounds.Height);
@@ -190,8 +189,7 @@ public static class MiniFontCompleter
 
     private static double RenderedCoverage(SKPaint paint, char c)
     {
-        var bounds = new SKRect();
-        paint.MeasureText(c.ToString(), ref bounds);
+        var bounds = InkBounds(paint, c);
         var width = (int)Math.Ceiling(bounds.Width);
         var height = (int)Math.Ceiling(bounds.Height);
         if (width <= 0 || height <= 0)
@@ -282,6 +280,14 @@ public static class MiniFontCompleter
             glyphs: placed.Select(p => p.Glyph).ToList(),
             kerningPairs: font.KerningPairs,
             texturePngBytes: png.ToArray());
+    }
+
+    // the outline's own box: the bounds MeasureText gives grow a pixel on every side on macOS (room CoreText keeps
+    // for antialiasing), which would make the filled glyphs taller there than on Windows and Linux
+    private static SKRect InkBounds(SKPaint paint, char c)
+    {
+        using var path = paint.GetTextPath(c.ToString(), 0, 0);
+        return path.TightBounds;
     }
 
     private static SKPaint Paint(SKTypeface typeface, float size, bool smooth) =>

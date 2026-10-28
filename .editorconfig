@@ -20,6 +20,8 @@ dotnet_style_require_accessibility_modifiers = for_non_interface_members:suggest
 dotnet_diagnostic.IDE0005.severity = warning
 # names a using directive already covers
 dotnet_diagnostic.IDE0002.severity = warning
+# null checks that ?? throw says in one expression
+dotnet_diagnostic.IDE0270.severity = warning
 
 dotnet_naming_rule.constants_use_pascal_case.severity = suggestion
 dotnet_naming_rule.constants_use_pascal_case.symbols = constant_fields

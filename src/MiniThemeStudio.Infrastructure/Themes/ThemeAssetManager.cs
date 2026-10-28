@@ -519,11 +519,8 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         var miniFont = MiniFontReader.Read(draftPath);
 
         var newPngBytes = File.ReadAllBytes(replacementPngPath);
-        using var bmp = SKBitmap.Decode(newPngBytes);
-        if (bmp == null)
-        {
-            throw new InvalidDataException("The replacement image is not a valid PNG.");
-        }
+        using var bmp = SKBitmap.Decode(newPngBytes)
+            ?? throw new InvalidDataException("The replacement image is not a valid PNG.");
 
         miniFont.TexturePngBytes = newPngBytes;
         miniFont.Common = miniFont.Common with

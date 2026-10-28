@@ -17,12 +17,8 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
             using var archive = ZipFile.OpenRead(fontOrZipPath);
             var entry = archive.Entries.FirstOrDefault(e =>
                 e.FullName.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase) ||
-                e.FullName.EndsWith(".otf", StringComparison.OrdinalIgnoreCase));
-
-            if (entry is null)
-            {
-                throw new InvalidDataException($"No .ttf or .otf font found inside zip archive: {fontOrZipPath}");
-            }
+                e.FullName.EndsWith(".otf", StringComparison.OrdinalIgnoreCase))
+                ?? throw new InvalidDataException($"No .ttf or .otf font found inside zip archive: {fontOrZipPath}");
 
             using var entryStream = entry.Open();
             using var ms = new MemoryStream();
@@ -40,11 +36,8 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
         ArgumentNullException.ThrowIfNull(fontStream);
         ArgumentNullException.ThrowIfNull(options);
 
-        using var typeface = SKTypeface.FromStream(fontStream);
-        if (typeface is null)
-        {
-            throw new InvalidDataException("Invalid TrueType or OpenType font stream.");
-        }
+        using var typeface = SKTypeface.FromStream(fontStream)
+            ?? throw new InvalidDataException("Invalid TrueType or OpenType font stream.");
 
         var effectiveFontName = !string.IsNullOrWhiteSpace(fontName) ? fontName
             : !string.IsNullOrWhiteSpace(typeface.FamilyName) ? typeface.FamilyName

@@ -42,6 +42,12 @@ public sealed record SheetView(CharacterSheet Sheet, string Title, string Descri
     public string SizeText => string.Create(CultureInfo.InvariantCulture, $"{Sheet.Width} × {Sheet.Height}");
 }
 
+// one row of a sheet, as the character picker lists them
+public sealed record SheetGroupView(SheetView Sheet, SheetRowView Row)
+{
+    public string Label => Row.Label;
+}
+
 // The Characters tab: the animations of the characters running in the menu, their frames and timing.
 public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
 {
@@ -101,6 +107,13 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
     // the NES and Famicom UIs draw their characters from sheets instead of scene animations
     [ObservableProperty]
     private IReadOnlyList<SheetView> sheets = [];
+
+    // Mario, Luigi, the block and the small characters, each shown alone like a SNES character
+    [ObservableProperty]
+    private IReadOnlyList<SheetGroupView> sheetGroups = [];
+
+    [ObservableProperty]
+    private SheetGroupView? selectedSheetGroup;
 
     public bool ShowSheet => Sheets.Count > 0 && Characters.Count == 0;
 
@@ -488,10 +501,13 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
     private void LoadSheets()
     {
         var previous = _sheetBitmaps;
+        var previousGroup = SelectedSheetGroup?.Label;
         _sheetBitmaps = [];
         Sheets = _session.Draft is { } draft
             ? _sheetEditor.GetSheets(draft.DraftPath, _session.BaseUiPath).Select(LoadSheet).ToList()
             : [];
+        SheetGroups = Sheets.SelectMany(sheet => sheet.Rows.Select(row => new SheetGroupView(sheet, row))).ToList();
+        SelectedSheetGroup = SheetGroups.FirstOrDefault(group => group.Label == previousGroup) ?? (SheetGroups.Count > 0 ? SheetGroups[0] : null);
         foreach (var bitmap in previous)
         {
             bitmap.Dispose();
@@ -509,7 +525,7 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
             .Select(row =>
             {
                 var rowName = row.Key < SheetRowNames.Length ? SheetRowNames[row.Key] : $"Row {row.Key + 1}";
-                return new SheetRowView(isBackground ? "Small characters" : rowName, row
+                return new SheetRowView(isBackground ? "Small Mario and Luigi" : rowName, row
                     .Select(frame => new SheetFrameView(
                         sheet,
                         frame,

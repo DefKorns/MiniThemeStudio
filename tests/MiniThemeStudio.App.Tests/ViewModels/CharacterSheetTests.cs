@@ -35,6 +35,9 @@ public sealed class CharacterSheetTests : IDisposable
         Assert.Equal("up to 16 × 16", menu.Rows[1].Frames[0].SizeText);
         Assert.NotNull(menu.Image);
         Assert.Equal(["Mario", "Luigi", "Mario and Luigi"], characters.Sheets[1].Rows[0].Frames.Select(frame => frame.Label));
+        Assert.Equal(["Mario", "Luigi", "Small Mario and Luigi"], characters.SheetGroups.Select(group => group.Label));
+        Assert.Equal("Mario", characters.SelectedSheetGroup?.Label);
+        Assert.Equal("Menu characters", characters.SelectedSheetGroup?.Sheet.Title);
 
         // the small characters are edited here, not with the background
         Assert.DoesNotContain(_app.Window.WallpapersTab.PixelBackground.Images, image => image.Name == "wallpaper-hvc");

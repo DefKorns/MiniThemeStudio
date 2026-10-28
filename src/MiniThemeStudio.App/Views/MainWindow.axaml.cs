@@ -19,21 +19,17 @@ using MiniThemeStudio.Core.Console;
 using MiniThemeStudio.Core.Firmware;
 using MiniThemeStudio.Core.Settings;
 using MiniThemeStudio.Core.Themes;
-using MiniThemeStudio.Infrastructure.Console;
-using MiniThemeStudio.Infrastructure.Firmware;
-using MiniThemeStudio.Infrastructure.Settings;
-using MiniThemeStudio.Infrastructure.Themes;
 
 namespace MiniThemeStudio.App.Views;
 
 public sealed partial class MainWindow : Window, IDisposable
 {
-    private readonly DialogService _dialogService;
-    private readonly ErrorHandlingService _errorHandlingService;
+    private readonly IDialogService _dialogService;
+    private readonly IErrorHandlingService _errorHandlingService;
     private readonly IAppSettingsStore _settingsStore;
     private readonly IBaseFirmwareManager _baseFirmwareManager;
-    private readonly IThemeAssetManager _themeAssetManager;
-    private readonly IThemeValidator _themeValidator;
+    private readonly IAtlasLayoutMatcher _atlasLayoutMatcher;
+    private readonly ISpriteSheetImporter _spriteSheetImporter;
 
     private string _atlasImagePath = "";
     private bool _isCloseConfirmed;
@@ -45,26 +41,29 @@ public sealed partial class MainWindow : Window, IDisposable
     private readonly Avalonia.Threading.DispatcherTimer _animationTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
     private readonly System.Diagnostics.Stopwatch _animationClock = System.Diagnostics.Stopwatch.StartNew();
 
+    // for the XAML previewer only: the app builds the window through the service container
     public MainWindow()
-        : this(
-            new JsonAppSettingsStore(),
-            new BaseFirmwareManager(FirmwareRegistry.CreateDefault(), new ConsoleDirectoryClientFactory()))
+        : this(null!, null!, null!, null!, null!, null!, null)
     {
     }
 
     public MainWindow(
         IAppSettingsStore settingsStore,
         IBaseFirmwareManager baseFirmwareManager,
-        IThemeAssetManager? themeAssetManager = null,
-        IThemeValidator? themeValidator = null)
+        IDialogService dialogService,
+        IErrorHandlingService errorHandlingService,
+        IAtlasLayoutMatcher atlasLayoutMatcher,
+        ISpriteSheetImporter spriteSheetImporter,
+        MainWindowViewModel? viewModel)
     {
         _settingsStore = settingsStore;
         _baseFirmwareManager = baseFirmwareManager;
-        _themeAssetManager = themeAssetManager ?? new ThemeAssetManager();
-        _themeValidator = themeValidator ?? new ThemeValidator();
+        _dialogService = dialogService;
+        _errorHandlingService = errorHandlingService;
+        _atlasLayoutMatcher = atlasLayoutMatcher;
+        _spriteSheetImporter = spriteSheetImporter;
+        DataContext = viewModel;
 
-        _dialogService = new DialogService();
-        _errorHandlingService = new ErrorHandlingService(_dialogService);
         InitializeComponent();
         Opened += MainWindow_Opened;
         _animationTimer.Tick += AnimationTimer_Tick;
@@ -89,7 +88,7 @@ public sealed partial class MainWindow : Window, IDisposable
 
     private Task ShowBaseManagementAsync()
     {
-        return new BaseManagementDialog(_baseFirmwareManager, _settingsStore.Current).ShowDialog(this);
+        return new BaseManagementDialog(_baseFirmwareManager, _settingsStore.Current, _errorHandlingService).ShowDialog(this);
     }
 
     private async void MainWindow_Opened(object? sender, EventArgs e)
@@ -409,7 +408,7 @@ public sealed partial class MainWindow : Window, IDisposable
         var installedBases = _baseFirmwareManager.GetInstalledBases()
             .Where(info => info.Status == BaseInstallStatus.Valid)
             .ToList();
-        var details = await new CreateThemeDialog(installedBases, new AtlasLayoutMatcher()).ShowDialog<NewThemeDetails?>(this);
+        var details = await new CreateThemeDialog(installedBases, _atlasLayoutMatcher).ShowDialog<NewThemeDetails?>(this);
         if (details is null)
         {
             return;
@@ -952,7 +951,7 @@ public sealed partial class MainWindow : Window, IDisposable
         }
 
         var result = await new SpriteSheetDialog(
-            new SpriteSheetImporter(),
+            _spriteSheetImporter,
             $"Frames for {character} {animation.Name}",
             viewModel.CurrentCharacterFrameSize,
             viewModel.AnimationFrames.FirstOrDefault(frame => frame.IsLoopFrame)?.Thumbnail).ShowDialog<SpriteSheetResult?>(this);

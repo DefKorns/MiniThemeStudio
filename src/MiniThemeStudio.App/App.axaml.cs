@@ -1,17 +1,12 @@
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Data.Core;
 using Avalonia.Data.Core.Plugins;
-using System.IO;
-using System.Linq;
 using Avalonia.Markup.Xaml;
-using MiniThemeStudio.App.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
+using MiniThemeStudio.App.Composition;
 using MiniThemeStudio.App.Views;
 using MiniThemeStudio.Core.Settings;
-using MiniThemeStudio.Infrastructure.Console;
-using MiniThemeStudio.Infrastructure.Firmware;
-using MiniThemeStudio.Infrastructure.Settings;
-using MiniThemeStudio.Infrastructure.Themes;
 
 namespace MiniThemeStudio.App;
 
@@ -27,43 +22,19 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             DisableAvaloniaDataAnnotationValidation();
-            var settingsStore = new JsonAppSettingsStore();
-            RequestedThemeVariant = settingsStore.Current.Theme switch
+            var services = new ServiceCollection()
+                .AddMiniThemeStudio()
+                .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+            desktop.Exit += (_, _) => services.Dispose();
+
+            RequestedThemeVariant = services.GetRequiredService<IAppSettingsStore>().Current.Theme switch
             {
                 ApplicationThemePreference.Light => Avalonia.Styling.ThemeVariant.Light,
                 ApplicationThemePreference.Dark => Avalonia.Styling.ThemeVariant.Dark,
                 _ => Avalonia.Styling.ThemeVariant.Default,
             };
 
-            var projectCreator = new ThemeProjectCreator();
-            var firmwareRegistry = FirmwareRegistry.CreateDefault(Path.Combine(
-                Path.GetDirectoryName(BaseFirmwareManager.DefaultBasesRootPath)!,
-                "firmwares.json"));
-            var baseFirmwareManager = new BaseFirmwareManager(
-                firmwareRegistry,
-                new ConsoleDirectoryClientFactory());
-            var themeAssetManager = new ThemeAssetManager();
-            var themeValidator = new ThemeValidator();
-
-            desktop.MainWindow = new MainWindow(
-                settingsStore,
-                baseFirmwareManager,
-                themeAssetManager,
-                themeValidator)
-            {
-                DataContext = new MainWindowViewModel(
-                    new ThemeMetadataReader(),
-                    new TextureAtlasReader(),
-                    new ThemeDraftService(
-                        projectCreator,
-                        () => settingsStore.Current.DraftRootPath),
-                    new TextureAtlasEditor(),
-                    themeAssetManager,
-                    themeValidator,
-                    baseFirmwareManager,
-                    savedDraftStore: new SavedDraftStore(null, () => settingsStore.Current.DraftRootPath),
-                    settingsStore: settingsStore),
-            };
+            desktop.MainWindow = services.GetRequiredService<MainWindow>();
         }
 
         base.OnFrameworkInitializationCompleted();

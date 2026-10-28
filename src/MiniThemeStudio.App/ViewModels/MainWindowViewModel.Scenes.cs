@@ -31,7 +31,6 @@ public sealed record SceneTextureChoice(string TextureId, string Name, string Re
 
 public partial class MainWindowViewModel
 {
-    private readonly ISceneEditor _sceneEditor;
     private IReadOnlyList<SceneTreeRow> _allSceneRows = [];
     private Dictionary<string, string> _textureImagePaths = new(StringComparer.Ordinal);
 
@@ -278,7 +277,8 @@ public partial class MainWindowViewModel
         SelectedSceneResource = null;
         SelectedSceneResource = previousScene is not null && SceneResources.Contains(previousScene)
             ? previousScene
-            : SceneResources.FirstOrDefault(scene => scene.EndsWith("/bg.scn", StringComparison.Ordinal)) ?? SceneResources.FirstOrDefault();
+            : SceneResources.FirstOrDefault(scene => scene.EndsWith("/bg.scn", StringComparison.Ordinal))
+                ?? (SceneResources.Count > 0 ? SceneResources[0] : null);
         if (previousPath is not null && CurrentScene?.Find(previousPath) is not null)
         {
             SelectedScenePath = previousPath;

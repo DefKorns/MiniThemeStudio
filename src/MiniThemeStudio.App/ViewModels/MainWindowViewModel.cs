@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
+using MiniThemeStudio.Core.Audio;
 using MiniThemeStudio.Core.Firmware;
+using MiniThemeStudio.Core.Scenes;
+using MiniThemeStudio.Core.Settings;
 using MiniThemeStudio.Core.Themes;
-using MiniThemeStudio.Infrastructure.Firmware;
-using MiniThemeStudio.Infrastructure.Themes;
 
 namespace MiniThemeStudio.App.ViewModels;
 
@@ -24,7 +25,9 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly ICharacterAnimationEditor _characterEditor;
     private readonly IThemePaletteEditor _paletteEditor;
     private readonly ISavedDraftStore _savedDraftStore;
-    private readonly MiniThemeStudio.Core.Settings.IAppSettingsStore _settingsStore;
+    private readonly IAppSettingsStore _settingsStore;
+    private readonly ISceneEditor _sceneEditor;
+    private readonly IFFmpegAudioConverter _audioConverter;
 
     private ThemeDraft? _draft;
     private string? _currentBaseUiPath;
@@ -35,31 +38,33 @@ public partial class MainWindowViewModel : ViewModelBase
         ITextureAtlasReader textureAtlasReader,
         IThemeDraftService themeDraftService,
         ITextureAtlasEditor textureAtlasEditor,
-        IThemeAssetManager? assetManager = null,
-        IThemeValidator? themeValidator = null,
-        IBaseFirmwareManager? baseFirmwareManager = null,
-        IThemeResourceIndexer? resourceIndexer = null,
-        IThemeExporter? themeExporter = null,
-        ICharacterAnimationEditor? characterEditor = null,
-        ISavedDraftStore? savedDraftStore = null,
-        IThemePaletteEditor? paletteEditor = null,
-        MiniThemeStudio.Core.Settings.IAppSettingsStore? settingsStore = null,
-        MiniThemeStudio.Core.Scenes.ISceneEditor? sceneEditor = null)
+        IThemeAssetManager assetManager,
+        IThemeValidator themeValidator,
+        IBaseFirmwareManager baseFirmwareManager,
+        IThemeResourceIndexer resourceIndexer,
+        IThemeExporter themeExporter,
+        ICharacterAnimationEditor characterEditor,
+        ISavedDraftStore savedDraftStore,
+        IThemePaletteEditor paletteEditor,
+        IAppSettingsStore settingsStore,
+        ISceneEditor sceneEditor,
+        IFFmpegAudioConverter audioConverter)
     {
         _metadataReader = metadataReader;
         _textureAtlasReader = textureAtlasReader;
         _themeDraftService = themeDraftService;
         _textureAtlasEditor = textureAtlasEditor;
-        _assetManager = assetManager ?? new ThemeAssetManager();
-        _themeValidator = themeValidator ?? new ThemeValidator();
-        _baseFirmwareManager = baseFirmwareManager ?? new BaseFirmwareManager(FirmwareRegistry.CreateDefault());
-        _resourceIndexer = resourceIndexer ?? new ThemeResourceIndexer();
-        _themeExporter = themeExporter ?? new ThemeExporter();
-        _characterEditor = characterEditor ?? new CharacterAnimationEditor();
-        _savedDraftStore = savedDraftStore ?? new SavedDraftStore();
-        _paletteEditor = paletteEditor ?? new ThemePaletteEditor();
-        _settingsStore = settingsStore ?? new MiniThemeStudio.Infrastructure.Settings.JsonAppSettingsStore();
-        _sceneEditor = sceneEditor ?? new SceneEditor();
+        _assetManager = assetManager;
+        _themeValidator = themeValidator;
+        _baseFirmwareManager = baseFirmwareManager;
+        _resourceIndexer = resourceIndexer;
+        _themeExporter = themeExporter;
+        _characterEditor = characterEditor;
+        _savedDraftStore = savedDraftStore;
+        _paletteEditor = paletteEditor;
+        _settingsStore = settingsStore;
+        _sceneEditor = sceneEditor;
+        _audioConverter = audioConverter;
     }
 
     [ObservableProperty]

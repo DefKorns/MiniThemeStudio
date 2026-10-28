@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using MiniThemeStudio.Core.Audio;
-using MiniThemeStudio.Infrastructure.Audio;
 
 namespace MiniThemeStudio.App.ViewModels;
 
@@ -193,11 +192,10 @@ public partial class MainWindowViewModel
             return false;
         }
 
-        var converter = new FFmpegAudioConverter();
         var targetWavPath = Path.ChangeExtension(sourcePath, ".wav");
 
         Status = $"Converting {trackName}...";
-        var result = await converter.ConvertToConsoleWavAsync(ffmpegPath, sourcePath, targetWavPath, BgmChannels);
+        var result = await _audioConverter.ConvertToConsoleWavAsync(ffmpegPath, sourcePath, targetWavPath, BgmChannels);
 
         if (!result.Success)
         {

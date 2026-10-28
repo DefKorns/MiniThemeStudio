@@ -18,18 +18,18 @@ public sealed partial class BaseManagementDialog : Window
 
     private readonly IBaseFirmwareManager _manager;
     private readonly AppSettings? _settings;
-    private readonly ErrorHandlingService _errorService;
+    private readonly IErrorHandlingService _errorService;
 
     public BaseManagementDialog()
-        : this(null!, null)
+        : this(null!, null, null!)
     {
     }
 
-    public BaseManagementDialog(IBaseFirmwareManager manager, AppSettings? settings)
+    public BaseManagementDialog(IBaseFirmwareManager manager, AppSettings? settings, IErrorHandlingService errorService)
     {
         _manager = manager;
         _settings = settings;
-        _errorService = new ErrorHandlingService(new DialogService());
+        _errorService = errorService;
         InitializeComponent();
         Loaded += (_, _) => RefreshList();
     }

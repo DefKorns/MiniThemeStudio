@@ -5,15 +5,31 @@ on:
     branches: [development, main]
   pull_request:
     branches: [development, main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+env:
+  # .NET keeps its named mutexes in XDG_RUNTIME_DIR; on the Linux runners it points at a folder that does not
+  # exist, so the jobs use their own (Windows ignores it)
+  XDG_RUNTIME_DIR: /tmp/xdg-runtime
+
 jobs:
   build-and-test:
-    # SkiaSharp in Infrastructure only ships the Windows native libraries
-    runs-on: windows-latest
+    name: build-and-test (${{ matrix.os }})
+    # Windows and Linux on every run; macOS minutes cost ten times more, so it runs only when work reaches
+    # development or main, or when the workflow is started by hand
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(github.event_name == 'pull_request' && '["windows-latest","ubuntu-24.04"]' || '["windows-latest","ubuntu-24.04","macos-latest"]') }}
+    runs-on: ${{ matrix.os }}
     steps:
+      - name: Create the runtime folder
+        if: runner.os != 'Windows'
+        run: mkdir -m 700 -p "$XDG_RUNTIME_DIR"
+
       - uses: actions/checkout@v7
 
       - uses: actions/setup-dotnet@v6
@@ -34,9 +50,6 @@ jobs:
     # the same hooks as .pre-commit-config.yaml, for commits made without them installed;
     # pinned so the ubuntu-latest migrations do not change the job unnoticed
     runs-on: ubuntu-24.04
-    env:
-      # .NET keeps its named mutexes in XDG_RUNTIME_DIR, which the runner points at a folder that does not exist
-      XDG_RUNTIME_DIR: /tmp/xdg-runtime
     steps:
       - name: Create the runtime folder
         run: mkdir -m 700 -p "$XDG_RUNTIME_DIR"

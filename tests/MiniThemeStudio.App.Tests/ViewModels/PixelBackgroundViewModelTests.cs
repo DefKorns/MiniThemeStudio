@@ -55,6 +55,21 @@ public sealed class PixelBackgroundViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task TheBaseColoursCanBeRestored()
+    {
+        Assert.False(Background.RestoreBaseColorsCommand.CanExecute(null));
+        Background.Colors[0].Color = Color.FromRgb(10, 20, 30);
+        await Background.ApplyColorsCommand.ExecuteAsync(null);
+        Assert.True(Background.RestoreBaseColorsCommand.CanExecute(null));
+
+        await Background.RestoreBaseColorsCommand.ExecuteAsync(null);
+
+        Assert.Equal(Color.FromRgb(128, 64, 191), Background.Colors[0].Saved);
+        Assert.False(Background.RestoreBaseColorsCommand.CanExecute(null));
+        Assert.Equal("The background uses the colours of the Base again.", _app.Window.Status);
+    }
+
+    [Fact]
     public async Task APictureKeepsItsSize()
     {
         var wrong = Path.Combine(_app.Root, "dot.png");

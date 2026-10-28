@@ -338,6 +338,8 @@
                           FontWeight="SemiBold" Command="{Binding ApplyColorsCommand}" Content="Apply" />
                   <Button Grid.Column="1" Padding="12,8" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding ResetColorsCommand}" Content="Discard" />
                 </Grid>
+                <Button Padding="12,8" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding RestoreBaseColorsCommand}" Content="Restore Base colours"
+                        ToolTip.Tip="Write back the colours of the Base" />
                 <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
                            Text="The colours are written to the theme's colour palette (scripts/colors_*.lua), for every region that has them." />
               </StackPanel>
@@ -605,63 +607,71 @@
       <!-- CHARACTERS -->
       <TabItem Header="Characters">
         <Grid DataContext="{Binding CharactersTab}" x:DataType="vm:CharactersViewModel" ColumnDefinitions="Auto,*,320" Margin="16,12">
-          <!-- the NES and Famicom UIs draw their characters from one sheet -->
-          <Grid Grid.ColumnSpan="3" ColumnDefinitions="*,360" IsVisible="{Binding ShowSheet}">
-            <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
-              <Grid RowDefinitions="Auto,Auto,*" Margin="12">
-                <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Character sheet" />
-                <TextBlock Grid.Row="1" Margin="0,4,0,0" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
-                           Text="The console cuts each picture from its place on the sheet, so a new picture has the size of the one it replaces and goes in the same place." />
-                <ScrollViewer Grid.Row="2" Margin="0,10,0,0">
-                  <ItemsControl ItemsSource="{Binding SheetRows}">
-                    <ItemsControl.ItemTemplate>
-                      <DataTemplate x:DataType="vm:SheetRowView">
-                        <StackPanel Margin="0,0,0,12" Spacing="6">
-                          <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Label}" />
-                          <ItemsControl ItemsSource="{Binding Frames}">
-                            <ItemsControl.ItemsPanel>
-                              <ItemsPanelTemplate>
-                                <WrapPanel ItemSpacing="8" LineSpacing="8" />
-                              </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                              <DataTemplate x:DataType="vm:SheetFrameView">
-                                <Border Width="110" Padding="8" CornerRadius="4" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
-                                  <StackPanel Spacing="4">
-                                    <Image Height="64" Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
-                                    <TextBlock FontWeight="SemiBold" Text="{Binding Label}" />
-                                    <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SizeText}" />
-                                    <Button Padding="8,4" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Replace..."
-                                            Command="{Binding $parent[ScrollViewer].((vm:CharactersViewModel)DataContext).ReplaceSheetFrameCommand}" CommandParameter="{Binding}" />
-                                  </StackPanel>
-                                </Border>
-                              </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                          </ItemsControl>
-                        </StackPanel>
-                      </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                  </ItemsControl>
-                </ScrollViewer>
-              </Grid>
-            </Border>
-            <Border Grid.Column="1" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
-              <StackPanel Margin="20" Spacing="14">
-                <TextBlock FontFamily="Georgia, serif" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="The whole sheet" />
-                <Border Height="200" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
-                  <Image Margin="8" Source="{Binding SheetImage}" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
-                </Border>
-                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                  <Button Padding="12,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold"
-                          Command="{Binding ReplaceSheetCommand}" Content="Replace sheet..." ToolTip.Tip="A whole sheet edited elsewhere, the same size as this one" />
-                  <Button Grid.Column="1" Padding="12,8" HorizontalAlignment="Stretch" Command="{Binding ExportSheetCommand}" Content="Export sheet..."
-                          ToolTip.Tip="Save the sheet to edit it in an image editor" />
-                </Grid>
-                <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
-                           Text="To redraw several pictures, export the sheet, edit it keeping every picture in its place, and replace it." />
-              </StackPanel>
-            </Border>
-          </Grid>
+          <!-- the NES and Famicom UIs draw their characters from sheets -->
+          <Border Grid.ColumnSpan="3" IsVisible="{Binding ShowSheet}" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+            <Grid RowDefinitions="Auto,*" Margin="12">
+              <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
+                         Text="Pick the pictures of a row on any sprite sheet, or replace them one by one. Each new picture stands where the old one stood, so it can be as big as the room of its frame (a 16 × 16 NES sprite). A whole sheet edited elsewhere keeps every picture in its place." />
+              <ScrollViewer Grid.Row="1" Margin="0,10,0,0">
+                <ItemsControl ItemsSource="{Binding Sheets}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SheetView">
+                      <StackPanel Margin="0,0,0,18" Spacing="8">
+                        <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+                          <StackPanel VerticalAlignment="Center">
+                            <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Title}" />
+                            <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Description}" />
+                          </StackPanel>
+                          <Border Grid.Column="1" Height="48" Padding="4" CornerRadius="4" Background="{DynamicResource PreviewBackgroundBrush}">
+                            <Image Source="{Binding Image}" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" ToolTip.Tip="{Binding SizeText}" />
+                          </Border>
+                          <Button Grid.Column="2" Padding="10,6" VerticalAlignment="Center" Content="Replace sheet..."
+                                  Command="{Binding $parent[ScrollViewer].((vm:CharactersViewModel)DataContext).ReplaceSheetCommand}" CommandParameter="{Binding}"
+                                  ToolTip.Tip="A whole sheet edited elsewhere, the same size as this one" />
+                          <Button Grid.Column="3" Padding="10,6" VerticalAlignment="Center" Content="Export sheet..."
+                                  Command="{Binding $parent[ScrollViewer].((vm:CharactersViewModel)DataContext).ExportSheetCommand}" CommandParameter="{Binding}" />
+                        </Grid>
+                        <ItemsControl ItemsSource="{Binding Rows}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SheetRowView">
+                              <StackPanel Margin="0,0,0,8" Spacing="6">
+                                <StackPanel Orientation="Horizontal" Spacing="12">
+                                  <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Label}" />
+                                  <Button Padding="10,4" Content="Import from a sprite sheet..."
+                                          Command="{Binding $parent[ScrollViewer].((vm:CharactersViewModel)DataContext).ImportRowCommand}" CommandParameter="{Binding}"
+                                          ToolTip.Tip="Open any sprite sheet and pick the pictures of this row, in order" />
+                                </StackPanel>
+                                <ItemsControl ItemsSource="{Binding Frames}">
+                                  <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                      <WrapPanel ItemSpacing="8" LineSpacing="8" />
+                                    </ItemsPanelTemplate>
+                                  </ItemsControl.ItemsPanel>
+                                  <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:SheetFrameView">
+                                      <Border Width="110" Padding="8" CornerRadius="4" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                                        <StackPanel Spacing="4">
+                                          <Image Height="64" Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
+                                          <TextBlock FontWeight="SemiBold" Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                                          <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SizeText}" />
+                                          <Button Padding="8,4" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Replace..."
+                                                  Command="{Binding $parent[ScrollViewer].((vm:CharactersViewModel)DataContext).ReplaceSheetFrameCommand}" CommandParameter="{Binding}" />
+                                        </StackPanel>
+                                      </Border>
+                                    </DataTemplate>
+                                  </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                              </StackPanel>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </Grid>
+          </Border>
 
           <Border Width="260" Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6"
                   IsVisible="{Binding ShowAdvancedFrames}">

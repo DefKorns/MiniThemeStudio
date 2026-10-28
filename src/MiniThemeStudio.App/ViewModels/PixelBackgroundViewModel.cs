@@ -14,14 +14,16 @@ using MiniThemeStudio.Core.Themes;
 
 namespace MiniThemeStudio.App.ViewModels;
 
-// a colour of the background, edited in place and written with Apply
-public sealed partial class BackgroundColorRow(string colorName, string label, Color color) : ObservableObject
+// a colour of the background, edited in place and written with Apply; BaseColor is the one of the Base
+public sealed partial class BackgroundColorRow(string colorName, string label, Color color, Color baseColor) : ObservableObject
 {
     public string ColorName { get; } = colorName;
 
     public string Label { get; } = label;
 
     public Color Saved { get; } = color;
+
+    public Color BaseColor { get; } = baseColor;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsChanged))]
@@ -30,7 +32,8 @@ public sealed partial class BackgroundColorRow(string colorName, string label, C
     public bool IsChanged => Color != Saved;
 }
 
-// a white image the script tints with the colours: the dot of the patterns, the small characters, the transition
+// a white image the script tints with the colours: the dot of the patterns or the transition shapes (the small
+// characters walking over the background are in the Characters tab)
 public sealed record BackgroundImageRow(string Name, string Label, string Description, string RelativePath, string ImagePath, int Width, int Height, int Revision)
 {
     public string SizeText => string.Create(CultureInfo.InvariantCulture, $"{Width} × {Height}");
@@ -53,7 +56,6 @@ public sealed partial class PixelBackgroundViewModel : ViewModelBase
     private static readonly (string Name, string Label, string Description)[] BackgroundImages =
     [
         ("wallpaper-dots", "Dot", "The square the patterns are drawn with, one per pixel of the picture."),
-        ("wallpaper-hvc", "Mario and Luigi", "The small characters that walk over the background."),
         ("wallpaper-transit", "Transition shapes", "The shapes that grow when one picture gives way to the next."),
     ];
 
@@ -76,6 +78,7 @@ public sealed partial class PixelBackgroundViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPixelBackground))]
+    [NotifyCanExecuteChangedFor(nameof(RestoreBaseColorsCommand))]
     private IReadOnlyList<BackgroundColorRow> colors = [];
 
     [ObservableProperty]
@@ -87,6 +90,8 @@ public sealed partial class PixelBackgroundViewModel : ViewModelBase
     private IBrush backgroundBrush = Brushes.Black;
 
     public bool HasPixelBackground => Images.Count > 0;
+
+    private bool DiffersFromBase => Colors.Any(row => row.Saved != row.BaseColor);
 
     [RelayCommand]
     private async Task ApplyColorsAsync()
@@ -111,6 +116,19 @@ public sealed partial class PixelBackgroundViewModel : ViewModelBase
             _session.NotifyContentChanged();
             _session.Status = $"Changed {string.Join(", ", changed.Select(row => row.Label.ToLowerInvariant()))}.";
         }
+    }
+
+    // the colours of the Base, written at once
+    [RelayCommand(CanExecute = nameof(DiffersFromBase))]
+    private async Task RestoreBaseColorsAsync()
+    {
+        foreach (var row in Colors)
+        {
+            row.Color = row.BaseColor;
+        }
+
+        await ApplyColorsAsync();
+        _session.Status = "The background uses the colours of the Base again.";
     }
 
     [RelayCommand]
@@ -186,7 +204,10 @@ public sealed partial class PixelBackgroundViewModel : ViewModelBase
         Images = ReadImages(roots).ToList();
 
         var palette = Images.Count == 0 ? [] : _paletteEditor.GetPalettes(draft.DraftPath, _session.BaseUiPath).SelectMany(candidate => candidate.Colors).ToList();
-        Colors = ReadColors(palette).ToList();
+        var basePalette = Images.Count == 0 || _session.BaseUiPath is not { } baseUiPath
+            ? palette
+            : _paletteEditor.GetPalettes(baseUiPath).SelectMany(candidate => candidate.Colors).ToList();
+        Colors = ReadColors(palette, basePalette).ToList();
         BackgroundBrush = Colors.FirstOrDefault(row => row.ColorName == BackgroundColor) is { } background
             ? new ImmutableSolidColorBrush(background.Saved)
             : Brushes.Black;
@@ -207,18 +228,21 @@ public sealed partial class PixelBackgroundViewModel : ViewModelBase
         }
     }
 
-    private static IEnumerable<BackgroundColorRow> ReadColors(List<PaletteColor> palette)
+    private static IEnumerable<BackgroundColorRow> ReadColors(List<PaletteColor> palette, List<PaletteColor> basePalette)
     {
         foreach (var (name, label) in BackgroundColors)
         {
             if (palette.FirstOrDefault(color => color.Name == name) is { } color)
             {
-                yield return new BackgroundColorRow(name, label, Color.FromArgb(
-                    PaletteColor.ChannelToByte(color.Alpha),
-                    PaletteColor.ChannelToByte(color.Red),
-                    PaletteColor.ChannelToByte(color.Green),
-                    PaletteColor.ChannelToByte(color.Blue)));
+                var baseColor = basePalette.Where(candidate => candidate.Name == name).Select(candidate => (PaletteColor?)candidate).FirstOrDefault() ?? color;
+                yield return new BackgroundColorRow(name, label, ToColor(color), ToColor(baseColor));
             }
         }
     }
+
+    private static Color ToColor(PaletteColor color) => Color.FromArgb(
+        PaletteColor.ChannelToByte(color.Alpha),
+        PaletteColor.ChannelToByte(color.Red),
+        PaletteColor.ChannelToByte(color.Green),
+        PaletteColor.ChannelToByte(color.Blue));
 }

@@ -1,4 +1,6 @@
+using MiniThemeStudio.App.Models;
 using MiniThemeStudio.App.Tests.TestDoubles;
+using MiniThemeStudio.Core.Themes;
 using SkiaSharp;
 
 namespace MiniThemeStudio.App.Tests.ViewModels;
@@ -12,6 +14,7 @@ public sealed class CharacterSheetTests : IDisposable
     {
         var basePath = _app.CreateBase();
         SavePng(Path.Combine(basePath, "resources", "sprites", "characters_sbm.png"), 128, 64, (2, 1, 12, 16), (18, 1, 15, 16), (2, 18, 12, 16));
+        SavePng(Path.Combine(basePath, "resources", "sprites", "wallpaper-hvc.png"), 64, 16, (2, 0, 12, 16), (18, 0, 12, 16), (32, 0, 32, 16));
         _app.Window.OpenTheme(_app.CreateTheme(), basePath);
     }
 
@@ -25,10 +28,16 @@ public sealed class CharacterSheetTests : IDisposable
         Assert.True(characters.ShowSheet);
         Assert.False(characters.ShowSimpleFrames);
         Assert.False(characters.ShowAdvancedFrames);
-        Assert.Equal(["Mario", "Luigi"], characters.SheetRows.Select(row => row.Label));
-        Assert.Equal(["Mario 1", "Mario 2"], characters.SheetRows[0].Frames.Select(frame => frame.Label));
-        Assert.Equal("12 × 16", characters.SheetRows[1].Frames[0].SizeText);
-        Assert.NotNull(characters.SheetImage);
+        Assert.Equal(["Menu characters", "Background characters"], characters.Sheets.Select(sheet => sheet.Title));
+        var menu = characters.Sheets[0];
+        Assert.Equal(["Mario", "Luigi"], menu.Rows.Select(row => row.Label));
+        Assert.Equal(["Mario 1", "Mario 2"], menu.Rows[0].Frames.Select(frame => frame.Label));
+        Assert.Equal("up to 16 × 16", menu.Rows[1].Frames[0].SizeText);
+        Assert.NotNull(menu.Image);
+        Assert.Equal(["Mario", "Luigi", "Mario and Luigi"], characters.Sheets[1].Rows[0].Frames.Select(frame => frame.Label));
+
+        // the small characters are edited here, not with the background
+        Assert.DoesNotContain(_app.Window.WallpapersTab.PixelBackground.Images, image => image.Name == "wallpaper-hvc");
     }
 
     [Fact]
@@ -39,13 +48,32 @@ public sealed class CharacterSheetTests : IDisposable
         SavePng(picture, 12, 16);
         _app.Files.Paths.Enqueue(picture);
 
-        await characters.ReplaceSheetFrameCommand.ExecuteAsync(characters.SheetRows[1].Frames[0]);
+        await characters.ReplaceSheetFrameCommand.ExecuteAsync(characters.Sheets[0].Rows[1].Frames[0]);
 
         Assert.Empty(_app.Errors.Failures.Select(failure => $"{failure.Failure}: {failure.Exception.Message}"));
         Assert.True(File.Exists(Path.Combine(_app.Window.CurrentDraftPath!, "resources", "sprites", "characters_sbm.png")));
         Assert.Equal("Replaced Luigi 1.", _app.Window.Status);
-        Assert.False(characters.Sheet!.IsFromBaseUi);
+        Assert.False(characters.Sheets[0].Sheet.IsFromBaseUi);
         Assert.True(_app.Window.HasUnsavedChanges);
+    }
+
+    [Fact]
+    public async Task TheFramesOfARowArePickedOnASpriteSheet()
+    {
+        var characters = _app.Window.CharactersTab;
+        var picked = Enumerable.Range(0, 3).Select(index =>
+        {
+            var path = Path.Combine(_app.Root, $"picked{index}.png");
+            SavePng(path, 16, 16, (2, 2, 10, 14));
+            return path;
+        }).ToList();
+        _app.AppDialogs.SpriteSheet = new SpriteSheetResult(picked, new AtlasSize(16, 16));
+
+        await characters.ImportRowCommand.ExecuteAsync(characters.Sheets[0].Rows[0]);
+
+        Assert.Empty(_app.Errors.Failures.Select(failure => $"{failure.Failure}: {failure.Exception.Message}"));
+        Assert.Equal("Mario: replaced 2 of 2 pictures from the sprite sheet.", _app.Window.Status);
+        Assert.False(characters.Sheets[0].Sheet.IsFromBaseUi);
     }
 
     private static void SavePng(string path, int width, int height, params (int X, int Y, int Width, int Height)[] inked)

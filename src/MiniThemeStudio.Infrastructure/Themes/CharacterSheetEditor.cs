@@ -8,54 +8,78 @@ namespace MiniThemeStudio.Infrastructure.Themes;
 // draws them: the script that cuts them reads fixed places, which a replaced picture keeps.
 public sealed class CharacterSheetEditor : ICharacterSheetEditor
 {
-    private const string SheetResource = "/sprites/characters_sbm.png";
     private const byte VisibleAlpha = 16;
 
-    public CharacterSheet? GetSheet(string themePath, string? baseUiPath)
+    // the side of a NES sprite: the room a picture has, unless the pictures beside it leave less
+    private const int SpriteSide = 16;
+
+    // the menu's characters, then the small ones of the background
+    private static readonly string[] SheetNames = ["characters_sbm", "wallpaper-hvc"];
+
+    public IReadOnlyList<CharacterSheet> GetSheets(string themePath, string? baseUiPath)
     {
         var layer = new ThemeLayer(themePath, baseUiPath);
-        if (layer.Resolve(SheetResource) is not { } imagePath)
+        var sheets = new List<CharacterSheet>();
+        foreach (var name in SheetNames)
         {
-            return null;
+            var resource = Resource(name);
+            if (layer.Resolve(resource) is not { } imagePath)
+            {
+                continue;
+            }
+
+            // the places come from the Base sheet: a new picture with transparent edges must not move them
+            using var layout = Decode(layer.ResolveInBase(resource) ?? imagePath, "The character sheet");
+            sheets.Add(new CharacterSheet(
+                name,
+                imagePath,
+                resource.TrimStart('/'),
+                layout.Width,
+                layout.Height,
+                layer.ResolveInTheme(resource) is null,
+                FindFrames(layout)));
         }
 
-        // the places come from the Base sheet: a new picture with transparent edges must not move them
-        using var layout = Decode(layer.ResolveInBase(SheetResource) ?? imagePath, "The character sheet");
-        return new CharacterSheet(
-            imagePath,
-            SheetResource.TrimStart('/'),
-            layout.Width,
-            layout.Height,
-            layer.ResolveInTheme(SheetResource) is null,
-            FindFrames(layout));
+        return sheets;
     }
 
-    public void ReplaceFrame(string themeDraftPath, string? baseUiPath, CharacterSheetFrame frame, string pictureImagePath)
+    public void ReplaceFrame(string themeDraftPath, string? baseUiPath, CharacterSheet sheet, CharacterSheetFrame frame, string pictureImagePath)
     {
+        ArgumentNullException.ThrowIfNull(sheet);
         ArgumentNullException.ThrowIfNull(frame);
-        using var picture = Decode(pictureImagePath, Path.GetFileName(pictureImagePath));
-        if (picture.Width != frame.Width || picture.Height != frame.Height)
+        var resource = Resource(sheet.Name);
+        using var file = Decode(pictureImagePath, Path.GetFileName(pictureImagePath));
+        var ink = Ink(file) ?? throw new InvalidDataException($"{Path.GetFileName(pictureImagePath)} is empty.");
+        if (ink.Width > frame.SlotWidth || ink.Height > frame.SlotHeight)
         {
             throw new InvalidDataException(string.Create(CultureInfo.InvariantCulture,
-                $"The picture must be {frame.Width} × {frame.Height} pixels, like the one it replaces; {Path.GetFileName(pictureImagePath)} is {picture.Width} × {picture.Height}."));
+                $"The picture can be {frame.SlotWidth} × {frame.SlotHeight} pixels at most, the room the frame has; {Path.GetFileName(pictureImagePath)} is {ink.Width} × {ink.Height} without its transparent edges."));
         }
 
-        var (layer, target) = DraftSheet(themeDraftPath, baseUiPath);
-        using var sheet = Decode(target, "The character sheet");
-        using (var canvas = new SKCanvas(sheet))
+        // centred where the Base picture was and standing where it stood, inside the slot
+        var x = Math.Clamp(frame.X + ((frame.Width - ink.Width) / 2), frame.SlotX, frame.SlotX + frame.SlotWidth - ink.Width);
+        var y = Math.Clamp(frame.Y + frame.Height - ink.Height, frame.SlotY, frame.SlotY + frame.SlotHeight - ink.Height);
+
+        var (layer, target) = DraftSheet(themeDraftPath, baseUiPath, resource);
+        using var pixels = Decode(target, "The character sheet");
+        using (var canvas = new SKCanvas(pixels))
         {
-            // the old picture goes, transparent pixels of the new one included
-            using var clear = new SKPaint { BlendMode = SKBlendMode.Src };
-            canvas.DrawBitmap(picture, new SKRect(frame.X, frame.Y, frame.X + frame.Width, frame.Y + frame.Height), clear);
+            // the old picture goes with its whole slot
+            using var clear = new SKPaint { BlendMode = SKBlendMode.Clear };
+            canvas.DrawRect(new SKRect(frame.SlotX, frame.SlotY, frame.SlotX + frame.SlotWidth, frame.SlotY + frame.SlotHeight), clear);
+            using var copy = new SKPaint { BlendMode = SKBlendMode.Src };
+            canvas.DrawBitmap(file, ink, new SKRect(x, y, x + ink.Width, y + ink.Height), copy);
         }
 
-        Save(sheet, layer.ThemeResourceFile(SheetResource));
+        Save(pixels, layer.ThemeResourceFile(resource));
     }
 
-    public void ReplaceSheet(string themeDraftPath, string? baseUiPath, string sheetImagePath)
+    public void ReplaceSheet(string themeDraftPath, string? baseUiPath, CharacterSheet sheet, string sheetImagePath)
     {
+        ArgumentNullException.ThrowIfNull(sheet);
+        var resource = Resource(sheet.Name);
         var layer = new ThemeLayer(themeDraftPath, baseUiPath);
-        var current = layer.Resolve(SheetResource) ?? throw new FileNotFoundException("This UI has no character sheet (resources/sprites/characters_sbm.png).");
+        var current = layer.Resolve(resource) ?? throw new FileNotFoundException($"This UI has no resources{resource}.");
         using var replacement = Decode(sheetImagePath, Path.GetFileName(sheetImagePath));
         using var original = Decode(current, "The character sheet");
         if (replacement.Width != original.Width || replacement.Height != original.Height)
@@ -64,28 +88,55 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
                 $"The sheet must be {original.Width} × {original.Height} pixels, like the one it replaces; {Path.GetFileName(sheetImagePath)} is {replacement.Width} × {replacement.Height}."));
         }
 
-        var target = layer.ThemeResourceFile(SheetResource);
+        var target = layer.ThemeResourceFile(resource);
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
         File.Copy(sheetImagePath, target, true);
     }
+
+    private static string Resource(string name) => $"/sprites/{name}.png";
 
     // rows of pictures between transparent lines, then pictures between transparent columns of each row
     private static List<CharacterSheetFrame> FindFrames(SKBitmap sheet)
     {
         var frames = new List<CharacterSheetFrame>();
-        var row = 0;
-        foreach (var (top, bottom) in Runs(sheet.Height, y => Enumerable.Range(0, sheet.Width).Any(x => sheet.GetPixel(x, y).Alpha > VisibleAlpha)))
+        var bands = Runs(sheet.Height, y => Enumerable.Range(0, sheet.Width).Any(x => sheet.GetPixel(x, y).Alpha > VisibleAlpha)).ToList();
+        for (var row = 0; row < bands.Count; row++)
         {
-            var index = 0;
-            foreach (var (left, right) in Runs(sheet.Width, x => Enumerable.Range(top, bottom - top).Any(y => sheet.GetPixel(x, y).Alpha > VisibleAlpha)))
-            {
-                frames.Add(new CharacterSheetFrame(row, index++, left, top, right - left, bottom - top));
-            }
+            var (top, bottom) = bands[row];
+            var boxes = Runs(sheet.Width, x => Enumerable.Range(top, bottom - top).Any(y => sheet.GetPixel(x, y).Alpha > VisibleAlpha)).ToList();
 
-            row++;
+            // the slot reaches as far as the rows above and the pictures beside allow
+            var (slotY, slotHeight) = Slot(top, bottom - top, row == 0 ? 0 : bands[row - 1].End, sheet.Height, alignEnd: true);
+            for (var index = 0; index < boxes.Count; index++)
+            {
+                var (left, right) = boxes[index];
+                var (slotX, slotWidth) = Slot(left, right - left, index == 0 ? 0 : boxes[index - 1].End, index + 1 < boxes.Count ? boxes[index + 1].Start : sheet.Width, alignEnd: false);
+                frames.Add(new CharacterSheetFrame(row, index, left, top, right - left, bottom - top, slotX, slotY, slotWidth, slotHeight));
+            }
         }
 
         return frames;
+    }
+
+    // a span of whole sprites around the picture (centred, or ending with it), between the free limits
+    private static (int Start, int Length) Slot(int start, int length, int lowest, int highest, bool alignEnd)
+    {
+        var size = Math.Max(SpriteSide, (length + SpriteSide - 1) / SpriteSide * SpriteSide);
+        if (size > highest - lowest)
+        {
+            return (start, length);
+        }
+
+        var wanted = alignEnd ? start + length - size : start - ((size - length) / 2);
+        return (Math.Clamp(wanted, lowest, highest - size), size);
+    }
+
+    // the part of the picture that is not transparent
+    private static SKRectI? Ink(SKBitmap picture)
+    {
+        var rows = Runs(picture.Height, y => Enumerable.Range(0, picture.Width).Any(x => picture.GetPixel(x, y).Alpha > VisibleAlpha)).ToList();
+        var columns = Runs(picture.Width, x => Enumerable.Range(0, picture.Height).Any(y => picture.GetPixel(x, y).Alpha > VisibleAlpha)).ToList();
+        return rows.Count == 0 || columns.Count == 0 ? null : new SKRectI(columns[0].Start, rows[0].Start, columns[^1].End, rows[^1].End);
     }
 
     private static IEnumerable<(int Start, int End)> Runs(int length, Func<int, bool> isInked)
@@ -107,13 +158,13 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
     }
 
     // the theme's copy of the sheet, made from the Base one before its first change
-    private static (ThemeLayer Layer, string Path) DraftSheet(string themeDraftPath, string? baseUiPath)
+    private static (ThemeLayer Layer, string Path) DraftSheet(string themeDraftPath, string? baseUiPath, string resource)
     {
         var layer = new ThemeLayer(themeDraftPath, baseUiPath);
-        var target = layer.ThemeResourceFile(SheetResource);
+        var target = layer.ThemeResourceFile(resource);
         if (!File.Exists(target))
         {
-            var source = layer.Resolve(SheetResource) ?? throw new FileNotFoundException("This UI has no character sheet (resources/sprites/characters_sbm.png).");
+            var source = layer.Resolve(resource) ?? throw new FileNotFoundException($"This UI has no resources{resource}.");
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             File.Copy(source, target);
         }

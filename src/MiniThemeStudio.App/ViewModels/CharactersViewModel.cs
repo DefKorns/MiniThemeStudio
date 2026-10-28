@@ -29,13 +29,18 @@ public sealed record CharacterFrameRow(CharacterTexture Texture, string Label, B
     public string SizeText => string.Create(CultureInfo.InvariantCulture, $"{Texture.Width} × {Texture.Height}");
 }
 
-// one picture of the character sheet of the NES and Famicom UIs, cut from the sheet for its tile
-public sealed record SheetFrameView(CharacterSheetFrame Frame, string Label, Bitmap? Thumbnail)
+// one picture of a character sheet of the NES and Famicom UIs, cut from the sheet for its tile
+public sealed record SheetFrameView(CharacterSheet Sheet, CharacterSheetFrame Frame, string Label, Bitmap? Thumbnail)
 {
-    public string SizeText => string.Create(CultureInfo.InvariantCulture, $"{Frame.Width} × {Frame.Height}");
+    public string SizeText => string.Create(CultureInfo.InvariantCulture, $"up to {Frame.SlotWidth} × {Frame.SlotHeight}");
 }
 
 public sealed record SheetRowView(string Label, IReadOnlyList<SheetFrameView> Frames);
+
+public sealed record SheetView(CharacterSheet Sheet, string Title, string Description, IReadOnlyList<SheetRowView> Rows, Bitmap? Image)
+{
+    public string SizeText => string.Create(CultureInfo.InvariantCulture, $"{Sheet.Width} × {Sheet.Height}");
+}
 
 // The Characters tab: the animations of the characters running in the menu, their frames and timing.
 public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
@@ -48,11 +53,13 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
     private readonly IFileDialogService _fileDialogs;
     private readonly ICharacterSheetEditor _sheetEditor;
 
-    // what the rows of the NES and Famicom sheet show, from the top
+    // what the rows of the menu's sheet show, from the top
     private static readonly string[] SheetRowNames = ["Mario", "Luigi", "Block"];
 
-    private Bitmap? _sheetBitmap;
-    private List<Bitmap> _sheetThumbnails = [];
+    // what the pictures of the background's sheet show, from the left
+    private static readonly string[] BackgroundCharacterNames = ["Mario", "Luigi", "Mario and Luigi"];
+
+    private List<Bitmap> _sheetBitmaps = [];
     private readonly IErrorHandler _errorHandler;
 
     // the words of the console's frame names, as people say them
@@ -91,17 +98,11 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
 
     public EditingMode Mode { get; }
 
-    // the NES and Famicom UIs draw their characters from one sheet instead of scene animations
+    // the NES and Famicom UIs draw their characters from sheets instead of scene animations
     [ObservableProperty]
-    private CharacterSheet? sheet;
+    private IReadOnlyList<SheetView> sheets = [];
 
-    [ObservableProperty]
-    private IReadOnlyList<SheetRowView> sheetRows = [];
-
-    [ObservableProperty]
-    private Bitmap? sheetImage;
-
-    public bool ShowSheet => Sheet is not null && Characters.Count == 0;
+    public bool ShowSheet => Sheets.Count > 0 && Characters.Count == 0;
 
     public bool ShowAnimations => !ShowSheet;
 
@@ -225,41 +226,74 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        if (await RunAsync($"Cannot replace {frame.Label}", () => _sheetEditor.ReplaceFrame(draft.DraftPath, _session.BaseUiPath, frame.Frame, imagePath)))
+        if (await RunAsync($"Cannot replace {frame.Label}", () => _sheetEditor.ReplaceFrame(draft.DraftPath, _session.BaseUiPath, frame.Sheet, frame.Frame, imagePath)))
         {
             _session.NotifyContentChanged();
             _session.Status = $"Replaced {frame.Label}.";
         }
     }
 
+    // the pictures picked on a sprite sheet replace the frames of the row, in the order they were picked
     [RelayCommand]
-    private async Task ReplaceSheetAsync()
+    private async Task ImportRowAsync(SheetRowView? row)
     {
-        if (_session.Draft is not { } draft || Sheet is not { } current
-            || await _fileDialogs.OpenFileAsync(string.Create(CultureInfo.InvariantCulture, $"Select the character sheet ({current.Width} × {current.Height} PNG)"), new FileType("PNG image", "*.png")) is not { } imagePath)
+        if (_session.Draft is not { } draft || row is not { Frames.Count: > 0 } || row.Frames[0].Sheet is not { } sheet)
         {
             return;
         }
 
-        if (await RunAsync("Cannot replace the character sheet", () => _sheetEditor.ReplaceSheet(draft.DraftPath, _session.BaseUiPath, imagePath)))
+        var room = new AtlasSize(row.Frames.Max(frame => frame.Frame.SlotWidth), row.Frames.Max(frame => frame.Frame.SlotHeight));
+        var picked = await _appDialogs.ImportSpriteSheetAsync(
+            string.Create(CultureInfo.InvariantCulture, $"Pick the {row.Frames.Count} pictures of {row.Label}, in order"),
+            room,
+            row.Frames[0].Thumbnail);
+        if (picked is not { FramePaths.Count: > 0 })
+        {
+            return;
+        }
+
+        var count = Math.Min(picked.FramePaths.Count, row.Frames.Count);
+        if (await RunAsync($"Cannot import the pictures of {row.Label}", () =>
+        {
+            for (var index = 0; index < count; index++)
+            {
+                _sheetEditor.ReplaceFrame(draft.DraftPath, _session.BaseUiPath, sheet, row.Frames[index].Frame, picked.FramePaths[index]);
+            }
+        }))
         {
             _session.NotifyContentChanged();
-            _session.Status = "Replaced the character sheet.";
+            _session.Status = string.Create(CultureInfo.InvariantCulture, $"{row.Label}: replaced {count} of {row.Frames.Count} pictures from the sprite sheet.");
         }
     }
 
     [RelayCommand]
-    private async Task ExportSheetAsync()
+    private async Task ReplaceSheetAsync(SheetView? sheet)
     {
-        if (Sheet is not { } current
-            || await _fileDialogs.SaveFileAsync("Export the character sheet", Path.GetFileName(current.RelativePath), "png", new FileType("PNG image", "*.png")) is not { } savePath)
+        if (_session.Draft is not { } draft || sheet is null
+            || await _fileDialogs.OpenFileAsync($"Select the new {sheet.Title} ({sheet.SizeText} PNG)", new FileType("PNG image", "*.png")) is not { } imagePath)
         {
             return;
         }
 
-        if (await RunAsync("Cannot export the character sheet", () => File.Copy(current.ImagePath, savePath, true)))
+        if (await RunAsync($"Cannot replace {sheet.Title}", () => _sheetEditor.ReplaceSheet(draft.DraftPath, _session.BaseUiPath, sheet.Sheet, imagePath)))
         {
-            _session.Status = $"Exported the character sheet to {Path.GetFileName(savePath)}.";
+            _session.NotifyContentChanged();
+            _session.Status = $"Replaced {sheet.Title}.";
+        }
+    }
+
+    [RelayCommand]
+    private async Task ExportSheetAsync(SheetView? sheet)
+    {
+        if (sheet is null
+            || await _fileDialogs.SaveFileAsync($"Export {sheet.Title}", Path.GetFileName(sheet.Sheet.RelativePath), "png", new FileType("PNG image", "*.png")) is not { } savePath)
+        {
+            return;
+        }
+
+        if (await RunAsync($"Cannot export {sheet.Title}", () => File.Copy(sheet.Sheet.ImagePath, savePath, true)))
+        {
+            _session.Status = $"Exported {sheet.Title} to {Path.GetFileName(savePath)}.";
         }
     }
 
@@ -391,7 +425,7 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
         _characterTextures = _characterEditor.GetTextures(_session.Draft.DraftPath, _session.BaseUiPath);
         DisposeThumbnails();
         Characters = _characterEditor.GetCharacters(_session.Draft.DraftPath, _session.BaseUiPath);
-        LoadSheet();
+        LoadSheets();
         SelectedCharacter = null;
         SelectedCharacter = Characters.Contains(previous) ? previous : (Characters.Count > 0 ? Characters[0] : null);
     }
@@ -451,74 +485,77 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private void LoadSheet()
+    private void LoadSheets()
     {
-        var previous = _sheetBitmap;
-        var previousThumbnails = _sheetThumbnails;
-        Sheet = _session.Draft is { } draft ? _sheetEditor.GetSheet(draft.DraftPath, _session.BaseUiPath) : null;
-        _sheetBitmap = null;
-        _sheetThumbnails = [];
-        using var pixels = Sheet is { } current ? SKBitmap.Decode(current.ImagePath) : null;
-        if (pixels is not null)
+        var previous = _sheetBitmaps;
+        _sheetBitmaps = [];
+        Sheets = _session.Draft is { } draft
+            ? _sheetEditor.GetSheets(draft.DraftPath, _session.BaseUiPath).Select(LoadSheet).ToList()
+            : [];
+        foreach (var bitmap in previous)
         {
-            _sheetBitmap = ToBitmap(pixels);
-        }
-
-        SheetImage = _sheetBitmap;
-        SheetRows = Sheet is null
-            ? []
-            : Sheet.Frames
-                .GroupBy(frame => frame.Row)
-                .Select(row =>
-                {
-                    var name = row.Key < SheetRowNames.Length ? SheetRowNames[row.Key] : $"Row {row.Key + 1}";
-                    return new SheetRowView(name, row
-                        .Select(frame => new SheetFrameView(frame, $"{name} {frame.Index + 1}", Cut(pixels, frame)))
-                        .ToList());
-                })
-                .ToList();
-
-        previous?.Dispose();
-        foreach (var thumbnail in previousThumbnails)
-        {
-            thumbnail.Dispose();
+            bitmap.Dispose();
         }
 
         NotifyLayout();
+    }
+
+    private SheetView LoadSheet(CharacterSheet sheet)
+    {
+        using var pixels = SKBitmap.Decode(sheet.ImagePath);
+        var isBackground = sheet.Name == "wallpaper-hvc";
+        var rows = sheet.Frames
+            .GroupBy(frame => frame.Row)
+            .Select(row =>
+            {
+                var rowName = row.Key < SheetRowNames.Length ? SheetRowNames[row.Key] : $"Row {row.Key + 1}";
+                return new SheetRowView(isBackground ? "Small characters" : rowName, row
+                    .Select(frame => new SheetFrameView(
+                        sheet,
+                        frame,
+                        isBackground ? (frame.Index < BackgroundCharacterNames.Length ? BackgroundCharacterNames[frame.Index] : $"Small {frame.Index + 1}") : $"{rowName} {frame.Index + 1}",
+                        Cut(pixels, frame)))
+                    .ToList());
+            })
+            .ToList();
+        return isBackground
+            ? new SheetView(sheet, "Background characters", "The small Mario and Luigi that walk over the background.", rows, Keep(pixels))
+            : new SheetView(sheet, "Menu characters", "Mario, Luigi and the ? block of the menu.", rows, Keep(pixels));
     }
 
     // the frame's own pixels, for its tile
     private Bitmap? Cut(SKBitmap? sheet, CharacterSheetFrame frame)
     {
         using var subset = new SKBitmap();
-        if (sheet is null || !sheet.ExtractSubset(subset, new SKRectI(frame.X, frame.Y, frame.X + frame.Width, frame.Y + frame.Height)))
+        return sheet is not null && sheet.ExtractSubset(subset, new SKRectI(frame.X, frame.Y, frame.X + frame.Width, frame.Y + frame.Height))
+            ? Keep(subset)
+            : null;
+    }
+
+    // a bitmap of the pixels, disposed with the next sheets
+    private Bitmap? Keep(SKBitmap? pixels)
+    {
+        if (pixels is null)
         {
             return null;
         }
 
-        var thumbnail = ToBitmap(subset);
-        _sheetThumbnails.Add(thumbnail);
-        return thumbnail;
-    }
-
-    private static Bitmap ToBitmap(SKBitmap pixels)
-    {
         using var png = pixels.Encode(SKEncodedImageFormat.Png, 100);
         using var stream = new MemoryStream(png.ToArray());
-        return new Bitmap(stream);
+        var bitmap = new Bitmap(stream);
+        _sheetBitmaps.Add(bitmap);
+        return bitmap;
     }
 
     public void Dispose()
     {
         DisposeThumbnails();
-        _sheetBitmap?.Dispose();
-        _sheetBitmap = null;
-        foreach (var thumbnail in _sheetThumbnails)
+        foreach (var bitmap in _sheetBitmaps)
         {
-            thumbnail.Dispose();
+            bitmap.Dispose();
         }
 
-        _sheetThumbnails = [];
+        _sheetBitmaps = [];
     }
 
     private void NotifyLayout()

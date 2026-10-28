@@ -1,21 +1,24 @@
 namespace MiniThemeStudio.Core.Themes;
 
 // One picture of a character sheet: Row counts the rows of the sheet (on the NES, 0 is Mario, 1 Luigi and 2 the
-// "?" block) and Index the pictures of the row, from the left.
-public sealed record CharacterSheetFrame(int Row, int Index, int X, int Y, int Width, int Height);
+// "?" block) and Index the pictures of the row, from the left. X, Y, Width and Height frame the picture of the
+// Base; the slot around it is the room a new picture has, the 16 x 16 of a NES sprite where the neighbours leave it.
+public sealed record CharacterSheetFrame(int Row, int Index, int X, int Y, int Width, int Height, int SlotX, int SlotY, int SlotWidth, int SlotHeight);
 
-// The sheet the NES and Famicom UIs draw their characters from (resources/sprites/characters_sbm.png). A script
-// cuts the pictures at fixed places, so a new picture keeps the place and the size of the one it replaces.
-public sealed record CharacterSheet(string ImagePath, string RelativePath, int Width, int Height, bool IsFromBaseUi, IReadOnlyList<CharacterSheetFrame> Frames);
+// A sheet the NES and Famicom UIs draw characters from: characters_sbm (Mario, Luigi and the ? block of the
+// menu) and wallpaper-hvc (the small ones walking over the background). A script cuts the pictures at fixed
+// places, so a new picture keeps the place and the size of the one it replaces.
+public sealed record CharacterSheet(string Name, string ImagePath, string RelativePath, int Width, int Height, bool IsFromBaseUi, IReadOnlyList<CharacterSheetFrame> Frames);
 
 public interface ICharacterSheetEditor
 {
-    // null when the UI draws its characters from scene animations instead (the SNES ones)
-    CharacterSheet? GetSheet(string themePath, string? baseUiPath);
+    // none when the UI draws its characters from scene animations instead (the SNES ones)
+    IReadOnlyList<CharacterSheet> GetSheets(string themePath, string? baseUiPath);
 
-    // draws the picture over the frame, in the theme's copy of the sheet; the picture has the frame's size
-    void ReplaceFrame(string themeDraftPath, string? baseUiPath, CharacterSheetFrame frame, string pictureImagePath);
+    // draws the picture in the frame's slot of the theme's copy of the sheet, centred where the Base picture was and
+    // standing on its bottom line; the transparent edges of the picture are dropped and the rest fits the slot
+    void ReplaceFrame(string themeDraftPath, string? baseUiPath, CharacterSheet sheet, CharacterSheetFrame frame, string pictureImagePath);
 
     // the whole sheet, edited elsewhere; it has the size of the one it replaces
-    void ReplaceSheet(string themeDraftPath, string? baseUiPath, string sheetImagePath);
+    void ReplaceSheet(string themeDraftPath, string? baseUiPath, CharacterSheet sheet, string sheetImagePath);
 }

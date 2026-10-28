@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
@@ -11,6 +12,9 @@ using Avalonia.Media.Imaging;
 using MiniThemeStudio.Core.Scenes;
 
 namespace MiniThemeStudio.App.Controls;
+
+// where a dragged node was dropped: its new X and Y in its parent's space
+public sealed record SceneNodeMove(string Path, double X, double Y);
 
 // Draws a scene as the console shows it: 1280x720 screen, origin at its centre, Y up.
 // It shows the static layout of the .scn file; scripts and animations can move or hide nodes at run time.
@@ -35,6 +39,13 @@ public sealed class ScenePreview : Control
     public static readonly StyledProperty<SceneImageSource?> ImagesProperty =
         AvaloniaProperty.Register<ScenePreview, SceneImageSource?>(nameof(Images));
 
+    // executed with a SceneNodeMove when a dragged node is dropped; nodes cannot be dragged without it
+    public static readonly StyledProperty<ICommand?> MoveCommandProperty =
+        AvaloniaProperty.Register<ScenePreview, ICommand?>(nameof(MoveCommand));
+
+    // screen pixels the pointer must travel before a press becomes a drag
+    private const double DragThreshold = 3;
+
     private static readonly IBrush ScreenBrush = new SolidColorBrush(Color.FromRgb(16, 16, 20));
     private static readonly IBrush OutsideBrush = new SolidColorBrush(Color.FromArgb(150, 0, 0, 0));
     private static readonly IPen ScreenPen = new Pen(new SolidColorBrush(Color.FromArgb(160, 255, 255, 255)), 1);
@@ -47,7 +58,9 @@ public sealed class ScenePreview : Control
     private List<DrawItem> _items = [];
     private Dictionary<string, Matrix> _worlds = [];
     private Rect _screen;
+    private Matrix _screenMatrix = Matrix.Identity;
     private string? _hoveredPath;
+    private Drag? _drag;
 
     static ScenePreview()
     {
@@ -84,6 +97,12 @@ public sealed class ScenePreview : Control
         set => SetValue(ImagesProperty, value);
     }
 
+    public ICommand? MoveCommand
+    {
+        get => GetValue(MoveCommandProperty);
+        set => SetValue(MoveCommandProperty, value);
+    }
+
     public override void Render(DrawingContext context)
     {
         var scale = Math.Min(Bounds.Width / ScreenWidth, Bounds.Height / ScreenHeight);
@@ -93,8 +112,8 @@ public sealed class ScenePreview : Control
         }
 
         _screen = new Rect((Bounds.Width - ScreenWidth * scale) / 2, (Bounds.Height - ScreenHeight * scale) / 2, ScreenWidth * scale, ScreenHeight * scale);
-        var screenMatrix = new Matrix(scale, 0, 0, -scale, _screen.Center.X, _screen.Center.Y);
-        Collect(screenMatrix);
+        _screenMatrix = new Matrix(scale, 0, 0, -scale, _screen.Center.X, _screen.Center.Y);
+        Collect(_screenMatrix);
 
         using var clip = context.PushClip(new Rect(Bounds.Size));
         context.FillRectangle(ScreenBrush, _screen);
@@ -124,16 +143,91 @@ public sealed class ScenePreview : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
-        if (FindAt(e.GetPosition(this)) is { } item)
+        var position = e.GetPosition(this);
+        if (FindAt(position) is not { } item)
         {
-            SelectedPath = item.Node.Path;
-            e.Handled = true;
+            return;
+        }
+
+        e.Handled = true;
+
+        // pressing inside the selected group drags the whole group; anything else is selected and dragged alone
+        var clicked = item.Node.Path;
+        var target = SelectedPath is { Length: > 0 } selected && (clicked == selected || clicked.StartsWith(selected + "/", StringComparison.Ordinal))
+            ? selected
+            : clicked;
+        SelectedPath = target;
+        if (MoveCommand is null
+            || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed
+            || Root?.SelfAndDescendants().FirstOrDefault(node => node.Path == target) is not { } node
+            || !ParentWorld(target).TryInvert(out var toParent))
+        {
+            return;
+        }
+
+        _drag = new Drag(target, clicked, position, toParent, node.Transform.X, node.Transform.Y);
+        e.Pointer.Capture(this);
+    }
+
+    protected override void OnPointerReleased(PointerReleasedEventArgs e)
+    {
+        base.OnPointerReleased(e);
+        if (_drag is not { } drag)
+        {
+            return;
+        }
+
+        _drag = null;
+        e.Pointer.Capture(null);
+        Cursor = null;
+        if (!drag.IsMoving)
+        {
+            // a click without a drag: the image under the pointer, even inside the selected group
+            SelectedPath = drag.ClickedPath;
+            return;
+        }
+
+        var move = new SceneNodeMove(drag.Path, drag.OriginX + drag.Offset.X, drag.OriginY + drag.Offset.Y);
+        if (drag.Offset != default && MoveCommand?.CanExecute(move) == true)
+        {
+            MoveCommand.Execute(move);
+        }
+
+        InvalidateVisual();
+    }
+
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        if (_drag is not null)
+        {
+            _drag = null;
+            Cursor = null;
+            InvalidateVisual();
         }
     }
 
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
+        if (_drag is { } drag)
+        {
+            var position = e.GetPosition(this);
+            if (!drag.IsMoving && Point.Distance(position, drag.Start) < DragThreshold)
+            {
+                return;
+            }
+
+            // whole pixels in the parent's space, Y up, whatever the zoom of the preview
+            var delta = drag.ToParent.Transform(position) - drag.ToParent.Transform(drag.Start);
+            drag.IsMoving = true;
+            drag.Offset = new Vector(Math.Round(drag.OriginX + delta.X) - drag.OriginX, Math.Round(drag.OriginY + delta.Y) - drag.OriginY);
+            Cursor = new Cursor(StandardCursorType.SizeAll);
+            ToolTip.SetTip(this, $"{drag.OriginX + drag.Offset.X:0.##}, {drag.OriginY + drag.Offset.Y:0.##}");
+            InvalidateVisual();
+            return;
+        }
+
         var hovered = FindAt(e.GetPosition(this));
         if (hovered?.Node.Path != _hoveredPath)
         {
@@ -189,7 +283,10 @@ public sealed class ScenePreview : Control
             return;
         }
 
-        var world = ToMatrix(node.Transform) * parentWorld;
+        var transform = _drag is { IsMoving: true } drag && drag.Path == node.Path
+            ? node.Transform with { X = node.Transform.X + drag.Offset.X, Y = node.Transform.Y + drag.Offset.Y }
+            : node.Transform;
+        var world = ToMatrix(transform) * parentWorld;
         _worlds[node.Path] = world;
         if (node.Visual is { } visual && CreateItem(node, visual, world, hidden) is { } item)
         {
@@ -312,6 +409,14 @@ public sealed class ScenePreview : Control
         context.DrawLine(SelectionPen, origin - new Vector(0, 8), origin + new Vector(0, 8));
     }
 
+    // the world matrix a node's transform is applied to: its parent's, or the screen's for the root
+    private Matrix ParentWorld(string path)
+    {
+        var slash = path.LastIndexOf('/');
+        var parentPath = path.Length == 0 ? null : slash < 0 ? "" : path[..slash];
+        return parentPath is not null && _worlds.TryGetValue(parentPath, out var parentWorld) ? parentWorld : _screenMatrix;
+    }
+
     private static void DrawOutline(DrawingContext context, Point[] corners, IPen pen)
     {
         for (var index = 0; index < corners.Length; index++)
@@ -348,6 +453,26 @@ public sealed class ScenePreview : Control
     // engine [a, b, x, c, d, y]: x' = a*px + b*py + x, y' = c*px + d*py + y
     private static Matrix ToMatrix(SceneTransform transform) =>
         new(transform.A, transform.C, transform.B, transform.D, transform.X, transform.Y);
+
+    private sealed class Drag(string path, string clickedPath, Point start, Matrix toParent, double originX, double originY)
+    {
+        public string Path { get; } = path;
+
+        public string ClickedPath { get; } = clickedPath;
+
+        public Point Start { get; } = start;
+
+        // from preview pixels to the space of the node's parent
+        public Matrix ToParent { get; } = toParent;
+
+        public double OriginX { get; } = originX;
+
+        public double OriginY { get; } = originY;
+
+        public bool IsMoving { get; set; }
+
+        public Vector Offset { get; set; }
+    }
 
     private sealed record DrawItem(
         SceneNode Node,

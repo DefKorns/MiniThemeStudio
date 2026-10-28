@@ -82,4 +82,16 @@ public interface ISceneEditor
 
     // the node is addressed by its child indexes from the root ("" is the root, "2/0" the first child of the third child)
     void EditNode(string themeDraftPath, string? baseUiPath, string sceneResourcePath, string nodePath, SceneNodeEdit edit);
+
+    // registers a PNG as a new texture of the theme and returns its texture id
+    string ImportTexture(string themeDraftPath, string? baseUiPath, string sourceImagePath);
+
+    // adds a node drawing the whole texture at its own size, as the top child of parentPath; returns the new node's path
+    string AddImageNode(string themeDraftPath, string? baseUiPath, string sceneResourcePath, string parentPath, string textureId, string name);
+
+    // copies the node and its children next to it, slightly offset so the copy shows; returns the copy's path
+    string DuplicateNode(string themeDraftPath, string? baseUiPath, string sceneResourcePath, string nodePath);
+
+    // removes the node and its children; a node other nodes of the scene link to is kept
+    void DeleteNode(string themeDraftPath, string? baseUiPath, string sceneResourcePath, string nodePath);
 }

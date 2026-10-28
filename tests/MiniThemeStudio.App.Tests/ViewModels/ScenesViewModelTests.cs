@@ -1,3 +1,4 @@
+using MiniThemeStudio.App.Controls;
 using MiniThemeStudio.App.Tests.TestDoubles;
 
 namespace MiniThemeStudio.App.Tests.ViewModels;
@@ -72,6 +73,85 @@ public sealed class ScenesViewModelTests : IDisposable
         scenes.ResetSceneNodeFieldsCommand.Execute(null);
 
         Assert.Equal(0, scenes.SceneNodeX);
+    }
+
+    [Fact]
+    public async Task AddingAnImageImportsThePngNextToTheSelectedImage()
+    {
+        var scenes = _app.Window.ScenesTab;
+        TestApp.WriteBytes(_app.Root, "logo.png", TestApp.Png);
+        _app.Files.Paths.Enqueue(Path.Combine(_app.Root, "logo.png"));
+        scenes.SelectedScenePath = "0";
+
+        await scenes.AddImageCommand.ExecuteAsync(null);
+
+        Assert.Empty(_app.Errors.Failures.Select(failure => $"{failure.Failure}: {failure.Exception.Message}"));
+        Assert.Equal("1", scenes.SelectedScenePath);
+        Assert.Equal("logo", scenes.SelectedSceneNode?.Name);
+        Assert.True(scenes.SelectedNodeIsTexture);
+        Assert.Equal("logo", scenes.SceneNodeTexture?.Name);
+        Assert.True(File.Exists(Path.Combine(_app.Window.CurrentDraftPath!, "resources", "layout", "asset", "sprite", "scene", "logo.png")));
+        Assert.True(_app.Window.HasUnsavedChanges);
+        Assert.Equal("bg.scn: added logo.", _app.Window.Status);
+    }
+
+    [Fact]
+    public async Task DuplicatingSelectsTheCopy()
+    {
+        var scenes = _app.Window.ScenesTab;
+        scenes.SelectedScenePath = "0";
+
+        await scenes.DuplicateNodeCommand.ExecuteAsync(null);
+
+        Assert.Equal("1", scenes.SelectedScenePath);
+        Assert.Equal("wall copy", scenes.SceneNodeName);
+        Assert.Equal(16, scenes.SceneNodeX);
+        Assert.Equal(-19, scenes.SceneNodeY);
+    }
+
+    [Fact]
+    public async Task DeletingAsksFirstAndThenSelectsTheParent()
+    {
+        var scenes = _app.Window.ScenesTab;
+        scenes.SelectedScenePath = "0";
+        _app.Dialogs.ConfirmationAnswer = false;
+
+        await scenes.DeleteNodeCommand.ExecuteAsync(null);
+
+        Assert.Equal("Delete node", Assert.Single(_app.Dialogs.Shown).Title);
+        Assert.Single(scenes.CurrentScene!.Root.Children);
+
+        _app.Dialogs.ConfirmationAnswer = true;
+        await scenes.DeleteNodeCommand.ExecuteAsync(null);
+
+        Assert.Empty(scenes.CurrentScene!.Root.Children);
+        Assert.Equal("", scenes.SelectedScenePath);
+        Assert.Equal("bg.scn: deleted wall.", _app.Window.Status);
+    }
+
+    [Fact]
+    public void TheRootCannotBeDuplicatedOrDeleted()
+    {
+        var scenes = _app.Window.ScenesTab;
+
+        scenes.SelectedScenePath = "";
+
+        Assert.False(scenes.DuplicateNodeCommand.CanExecute(null));
+        Assert.False(scenes.DeleteNodeCommand.CanExecute(null));
+        Assert.True(scenes.AddImageCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task DroppingADraggedNodeWritesItsPosition()
+    {
+        var scenes = _app.Window.ScenesTab;
+        scenes.SelectedScenePath = "0";
+
+        await scenes.MoveNodeCommand.ExecuteAsync(new SceneNodeMove("0", 40, 25));
+
+        Assert.Contains("\"transform\":[1,0,40,0,1,25]", File.ReadAllText(Path.Combine(_app.Window.CurrentDraftPath!, "resources", "prefab", "bg.scn")));
+        Assert.Equal("0", scenes.SelectedScenePath);
+        Assert.Equal(40, scenes.SceneNodeX);
     }
 
     [Fact]

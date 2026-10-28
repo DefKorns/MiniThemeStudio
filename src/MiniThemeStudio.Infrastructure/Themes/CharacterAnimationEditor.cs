@@ -112,9 +112,6 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
     public string AddTexture(string themeDraftPath, string? baseUiPath, string relativeImagePath, string sourceImagePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(relativeImagePath);
-        using var bitmap = SKBitmap.Decode(sourceImagePath)
-            ?? throw new InvalidDataException("The frame is not a valid PNG image.");
-
         var resourcePath = "/" + relativeImagePath.Replace('\\', '/').TrimStart('/');
         if (!resourcePath.StartsWith("/resources/", StringComparison.Ordinal))
         {
@@ -124,19 +121,7 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
         resourcePath = resourcePath["/resources".Length..];
         var layer = new ThemeLayer(themeDraftPath, baseUiPath);
         var manifest = DependencyManifest.Load(layer);
-        var definitionResourcePath = Path.ChangeExtension(resourcePath, ".json");
-        var textureId = manifest.AddTexture(resourcePath, definitionResourcePath);
-
-        var imagePath = layer.ThemeResourceFile(resourcePath);
-        Directory.CreateDirectory(Path.GetDirectoryName(imagePath)!);
-        File.Copy(sourceImagePath, imagePath, false);
-        layer.WriteThemeResource(
-            definitionResourcePath,
-            EngineJson.ToCompactString(new JsonObject
-            {
-                ["texture"] = new JsonObject { ["id"] = textureId, ["width"] = bitmap.Width, ["height"] = bitmap.Height },
-                ["sprites"] = new JsonObject(),
-            }));
+        var textureId = ThemeTextures.Register(layer, manifest, resourcePath, sourceImagePath);
         manifest.Save(layer);
         return textureId;
     }

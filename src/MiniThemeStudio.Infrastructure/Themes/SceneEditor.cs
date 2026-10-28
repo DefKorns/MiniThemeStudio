@@ -8,6 +8,12 @@ namespace MiniThemeStudio.Infrastructure.Themes;
 // edits .scn files in place through JsonNode, so every field the editor does not know is written back untouched
 public sealed class SceneEditor : ISceneEditor
 {
+    // where ImportTexture puts the PNGs added to scenes, next to the console's own layout images
+    private const string ImportedImagesFolder = "/layout/asset/sprite/scene";
+
+    // pixels a duplicate moves right and down from the original
+    private const double DuplicateOffset = 16;
+
     public IReadOnlyList<string> GetScenes(string themePath, string? baseUiPath)
     {
         var layer = new ThemeLayer(themePath, baseUiPath);
@@ -35,12 +41,8 @@ public sealed class SceneEditor : ISceneEditor
         ArgumentNullException.ThrowIfNull(nodePath);
         ArgumentNullException.ThrowIfNull(edit);
 
-        var layer = new ThemeLayer(themeDraftPath, baseUiPath);
-        var sourcePath = layer.Resolve(sceneResourcePath)
-            ?? throw new FileNotFoundException($"Scene not found: resources{sceneResourcePath}");
-        var scene = ParseScene(sourcePath);
-        var node = FindNode(scene["rootWorldNode"] as JsonObject, nodePath)
-            ?? throw new InvalidDataException($"Node {nodePath} not found in {Path.GetFileName(sceneResourcePath)}.");
+        var (layer, scene, root) = OpenScene(themeDraftPath, baseUiPath, sceneResourcePath);
+        var node = FindNode(root, nodePath, sceneResourcePath);
 
         if (edit.Name is { } name)
         {
@@ -137,6 +139,279 @@ public sealed class SceneEditor : ISceneEditor
         layer.WriteThemeResource(sceneResourcePath, EngineJson.ToCompactString(scene));
     }
 
+    public string ImportTexture(string themeDraftPath, string? baseUiPath, string sourceImagePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceImagePath);
+
+        var layer = new ThemeLayer(themeDraftPath, baseUiPath);
+        var manifest = DependencyManifest.Load(layer);
+        var name = SafeFileName(Path.GetFileNameWithoutExtension(sourceImagePath));
+        var resourcePath = $"{ImportedImagesFolder}/{name}.png";
+        for (var number = 2; manifest.Resources.Any(resource => resource.Path == resourcePath) || layer.Resolve(resourcePath) is not null; number++)
+        {
+            resourcePath = $"{ImportedImagesFolder}/{name}_{number.ToString(CultureInfo.InvariantCulture)}.png";
+        }
+
+        var textureId = ThemeTextures.Register(layer, manifest, resourcePath, sourceImagePath);
+        manifest.Save(layer);
+        return textureId;
+    }
+
+    public string AddImageNode(string themeDraftPath, string? baseUiPath, string sceneResourcePath, string parentPath, string textureId, string name)
+    {
+        ArgumentNullException.ThrowIfNull(parentPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(textureId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        var (layer, scene, root) = OpenScene(themeDraftPath, baseUiPath, sceneResourcePath);
+        var parent = FindNode(root, parentPath, sceneResourcePath);
+        var manifest = DependencyManifest.Load(layer);
+        if (!manifest.IsTexture(textureId))
+        {
+            throw new InvalidDataException($"Texture {textureId} is not registered in dependencies.json.");
+        }
+
+        var (width, height) = ThemeTextures.Size(layer, manifest, textureId)
+            ?? throw new FileNotFoundException($"The image of texture {textureId} was not found.");
+        var children = Children(parent);
+        var topLayer = children.OfType<JsonObject>().Select(child => Double(child["zIndex"]) ?? 0).DefaultIfEmpty(-1).Max();
+
+        // the fields the console's own scenes give every node and texture
+        children.Add(new JsonObject
+        {
+            ["id"] = NewId(),
+            ["name"] = UniqueName(children, name.Trim()),
+            ["transform"] = new JsonArray(1, 0, 0, 0, 1, 0),
+            ["enabled"] = true,
+            ["zIndex"] = Number(Math.Floor(topLayer) + 1),
+            ["visible"] = true,
+            ["color"] = new JsonArray(1, 1, 1, 1),
+            ["category"] = 0,
+            ["components"] = new JsonArray(new JsonObject
+            {
+                ["type"] = "TextureComponent",
+                ["textureId"] = textureId,
+                ["blendMode"] = 0,
+                ["color"] = new JsonArray(1, 1, 1, 1),
+                ["enabled"] = true,
+                ["horizontalWrapMode"] = 0,
+                ["id"] = NewId(),
+                ["magFilterMode"] = 0,
+                ["minFilterMode"] = 0,
+                ["scriptType"] = "TextureComponent",
+                ["properties"] = new JsonObject(),
+                ["verticalWrapMode"] = 0,
+                ["viewDepth"] = 0,
+                ["visible"] = true,
+                ["layer"] = 0,
+                ["size"] = new JsonArray(width, height),
+                ["pivot"] = new JsonArray(0.5, 0.5),
+                ["uvOffset"] = new JsonArray(0, 0),
+                ["uvRepeat"] = new JsonArray(1, 1),
+            }),
+            ["scriptType"] = "WorldNode",
+            ["properties"] = new JsonObject(),
+            ["children"] = new JsonArray(),
+        });
+
+        manifest.ChangeReferenceCount(DependencyManifest.Scene, sceneResourcePath, textureId, 1);
+        manifest.Save(layer);
+        layer.WriteThemeResource(sceneResourcePath, EngineJson.ToCompactString(scene));
+        return ChildPath(parentPath, children.Count - 1);
+    }
+
+    public string DuplicateNode(string themeDraftPath, string? baseUiPath, string sceneResourcePath, string nodePath)
+    {
+        var (layer, scene, root) = OpenScene(themeDraftPath, baseUiPath, sceneResourcePath);
+        var (parentPath, index) = SplitPath(nodePath, "duplicated");
+        var siblings = Children(FindNode(root, parentPath, sceneResourcePath));
+        var original = FindNode(root, nodePath, sceneResourcePath);
+
+        // the copy gets ids of its own; links between its nodes follow it, links to the rest of the scene stay
+        var copy = (JsonObject)original.DeepClone();
+        var newIds = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var owner in Nodes(copy).SelectMany(node => Components(node).Prepend(node)))
+        {
+            if (String(owner["id"]) is { } id)
+            {
+                newIds[id] = NewId();
+                owner["id"] = newIds[id];
+            }
+        }
+
+        foreach (var link in Descendants(copy).OfType<JsonObject>())
+        {
+            if (String(link["linkId"]) is { } linkId && newIds.TryGetValue(linkId, out var newId))
+            {
+                link["linkId"] = newId;
+            }
+        }
+
+        copy["name"] = UniqueName(siblings, $"{String(original["name"]) ?? "node"} copy");
+        if (copy["transform"] is JsonArray { Count: 6 } transform && Double(transform[2]) is { } x && Double(transform[5]) is { } y)
+        {
+            transform[2] = Number(x + DuplicateOffset);
+            transform[5] = Number(y - DuplicateOffset);
+        }
+
+        siblings.Insert(index + 1, copy);
+        ChangeReferenceCounts(layer, sceneResourcePath, copy, 1);
+        layer.WriteThemeResource(sceneResourcePath, EngineJson.ToCompactString(scene));
+        return ChildPath(parentPath, index + 1);
+    }
+
+    public void DeleteNode(string themeDraftPath, string? baseUiPath, string sceneResourcePath, string nodePath)
+    {
+        var (layer, scene, root) = OpenScene(themeDraftPath, baseUiPath, sceneResourcePath);
+        var (parentPath, index) = SplitPath(nodePath, "deleted");
+        var siblings = Children(FindNode(root, parentPath, sceneResourcePath));
+        var node = FindNode(root, nodePath, sceneResourcePath);
+
+        // scripts reach nodes through links in the properties of other nodes: removing a linked node breaks them
+        var removedIds = Nodes(node).SelectMany(removed => Components(removed).Prepend(removed))
+            .Select(owner => String(owner["id"]))
+            .OfType<string>()
+            .ToHashSet(StringComparer.Ordinal);
+        siblings.RemoveAt(index);
+        var linking = Nodes(root).FirstOrDefault(other => OwnFields(other).SelectMany(Descendants).OfType<JsonObject>()
+            .Any(link => String(link["linkId"]) is { } linkId && removedIds.Contains(linkId)));
+        if (linking is not null)
+        {
+            throw new InvalidDataException(
+                $"{String(node["name"])} cannot be deleted: {String(linking["name"])} links to it, so the console scripts use it. Hide it instead.");
+        }
+
+        ChangeReferenceCounts(layer, sceneResourcePath, node, -1);
+        layer.WriteThemeResource(sceneResourcePath, EngineJson.ToCompactString(scene));
+    }
+
+    private static (ThemeLayer Layer, JsonObject Scene, JsonObject Root) OpenScene(string themeDraftPath, string? baseUiPath, string sceneResourcePath)
+    {
+        var layer = new ThemeLayer(themeDraftPath, baseUiPath);
+        var sourcePath = layer.Resolve(sceneResourcePath)
+            ?? throw new FileNotFoundException($"Scene not found: resources{sceneResourcePath}");
+        var scene = ParseScene(sourcePath);
+        var root = scene["rootWorldNode"] as JsonObject
+            ?? throw new InvalidDataException($"{Path.GetFileName(sourcePath)} has no rootWorldNode.");
+        return (layer, scene, root);
+    }
+
+    // the Scene entry of dependencies.json counts each component that draws a texture or one of its sprites
+    private static void ChangeReferenceCounts(ThemeLayer layer, string sceneResourcePath, JsonObject branch, int sign)
+    {
+        var counts = Nodes(branch).SelectMany(Components)
+            .Select(TextureReference)
+            .OfType<string>()
+            .CountBy(textureId => textureId, StringComparer.Ordinal)
+            .ToList();
+        if (counts.Count == 0)
+        {
+            return;
+        }
+
+        var manifest = DependencyManifest.Load(layer);
+        foreach (var (textureId, count) in counts)
+        {
+            manifest.ChangeReferenceCount(DependencyManifest.Scene, sceneResourcePath, textureId, sign * count);
+        }
+
+        manifest.Save(layer);
+    }
+
+    private static string? TextureReference(JsonObject component)
+    {
+        return String(component["type"]) switch
+        {
+            "TextureComponent" => String(component["textureId"]) is { Length: > 0 } textureId ? textureId : null,
+
+            // spriteId is "<atlas texture id>.<sprite name>"
+            "SpriteComponent" => String(component["spriteId"]) is { } spriteId && spriteId.IndexOf('.', StringComparison.Ordinal) is var dot and > 0 ? spriteId[..dot] : null,
+            _ => null,
+        };
+    }
+
+    private static IEnumerable<JsonObject> Nodes(JsonObject node)
+    {
+        yield return node;
+        foreach (var descendant in (node["children"] as JsonArray ?? []).OfType<JsonObject>().SelectMany(Nodes))
+        {
+            yield return descendant;
+        }
+    }
+
+    private static IEnumerable<JsonObject> Components(JsonObject node) => (node["components"] as JsonArray ?? []).OfType<JsonObject>();
+
+    // everything a node holds except its child nodes
+    private static IEnumerable<JsonNode> OwnFields(JsonObject node) =>
+        node.Where(field => field.Key != "children" && field.Value is not null).Select(field => field.Value!);
+
+    private static IEnumerable<JsonNode> Descendants(JsonNode node)
+    {
+        yield return node;
+        var children = node switch
+        {
+            JsonObject json => json.Select(field => field.Value),
+            JsonArray array => array.AsEnumerable(),
+            _ => [],
+        };
+        foreach (var descendant in children.OfType<JsonNode>().SelectMany(Descendants))
+        {
+            yield return descendant;
+        }
+    }
+
+    private static JsonArray Children(JsonObject node)
+    {
+        if (node["children"] is not JsonArray children)
+        {
+            children = [];
+            node["children"] = children;
+        }
+
+        return children;
+    }
+
+    // animations find nodes by name, so siblings keep distinct names
+    private static string UniqueName(JsonArray siblings, string name)
+    {
+        var taken = siblings.OfType<JsonObject>().Select(sibling => String(sibling["name"])).OfType<string>().ToHashSet(StringComparer.Ordinal);
+        var unique = name;
+        for (var number = 2; taken.Contains(unique); number++)
+        {
+            unique = $"{name} {number.ToString(CultureInfo.InvariantCulture)}";
+        }
+
+        return unique;
+    }
+
+    private static (string ParentPath, int Index) SplitPath(string nodePath, string action)
+    {
+        ArgumentNullException.ThrowIfNull(nodePath);
+        if (nodePath.Length == 0)
+        {
+            throw new ArgumentException($"The root node cannot be {action}.", nameof(nodePath));
+        }
+
+        var slash = nodePath.LastIndexOf('/');
+        return int.TryParse(nodePath[(slash + 1)..], NumberStyles.None, CultureInfo.InvariantCulture, out var index)
+            ? (slash < 0 ? "" : nodePath[..slash], index)
+            : throw new InvalidDataException($"Node {nodePath} not found.");
+    }
+
+    private static string ChildPath(string parentPath, int index)
+    {
+        var text = index.ToString(CultureInfo.InvariantCulture);
+        return parentPath.Length == 0 ? text : $"{parentPath}/{text}";
+    }
+
+    private static string SafeFileName(string name)
+    {
+        var safe = new string(name.ToLowerInvariant().Select(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-' ? character : '_').ToArray()).Trim('_');
+        return safe.Length == 0 ? "image" : safe;
+    }
+
+    private static string NewId() => Guid.NewGuid().ToString();
+
     private static SceneNode ReadNode(JsonObject node, string path)
     {
         var components = (node["components"] as JsonArray ?? []).OfType<JsonObject>().ToList();
@@ -209,6 +484,12 @@ public sealed class SceneEditor : ISceneEditor
     {
         return (node["components"] as JsonArray ?? []).OfType<JsonObject>()
             .FirstOrDefault(component => String(component["type"]) is "TextureComponent" or "SpriteComponent");
+    }
+
+    private static JsonObject FindNode(JsonObject root, string path, string sceneResourcePath)
+    {
+        return FindNode(root, path)
+            ?? throw new InvalidDataException($"Node {path} not found in {Path.GetFileName(sceneResourcePath)}.");
     }
 
     private static JsonObject? FindNode(JsonObject? root, string path)

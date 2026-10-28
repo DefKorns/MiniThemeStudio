@@ -7,6 +7,7 @@ using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MiniThemeStudio.App.Controls;
+using MiniThemeStudio.App.Dialogs;
 using MiniThemeStudio.App.Errors;
 using MiniThemeStudio.App.Services;
 using MiniThemeStudio.Core.Scenes;
@@ -44,6 +45,7 @@ public sealed partial class ScenesViewModel : ViewModelBase
     private readonly IThemeAssetManager _assetManager;
     private readonly ITextureAtlasReader _atlasReader;
     private readonly IFileDialogService _fileDialogs;
+    private readonly IDialogService _dialogs;
     private readonly IErrorHandler _errorHandler;
     private IReadOnlyList<SceneTreeRow> _allSceneRows = [];
     private Dictionary<string, string> _textureImagePaths = new(StringComparer.Ordinal);
@@ -54,6 +56,7 @@ public sealed partial class ScenesViewModel : ViewModelBase
         IThemeAssetManager assetManager,
         ITextureAtlasReader atlasReader,
         IFileDialogService fileDialogs,
+        IDialogService dialogs,
         IErrorHandler errorHandler)
     {
         _session = session;
@@ -61,6 +64,7 @@ public sealed partial class ScenesViewModel : ViewModelBase
         _assetManager = assetManager;
         _atlasReader = atlasReader;
         _fileDialogs = fileDialogs;
+        _dialogs = dialogs;
         _errorHandler = errorHandler;
         _session.Reloaded += (_, _) => Reload();
     }
@@ -75,6 +79,7 @@ public sealed partial class ScenesViewModel : ViewModelBase
     private string? selectedSceneResource;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AddImageCommand))]
     private SceneDocument? currentScene;
 
     [ObservableProperty]
@@ -91,6 +96,7 @@ public sealed partial class ScenesViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelectedSceneNode), nameof(SelectedNodeDrawsImage), nameof(SelectedNodeIsTexture), nameof(SelectedNodeIsSprite), nameof(SelectedSceneNodeSummary))]
+    [NotifyCanExecuteChangedFor(nameof(DuplicateNodeCommand), nameof(DeleteNodeCommand))]
     private SceneNode? selectedSceneNode;
 
     [ObservableProperty]
@@ -150,6 +156,114 @@ public sealed partial class ScenesViewModel : ViewModelBase
         { Children.Count: > 0 } node => $"Group of {node.Children.Count} node{(node.Children.Count == 1 ? "" : "s")}" + (node.ComponentTypes.Count > 0 ? $" ({node.ComponentsText})." : "."),
         var node => node.ComponentTypes.Count > 0 ? $"Components: {node.ComponentsText}." : "Empty node.",
     };
+
+    private bool HasScene => CurrentScene is not null;
+
+    // the root holds the whole scene: it is never copied or removed
+    private bool CanCopyOrDeleteNode => CurrentScene is not null && SelectedSceneNode is { Path.Length: > 0 };
+
+    // new images go inside the selected group, next to the selected image, or at the top of the scene
+    private string NewNodeParentPath => SelectedSceneNode switch
+    {
+        null => "",
+        { Visual: null } group => group.Path,
+        { Path: var path } => path.LastIndexOf('/') is var slash and >= 0 ? path[..slash] : "",
+    };
+
+    // a PNG from disk becomes a texture of the theme and a node that draws it
+    [RelayCommand(CanExecute = nameof(HasScene))]
+    private async Task AddImageAsync()
+    {
+        if (_session.Draft is null
+            || CurrentScene is not { } scene
+            || await _fileDialogs.OpenFileAsync("Select the PNG to add to the scene", new FileType("PNG image", "*.png")) is not { } imagePath)
+        {
+            return;
+        }
+
+        var draftPath = _session.Draft.DraftPath;
+        var parentPath = NewNodeParentPath;
+        var name = Path.GetFileNameWithoutExtension(imagePath);
+        string? nodePath = null;
+        if (await _errorHandler.TryRunAsync($"Cannot add {Path.GetFileName(imagePath)}", () =>
+        {
+            var textureId = _sceneEditor.ImportTexture(draftPath, _session.BaseUiPath, imagePath);
+            nodePath = _sceneEditor.AddImageNode(draftPath, _session.BaseUiPath, scene.ResourcePath, parentPath, textureId, name);
+            return Task.CompletedTask;
+        }))
+        {
+            ShowEditedNode(nodePath, $"{scene.FileName}: added {name}.");
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCopyOrDeleteNode))]
+    private async Task DuplicateNodeAsync()
+    {
+        if (_session.Draft is null || CurrentScene is not { } scene || SelectedSceneNode is not { } node)
+        {
+            return;
+        }
+
+        var draftPath = _session.Draft.DraftPath;
+        string? copyPath = null;
+        if (await _errorHandler.TryRunAsync($"Cannot duplicate {node.Name}", () =>
+        {
+            copyPath = _sceneEditor.DuplicateNode(draftPath, _session.BaseUiPath, scene.ResourcePath, node.Path);
+            return Task.CompletedTask;
+        }))
+        {
+            ShowEditedNode(copyPath, $"{scene.FileName}: duplicated {node.Name}.");
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCopyOrDeleteNode))]
+    private async Task DeleteNodeAsync()
+    {
+        if (_session.Draft is null || CurrentScene is not { } scene || SelectedSceneNode is not { } node)
+        {
+            return;
+        }
+
+        var descendants = node.SelfAndDescendants().Count() - 1;
+        var message = descendants == 0
+            ? $"Delete {node.Name} from {scene.FileName}?"
+            : $"Delete {node.Name} and the {descendants} node{(descendants == 1 ? "" : "s")} inside it from {scene.FileName}?";
+        if (!await _dialogs.ShowConfirmationAsync("Delete node", message + " Only this theme's copy of the scene changes.", acceptButtonText: "Delete", isDestructive: true))
+        {
+            return;
+        }
+
+        var draftPath = _session.Draft.DraftPath;
+        var parentPath = node.Path.LastIndexOf('/') is var slash and >= 0 ? node.Path[..slash] : "";
+        if (await _errorHandler.TryRunAsync($"Cannot delete {node.Name}", () =>
+        {
+            _sceneEditor.DeleteNode(draftPath, _session.BaseUiPath, scene.ResourcePath, node.Path);
+            return Task.CompletedTask;
+        }))
+        {
+            ShowEditedNode(parentPath, $"{scene.FileName}: deleted {node.Name}.");
+        }
+    }
+
+    // a node dragged in the preview
+    [RelayCommand]
+    private async Task MoveNodeAsync(SceneNodeMove? move)
+    {
+        if (_session.Draft is null || CurrentScene is not { } scene || move is null || scene.Find(move.Path) is not { } node)
+        {
+            return;
+        }
+
+        var draftPath = _session.Draft.DraftPath;
+        if (await _errorHandler.TryRunAsync($"Cannot move {node.Name}", () =>
+        {
+            _sceneEditor.EditNode(draftPath, _session.BaseUiPath, scene.ResourcePath, node.Path, new SceneNodeEdit(X: move.X, Y: move.Y));
+            return Task.CompletedTask;
+        }))
+        {
+            ShowEditedNode(node.Path, $"{scene.FileName}: moved {node.Name} to {move.X:0.##}, {move.Y:0.##}.");
+        }
+    }
 
     [RelayCommand]
     private async Task ApplyNodeChangesAsync()
@@ -242,6 +356,14 @@ public sealed partial class ScenesViewModel : ViewModelBase
             var textureId = spriteId[..dot];
             SpriteRequested?.Invoke(this, new SceneSpriteRequest(textureId, spriteId[(dot + 1)..], _textureImagePaths.GetValueOrDefault(textureId)));
         }
+    }
+
+    // the scene was written: the session reloads every tab, then the edited node is selected again
+    private void ShowEditedNode(string? nodePath, string status)
+    {
+        _session.NotifyContentChanged();
+        SelectedScenePath = nodePath is not null && CurrentScene?.Find(nodePath) is not null ? nodePath : null;
+        _session.Status = status;
     }
 
     private void Reload()

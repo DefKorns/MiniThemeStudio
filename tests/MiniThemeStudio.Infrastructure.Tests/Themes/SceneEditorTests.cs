@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using MiniThemeStudio.Core.Scenes;
 using MiniThemeStudio.Infrastructure.Themes;
+using SkiaSharp;
 
 namespace MiniThemeStudio.Infrastructure.Tests.Themes;
 
@@ -24,15 +25,16 @@ public sealed class SceneEditorTests : IDisposable
             ],"resourceGroups":[]}
             """);
         WriteFile(_basePath, "resources/prefab/bg.scn", $$$"""
-            {"rootWorldNode":{"id":"r","name":"BG","transform":[1,0,0,0,1,0],"enabled":true,"zIndex":-1,"visible":true,"category":0,"components":[],"children":[
+            {"rootWorldNode":{"id":"r","name":"BG","transform":[1,0,0,0,1,0],"enabled":true,"zIndex":-1,"visible":true,"category":0,"components":[],"properties":{"wall_node":{"linkType":"WorldNode","linkId":"a"}},"children":[
               {"id":"a","name":"wall","transform":[1,0,0,0,1,-3],"zIndex":0,"visible":true,"unknownField":{"keep":[1,2.50]},"components":[
                 {"type":"TextureComponent","textureId":"{{{WallId}}}","size":[1536,552],"pivot":[0.5,0.5],"uvRepeat":[2,1],"color":[1,1,1,0.5],"layer":0}],"children":[]},
-              {"id":"b","name":"Pane","transform":[1,0,768,0,1,-131.5],"zIndex":1,"visible":false,"components":[{"type":"AnimatorComponent"}],"children":[
+              {"id":"b","name":"Pane","transform":[1,0,768,0,1,-131.5],"zIndex":1,"visible":false,"components":[{"type":"AnimatorComponent","id":"anim"}],"properties":{"cursor":{"linkType":"WorldNode","linkId":"c"},"scene":{"linkType":"WorldNode","linkId":"r"}},"children":[
                 {"id":"c","name":"cursor","transform":[1,0,0,0,1,0],"components":[{"type":"SpriteComponent","spriteId":"{{{PackedId}}}.cursor_7.png","size":[32,32],"hFlip":true}],"children":[]},
                 {"id":"d","name":"title","components":[{"type":"LabelComponent","text":"Hello"}],"children":[]}
               ]}
             ]}}
             """);
+        WriteFile(_basePath, "resources/layout/asset/sprite/wallpaper/wall.json", $$$"""{"texture":{"id":"{{{WallId}}}","width":640,"height":360},"sprites":{}}""");
     }
 
     public void Dispose()
@@ -139,6 +141,114 @@ public sealed class SceneEditorTests : IDisposable
         Assert.Throws<InvalidDataException>(() => editor.EditNode(_themePath, _basePath, "/prefab/bg.scn", "5", new SceneNodeEdit(X: 1)));
         Assert.Throws<ArgumentException>(() => editor.EditNode(_themePath, _basePath, "/prefab/bg.scn", "0", new SceneNodeEdit(Name: " ")));
         Assert.False(File.Exists(Path.Combine(_themePath, "resources", "prefab", "bg.scn")));
+    }
+
+    [Fact]
+    public void AddsAnImageNodeOnTopOfItsSiblingsAtTheTextureSize()
+    {
+        var editor = new SceneEditor();
+
+        var path = editor.AddImageNode(_themePath, _basePath, "/prefab/bg.scn", "", WallId, "wall");
+
+        Assert.Equal("2", path);
+        var node = editor.Load(_themePath, _basePath, "/prefab/bg.scn").Find(path)!;
+        Assert.Equal("wall 2", node.Name);
+        Assert.Equal(2, node.ZIndex);
+        Assert.Equal(SceneTransform.Identity, node.Transform);
+        Assert.Equal((SceneVisualKind.Texture, WallId, 640d, 360d), (node.Visual!.Kind, node.Visual.TextureId, node.Visual.Width, node.Visual.Height));
+        Assert.Equal(3, SceneReferences()[WallId]);
+    }
+
+    [Fact]
+    public void ImportsAPngAsANewTextureOfTheTheme()
+    {
+        var source = Path.Combine(_themePath, "My Logo!.png");
+        using (var bitmap = new SKBitmap(24, 12))
+        using (var png = SKImage.FromBitmap(bitmap).Encode(SKEncodedImageFormat.Png, 100))
+        using (var file = File.Create(source))
+        {
+            png.SaveTo(file);
+        }
+
+        var editor = new SceneEditor();
+        var first = editor.ImportTexture(_themePath, _basePath, source);
+        var second = editor.ImportTexture(_themePath, _basePath, source);
+
+        Assert.NotEqual(first, second);
+        Assert.True(File.Exists(Path.Combine(_themePath, "resources", "layout", "asset", "sprite", "scene", "my_logo.png")));
+        Assert.True(File.Exists(Path.Combine(_themePath, "resources", "layout", "asset", "sprite", "scene", "my_logo_2.png")));
+        var path = editor.AddImageNode(_themePath, _basePath, "/prefab/bg.scn", "1", second, "logo");
+        var node = editor.Load(_themePath, _basePath, "/prefab/bg.scn").Find(path)!;
+        Assert.Equal("1/2", path);
+        Assert.Equal((24d, 12d), (node.Visual!.Width, node.Visual.Height));
+        Assert.Equal(1, SceneReferences()[second]);
+    }
+
+    [Fact]
+    public void DuplicatesABranchWithNewIdsAndItsOwnLinks()
+    {
+        var editor = new SceneEditor();
+
+        var path = editor.DuplicateNode(_themePath, _basePath, "/prefab/bg.scn", "1");
+
+        Assert.Equal("2", path);
+        var children = SceneRoot()["children"]!.AsArray();
+        var copy = children[2]!;
+        Assert.Equal("Pane copy", copy["name"]!.GetValue<string>());
+        Assert.Equal("[1,0,784,0,1,-147.5]", copy["transform"]!.ToJsonString());
+        var cursorId = copy["children"]![0]!["id"]!.GetValue<string>();
+        Assert.NotEqual("c", cursorId);
+        Assert.NotEqual("anim", copy["components"]![0]!["id"]!.GetValue<string>());
+        Assert.Equal(cursorId, copy["properties"]!["cursor"]!["linkId"]!.GetValue<string>());
+        Assert.Equal("r", copy["properties"]!["scene"]!["linkId"]!.GetValue<string>());
+        Assert.Equal("c", children[1]!["properties"]!["cursor"]!["linkId"]!.GetValue<string>());
+        Assert.Equal(1, SceneReferences()[PackedId]);
+
+        var second = editor.DuplicateNode(_themePath, _basePath, "/prefab/bg.scn", "1");
+        Assert.Equal("Pane copy 2", editor.Load(_themePath, _basePath, "/prefab/bg.scn").Find(second)!.Name);
+    }
+
+    [Fact]
+    public void DeletesABranchAndItsReferences()
+    {
+        var editor = new SceneEditor();
+        editor.DuplicateNode(_themePath, _basePath, "/prefab/bg.scn", "0");
+        Assert.Equal(3, SceneReferences()[WallId]);
+
+        editor.DeleteNode(_themePath, _basePath, "/prefab/bg.scn", "2");
+
+        var scene = editor.Load(_themePath, _basePath, "/prefab/bg.scn");
+        Assert.Equal(["wall", "wall copy"], scene.Root.Children.Select(child => child.Name));
+        editor.DeleteNode(_themePath, _basePath, "/prefab/bg.scn", "1");
+        Assert.Equal(2, SceneReferences()[WallId]);
+    }
+
+    [Fact]
+    public void KeepsNodesTheSceneLinksToAndTheRoot()
+    {
+        var editor = new SceneEditor();
+
+        var linked = Assert.Throws<InvalidDataException>(() => editor.DeleteNode(_themePath, _basePath, "/prefab/bg.scn", "0"));
+        Assert.Contains("BG links to it", linked.Message, StringComparison.Ordinal);
+        Assert.Throws<InvalidDataException>(() => editor.DeleteNode(_themePath, _basePath, "/prefab/bg.scn", "1/0"));
+        Assert.Throws<ArgumentException>(() => editor.DeleteNode(_themePath, _basePath, "/prefab/bg.scn", ""));
+        Assert.Throws<ArgumentException>(() => editor.DuplicateNode(_themePath, _basePath, "/prefab/bg.scn", ""));
+        Assert.Throws<InvalidDataException>(() => editor.DuplicateNode(_themePath, _basePath, "/prefab/bg.scn", "9"));
+        Assert.Throws<InvalidDataException>(() => editor.AddImageNode(_themePath, _basePath, "/prefab/bg.scn", "", "nope", "x"));
+        Assert.False(File.Exists(Path.Combine(_themePath, "resources", "prefab", "bg.scn")));
+    }
+
+    private JsonObject SceneRoot()
+    {
+        return JsonNode.Parse(File.ReadAllText(Path.Combine(_themePath, "resources", "prefab", "bg.scn")))!["rootWorldNode"]!.AsObject();
+    }
+
+    private Dictionary<string, int> SceneReferences()
+    {
+        var dependencies = JsonNode.Parse(File.ReadAllText(Path.Combine(_themePath, "dependencies.json")))!;
+        return dependencies["resources"]!.AsArray()
+            .First(resource => resource!["path"]?.GetValue<string>() == "/prefab/bg.scn")!["dependencies"]!.AsArray()
+            .ToDictionary(reference => reference!["id"]!.GetValue<string>(), reference => reference!["refCount"]!.GetValue<int>());
     }
 
     private static void WriteFile(string root, string relativePath, string content)

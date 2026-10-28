@@ -324,6 +324,14 @@
               <StackPanel Margin="12" Spacing="8">
                 <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding SceneResources}" SelectedItem="{Binding SelectedSceneResource}" ToolTip.Tip="Scene file" />
                 <TextBox Height="36" Watermark="Search nodes by name..." Text="{Binding SceneSearchText}" />
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6">
+                  <Button Padding="6,5" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding AddImageCommand}" Content="Add image..."
+                          ToolTip.Tip="Adds a PNG as a new image node: inside the selected group, or next to the selected image" />
+                  <Button Grid.Column="1" Padding="6,5" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding DuplicateNodeCommand}" Content="Duplicate"
+                          ToolTip.Tip="Copies the selected node and everything inside it" />
+                  <Button Grid.Column="2" Padding="6,5" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding DeleteNodeCommand}" Content="Delete"
+                          ToolTip.Tip="Removes the selected node and everything inside it" />
+                </Grid>
               </StackPanel>
 
               <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding SceneRows}" SelectedItem="{Binding SelectedSceneRow}">
@@ -358,9 +366,10 @@
                                      SelectedPath="{Binding SelectedScenePath}"
                                      BranchPath="{Binding PreviewBranchPath}"
                                      ShowHidden="{Binding ShowHiddenSceneNodes}"
-                                     Images="{Binding SceneImages}" />
+                                     Images="{Binding SceneImages}"
+                                     MoveCommand="{Binding MoveNodeCommand}" />
               <TextBlock Grid.Row="2" Margin="12,8" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
-                         Text="Click an image to select its node. This is the layout saved in the scene; scripts and animations can still move, show or hide nodes on the console." />
+                         Text="Click an image to select its node and drag it to move it; drag inside a selected group to move the whole group. This is the layout saved in the scene; scripts and animations can still move, show or hide nodes on the console." />
             </Grid>
           </Border>
 

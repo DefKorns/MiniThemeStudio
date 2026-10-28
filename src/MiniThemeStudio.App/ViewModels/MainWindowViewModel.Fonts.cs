@@ -180,8 +180,8 @@ public partial class MainWindowViewModel
     }
 
     /// <summary>
-    /// Actualiza silenciosamente as checkboxes de script para reflectir
-    /// os caracteres efectivamente presentes na fonte carregada.
+    /// Silently updates the script checkboxes to match the characters
+    /// actually present in the loaded font.
     /// </summary>
     private void SyncScriptCheckboxesToFont(MiniFont font)
     {

@@ -65,7 +65,7 @@ public sealed class FontsViewModelTests : IDisposable
         Assert.True(File.Exists(DraftFont));
         Assert.True(MiniFontReader.Read(DraftFont).HasGlyph('R'));
         Assert.True(fonts.FontGlyphs.Count > 4);
-        Assert.Equal("Filled Small UI Font (s) from the base font.", _app.Window.Status);
+        Assert.Equal("Redrew Small UI Font (s) with the title font.", _app.Window.Status);
     }
 
     [Fact]

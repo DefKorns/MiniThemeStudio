@@ -621,7 +621,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         ArgumentNullException.ThrowIfNull(font);
 
         MiniFont completed = MiniFontCompleter.Complete(
-            MiniFontReader.Read(font.FilePath), extraScripts, fillFontPath);
+            MiniFontReader.Read(font.FilePath), extraScripts, fillFontPath, redrawText: true);
 
         string targetPath = ThemeLayer.InsideRoot(themeDraftPath, font.RelativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);

@@ -64,6 +64,37 @@ public class MiniFontCompleterTests
     }
 
     [Fact]
+    public void RedrawingDrawsTheFontsOwnLettersAgainInOneTypeface()
+    {
+        // the small font's A, B and H have no pixels: redrawn, they have
+        MiniFont font = SmallFont();
+
+        MiniFont completed = MiniFontCompleter.Complete(font, ExtraScripts.None, redrawText: true);
+
+        using SKBitmap atlas = SKBitmap.Decode(completed.TexturePngBytes);
+        FontGlyph a = completed.GetGlyph('A')!;
+        long ink = 0;
+        for (int y = a.Y; y < a.Y + a.Height; y++)
+        {
+            for (int x = a.X; x < a.X + a.Width; x++)
+            {
+                ink += atlas.GetPixel(x, y).Alpha;
+            }
+        }
+
+        Assert.True(ink > 0);
+        Assert.InRange(a.Height, 19, 21);
+    }
+
+    [Fact]
+    public void FillingOnlyKeepsTheFontsOwnLetters()
+    {
+        MiniFont completed = MiniFontCompleter.Complete(SmallFont(), ExtraScripts.None);
+
+        Assert.Equal(SmallFont().GetGlyph('A')!.Width, completed.GetGlyph('A')!.Width);
+    }
+
+    [Fact]
     public void EveryCharsetCharacterIsThereWhenAllScriptsAreAsked()
     {
         MiniFont completed = MiniFontCompleter.Complete(SmallFont(), AllScripts);

@@ -462,7 +462,7 @@ public sealed partial class FontsViewModel : ViewModelBase
         if (await RunAsync("Cannot fill the font", () => _assetManager.CompleteFont(draft.DraftPath, font, scripts, fillFontPath)))
         {
             _session.NotifyContentChanged();
-            _session.Status = $"Filled {font.DisplayName} from the base font.";
+            _session.Status = $"Redrew {font.DisplayName} with the title font.";
         }
     }
 

@@ -27,11 +27,20 @@ public static class MiniFontCompleter
     /// <param name="font">the console font to complete</param>
     /// <param name="scripts">the scripts to add besides the missing Latin characters</param>
     /// <param name="fillFontPath">the user's own font file, tried before the system's and the built-in ones</param>
-    public static MiniFont Complete(MiniFont font, ExtraScripts scripts, string? fillFontPath = null)
+    /// <param name="redrawText">draws every character of the sets again, not only the missing ones, so the text is
+    /// one typeface: Yu Gothic UI, the letter of Font Remount's title.fnt, at the font's own size and weight. The
+    /// glyphs outside the sets (the button icons of some console fonts) are kept.</param>
+    public static MiniFont Complete(MiniFont font, ExtraScripts scripts, string? fillFontPath = null, bool redrawText = false)
     {
         ArgumentNullException.ThrowIfNull(font);
 
         var kept = font.Glyphs.Where(g => IsWanted(g.Id, scripts)).ToList();
+        if (redrawText)
+        {
+            HashSet<uint> redrawn = FontCharsets.Build(scripts).Where(c => c != ' ').Select(c => (uint)c).ToHashSet();
+            kept = kept.Where(glyph => !redrawn.Contains(glyph.Id)).ToList();
+        }
+
         var have = kept.Select(g => g.Id).ToHashSet();
         var missing = FontCharsets.Build(scripts).Where(c => c != ' ' && !have.Contains(c)).ToList();
         if (missing.Count == 0 && kept.Count == font.Glyphs.Count)

@@ -923,9 +923,9 @@
                         <lucide:LucideIcon Kind="TriangleAlert" Size="16" Foreground="{DynamicResource DialogWarningBrush}" Margin="0,0,6,0" IsVisible="{Binding !FontValidation.IsSafeForWesternUi, FallbackValue=true}" />
                         <TextBlock Grid.Column="1" FontWeight="SemiBold" FontSize="12" Text="{Binding FontValidation.Summary, FallbackValue='Select a font to check'}" TextWrapping="Wrap" />
                       </Grid>
-                      <Button Margin="0,6,0,0" Padding="8,6" HorizontalAlignment="Stretch" Content="Fill missing from base"
-                              IsVisible="{Binding !FontValidation.IsSafeForWesternUi, FallbackValue=false}"
-                              Command="{Binding CompleteFontCommand}" ToolTip.Tip="Add the characters this font lacks from the complete base font of its role" />
+                      <Button Margin="0,6,0,0" Padding="8,6" HorizontalAlignment="Stretch" Content="Redraw with the title font"
+                              Command="{Binding CompleteFontCommand}"
+                              ToolTip.Tip="Draws every character again, and the missing ones, with the letter of Font Remount's title.fnt (Yu Gothic UI) at this font's size and weight, so every font reads alike. Button icons are kept." />
                     </StackPanel>
                   </Border>
                 </StackPanel>

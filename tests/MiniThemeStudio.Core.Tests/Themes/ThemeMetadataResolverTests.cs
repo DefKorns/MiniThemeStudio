@@ -7,7 +7,7 @@ public sealed class ThemeMetadataResolverTests
     [Fact]
     public void ResolveNamePrefersTitle()
     {
-        var name = ThemeMetadataResolver.ResolveName(
+        string name = ThemeMetadataResolver.ResolveName(
             "folder_name",
             " Chrono Trigger ",
             ["NAME=Legacy name"]);
@@ -18,7 +18,7 @@ public sealed class ThemeMetadataResolverTests
     [Fact]
     public void ResolveNameUsesLegacyInfoName()
     {
-        var name = ThemeMetadataResolver.ResolveName(
+        string name = ThemeMetadataResolver.ResolveName(
             "folder_name",
             null,
             ["AUTHOR=DefKorns", "name=Chrono Trigger [15.5Mb]"]);
@@ -29,7 +29,7 @@ public sealed class ThemeMetadataResolverTests
     [Fact]
     public void ResolveNameFallsBackToDirectoryName()
     {
-        var name = ThemeMetadataResolver.ResolveName("chrono_trigger", " ", []);
+        string name = ThemeMetadataResolver.ResolveName("chrono_trigger", " ", []);
 
         Assert.Equal("chrono_trigger", name);
     }

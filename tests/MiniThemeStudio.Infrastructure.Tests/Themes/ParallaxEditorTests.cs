@@ -56,12 +56,12 @@ public sealed class ParallaxEditorTests : IDisposable
     [Fact]
     public void FindsTheScrollingLayersAndTheirSpeed()
     {
-        var background = Assert.Single(_editor.GetBackgrounds(_themePath, _basePath));
+        ParallaxBackground background = Assert.Single(_editor.GetBackgrounds(_themePath, _basePath));
 
         Assert.Equal(("/prefab/bg.scn", Animation, "1/0", "RootPane"), (background.SceneResourcePath, background.AnimationResourcePath, background.AnimatorPath, background.AnimatorName));
         Assert.Equal("demo_bg/RootPane (lyt_wallpaper)", background.DisplayName);
         Assert.Equal(["wall_far", "wall_near"], background.Layers.Select(layer => layer.Name));
-        var far = background.Layers[0];
+        ParallaxLayer far = background.Layers[0];
         Assert.Equal(("1/0/1", -1, 1.5, 1536d, 1d), (far.NodePath, far.ZIndex, far.Y, far.TileWidth, far.LoopsPerCycle));
         Assert.Equal(180, far.PixelsPerSecond, 3);
         Assert.Equal(360, background.Layers[1].PixelsPerSecond, 3);
@@ -78,41 +78,41 @@ public sealed class ParallaxEditorTests : IDisposable
     [Fact]
     public void ANewLayerCoversTheScreenAndScrollsWithTheOthers()
     {
-        var source = Path.Combine(_themePath, "Hills.png");
+        string source = Path.Combine(_themePath, "Hills.png");
         SavePng(source, 100, 40);
-        var background = _editor.GetBackgrounds(_themePath, _basePath)[0];
+        ParallaxBackground background = _editor.GetBackgrounds(_themePath, _basePath)[0];
 
-        var path = _editor.AddLayer(_themePath, _basePath, background, new NewParallaxLayer("hills", source, -200, -2, 3, 2));
+        string path = _editor.AddLayer(_themePath, _basePath, background, new NewParallaxLayer("hills", source, -200, -2, 3, 2));
 
         Assert.Equal("1/0/2", path);
-        var layer = _editor.GetBackgrounds(_themePath, _basePath)[0].Layers[0];
+        ParallaxLayer layer = _editor.GetBackgrounds(_themePath, _basePath)[0].Layers[0];
         Assert.Equal(("hills", -2, -200d, 2d), (layer.Name, layer.ZIndex, layer.Y, layer.LoopsPerCycle));
 
         // 100 px at 3x is 300 px: the PNG repeats it five times to cover the 1280 px screen
         Assert.Equal(1500, layer.TileWidth);
-        var image = Path.Combine(_themePath, "resources", "layout", "asset", "sprite", "wallpaper", "hills.png");
+        string image = Path.Combine(_themePath, "resources", "layout", "asset", "sprite", "wallpaper", "hills.png");
         using (var tiled = SKBitmap.Decode(image))
         {
             Assert.Equal((500, 40), (tiled.Width, tiled.Height));
         }
 
-        var node = new SceneEditor().Load(_themePath, _basePath, "/prefab/bg.scn").Find(path)!;
+        SceneNode node = new SceneEditor().Load(_themePath, _basePath, "/prefab/bg.scn").Find(path)!;
         Assert.Equal((1500d, 120d, 1d), (node.Visual!.Width, node.Visual.Height, node.Visual.RepeatX));
-        var track = ReadJson(_themePath, "resources" + Animation)["animations"]!.AsArray()[2]!;
+        JsonNode track = ReadJson(_themePath, "resources" + Animation)["animations"]!.AsArray()[2]!;
         Assert.Equal("""["hills"]""", track["worldNodePath"]!.ToJsonString());
         Assert.Equal(2, track["keyCurves"]![1]!["value"]!.GetValue<double>());
-        var scene = ReadJson(_themePath, "dependencies.json")["resources"]!.AsArray().First(resource => resource!["id"]!.GetValue<string>() == "scene")!;
+        JsonNode scene = ReadJson(_themePath, "dependencies.json")["resources"]!.AsArray().First(resource => resource!["id"]!.GetValue<string>() == "scene")!;
         Assert.Equal(3, scene["dependencies"]!.AsArray().Count);
     }
 
     [Fact]
     public void TheSpeedOfALayerCanChange()
     {
-        var background = _editor.GetBackgrounds(_themePath, _basePath)[0];
+        ParallaxBackground background = _editor.GetBackgrounds(_themePath, _basePath)[0];
 
         _editor.SetSpeed(_themePath, _basePath, background, "wall_far", -3);
 
-        var far = _editor.GetBackgrounds(_themePath, _basePath)[0].Layers[0];
+        ParallaxLayer far = _editor.GetBackgrounds(_themePath, _basePath)[0].Layers[0];
         Assert.Equal(-3, far.LoopsPerCycle);
         Assert.Equal(-540, far.PixelsPerSecond, 3);
         Assert.Throws<InvalidDataException>(() => _editor.SetSpeed(_themePath, _basePath, background, "Camera", 1));
@@ -121,14 +121,14 @@ public sealed class ParallaxEditorTests : IDisposable
     [Fact]
     public void RemovingALayerDropsItsNodeAndItsTrack()
     {
-        var source = Path.Combine(_themePath, "hills.png");
+        string source = Path.Combine(_themePath, "hills.png");
         SavePng(source, 640, 40);
         _editor.AddLayer(_themePath, _basePath, _editor.GetBackgrounds(_themePath, _basePath)[0], new NewParallaxLayer("hills", source, 0, 1, 3, 1));
-        var background = _editor.GetBackgrounds(_themePath, _basePath)[0];
+        ParallaxBackground background = _editor.GetBackgrounds(_themePath, _basePath)[0];
 
         _editor.RemoveLayer(_themePath, _basePath, background, "hills");
 
-        var after = _editor.GetBackgrounds(_themePath, _basePath)[0];
+        ParallaxBackground after = _editor.GetBackgrounds(_themePath, _basePath)[0];
         Assert.Equal(["wall_far", "wall_near"], after.Layers.Select(layer => layer.Name));
         Assert.Equal(2, ReadJson(_themePath, "resources" + Animation)["animations"]!.AsArray().Count);
         Assert.Equal(2, new SceneEditor().Load(_themePath, _basePath, "/prefab/bg.scn").Find("1/0")!.Children.Count);
@@ -142,7 +142,7 @@ public sealed class ParallaxEditorTests : IDisposable
     [Fact]
     public void AnImageAnotherNodeStillDrawsIsKept()
     {
-        var source = Path.Combine(_themePath, "hills.png");
+        string source = Path.Combine(_themePath, "hills.png");
         SavePng(source, 640, 40);
         _editor.AddLayer(_themePath, _basePath, _editor.GetBackgrounds(_themePath, _basePath)[0], new NewParallaxLayer("hills", source, 0, 1, 3, 1));
         var layer = new ThemeLayer(_themePath, _basePath);
@@ -162,14 +162,14 @@ public sealed class ParallaxEditorTests : IDisposable
     {
         using var bitmap = new SKBitmap(width, height);
         bitmap.Erase(SKColors.SkyBlue);
-        using var png = bitmap.Encode(SKEncodedImageFormat.Png, 100);
-        using var file = File.Create(path);
+        using SKData png = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+        using FileStream file = File.Create(path);
         png.SaveTo(file);
     }
 
     private static void WriteFile(string root, string relativePath, string content)
     {
-        var path = Path.Combine(root, relativePath);
+        string path = Path.Combine(root, relativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, content);
     }

@@ -1,5 +1,7 @@
 using MiniThemeStudio.App.Errors;
 using MiniThemeStudio.App.Tests.TestDoubles;
+using MiniThemeStudio.App.ViewModels;
+using MiniThemeStudio.Core.Themes;
 
 namespace MiniThemeStudio.App.Tests.ViewModels;
 
@@ -19,7 +21,7 @@ public sealed class ValidationViewModelTests : IDisposable
     [Fact]
     public void AThemeThatOnlyUsesItsBaseIsValid()
     {
-        var validation = _app.Window.ValidationTab;
+        ValidationViewModel validation = _app.Window.ValidationTab;
 
         validation.Run();
 
@@ -34,13 +36,13 @@ public sealed class ValidationViewModelTests : IDisposable
     {
         TestApp.WriteFile(DraftPath, "resources/layout/asset/sprite/wallpaper/wall.png", "not a png");
         _app.Session.Reload();
-        var validation = _app.Window.ValidationTab;
+        ValidationViewModel validation = _app.Window.ValidationTab;
 
         validation.Run();
 
         Assert.False(validation.IsThemeValid);
         Assert.Equal("Validation found errors that must be fixed.", validation.ValidationSummary);
-        var failure = Assert.Throws<OperationFailedException>(() => validation.EnsureValidFor("exporting"));
+        OperationFailedException failure = Assert.Throws<OperationFailedException>(() => validation.EnsureValidFor("exporting"));
         Assert.StartsWith("Fix 1 validation error(s) before exporting:", failure.Message, StringComparison.Ordinal);
     }
 
@@ -48,7 +50,7 @@ public sealed class ValidationViewModelTests : IDisposable
     public async Task AMissingTextureCanBeGivenAnImage()
     {
         // the theme registers a texture whose PNG nobody added
-        var dependencies = """
+        string dependencies = """
             {"resources":[
               {"id":"scene","type":"Scene","dependencies":[{"id":"wall","refCount":1}],"path":"/prefab/bg.scn","groupId":"1"},
               {"id":"wall","type":"TextureResource","path":"/layout/asset/sprite/wallpaper/wall.png","groupId":"2"},
@@ -57,7 +59,7 @@ public sealed class ValidationViewModelTests : IDisposable
             """;
         TestApp.WriteFile(DraftPath, "dependencies.json", dependencies);
         _app.Session.Reload();
-        var validation = _app.Window.ValidationTab;
+        ValidationViewModel validation = _app.Window.ValidationTab;
         Assert.True(validation.HasMissingTextures);
         Assert.Equal("logo", validation.SelectedMissingTexture?.TextureId);
 
@@ -76,8 +78,8 @@ public sealed class ValidationViewModelTests : IDisposable
     {
         TestApp.WriteBytes(DraftPath, "resources/layout/asset/sprite/extra/unused.png", TestApp.Png);
         _app.Session.Reload();
-        var validation = _app.Window.ValidationTab;
-        var unused = Assert.Single(validation.UnusedImages);
+        ValidationViewModel validation = _app.Window.ValidationTab;
+        ExtraAsset unused = Assert.Single(validation.UnusedImages);
         Assert.Equal("layout/asset/sprite/extra/unused.png", unused.RelativePath);
 
         _app.Dialogs.ConfirmationAnswer = false;

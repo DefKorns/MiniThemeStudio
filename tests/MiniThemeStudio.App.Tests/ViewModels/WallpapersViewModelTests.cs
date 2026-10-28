@@ -1,4 +1,6 @@
 using MiniThemeStudio.App.Tests.TestDoubles;
+using MiniThemeStudio.App.ViewModels;
+using MiniThemeStudio.Core.Themes;
 
 namespace MiniThemeStudio.App.Tests.ViewModels;
 
@@ -8,7 +10,7 @@ public sealed class WallpapersViewModelTests : IDisposable
 
     public WallpapersViewModelTests()
     {
-        var basePath = _app.CreateBase();
+        string basePath = _app.CreateBase();
         _app.Window.OpenTheme(_app.CreateTheme(), basePath);
     }
 
@@ -17,11 +19,11 @@ public sealed class WallpapersViewModelTests : IDisposable
     [Fact]
     public void ListsTheCoreWallpapersAndSelectsTheFirst()
     {
-        var wallpapers = _app.Window.WallpapersTab;
+        WallpapersViewModel wallpapers = _app.Window.WallpapersTab;
 
         // the core layers are listed even when neither the theme nor the Base has them
         Assert.True(wallpapers.Wallpapers.Count > 1);
-        var wall = wallpapers.Wallpapers[0];
+        WallpaperAsset wall = wallpapers.Wallpapers[0];
         Assert.Equal("wall", wall.Name);
         Assert.Same(wall, wallpapers.SelectedWallpaper);
         Assert.NotEmpty(wall.UsedBy);
@@ -30,10 +32,10 @@ public sealed class WallpapersViewModelTests : IDisposable
     [Fact]
     public async Task ReplacingWritesTheImageToTheDraftAndRefreshesThePreview()
     {
-        var wallpapers = _app.Window.WallpapersTab;
+        WallpapersViewModel wallpapers = _app.Window.WallpapersTab;
         TestApp.WriteBytes(_app.Root, "new_wall.png", TestApp.Png);
         _app.Files.Paths.Enqueue(Path.Combine(_app.Root, "new_wall.png"));
-        var revision = wallpapers.PreviewRevision;
+        int revision = wallpapers.PreviewRevision;
 
         await wallpapers.ReplaceWallpaperCommand.ExecuteAsync(null);
 
@@ -47,7 +49,7 @@ public sealed class WallpapersViewModelTests : IDisposable
     [Fact]
     public async Task CancellingTheFileDialogChangesNothing()
     {
-        var wallpapers = _app.Window.WallpapersTab;
+        WallpapersViewModel wallpapers = _app.Window.WallpapersTab;
 
         await wallpapers.ReplaceWallpaperCommand.ExecuteAsync(null);
 
@@ -60,7 +62,7 @@ public sealed class WallpapersViewModelTests : IDisposable
     {
         _app.Window.Mode.IsAdvanced = true;
         // an image left by a removed layer: registered, but drawn by nothing
-        var draft = _app.Window.CurrentDraftPath!;
+        string draft = _app.Window.CurrentDraftPath!;
         TestApp.WriteFile(draft, "dependencies.json", """
             {"resources":[
               {"id":"scene","type":"Scene","dependencies":[{"id":"wall","refCount":1}],"path":"/prefab/bg.scn","groupId":"1"},
@@ -72,7 +74,7 @@ public sealed class WallpapersViewModelTests : IDisposable
         TestApp.WriteBytes(draft, "resources/layout/asset/sprite/wallpaper/hills.png", TestApp.Png);
         TestApp.WriteFile(draft, "resources/layout/asset/sprite/wallpaper/hills.json", """{"texture":{"id":"hills","width":1,"height":1},"sprites":{}}""");
         _app.Session.Reload();
-        var wallpapers = _app.Window.WallpapersTab;
+        WallpapersViewModel wallpapers = _app.Window.WallpapersTab;
         wallpapers.SelectedWallpaper = wallpapers.Wallpapers.Single(wallpaper => wallpaper.Name == "hills");
         Assert.Equal("Delete image", wallpapers.DeleteWallpaperText);
 
@@ -89,7 +91,7 @@ public sealed class WallpapersViewModelTests : IDisposable
     {
         TestApp.WriteBytes(_app.Window.CurrentDraftPath!, "resources/layout/asset/sprite/wallpaper/pole01.png", TestApp.Png);
         _app.Session.Reload();
-        var wallpapers = _app.Window.WallpapersTab;
+        WallpapersViewModel wallpapers = _app.Window.WallpapersTab;
 
         Assert.Equal(["wall", "wall_near", "wall_far"], wallpapers.Wallpapers.Select(wallpaper => wallpaper.Name));
 
@@ -101,7 +103,7 @@ public sealed class WallpapersViewModelTests : IDisposable
     [Fact]
     public async Task AReplacedWallpaperCanGoBackToTheBaseImage()
     {
-        var wallpapers = _app.Window.WallpapersTab;
+        WallpapersViewModel wallpapers = _app.Window.WallpapersTab;
         TestApp.WriteBytes(_app.Root, "new_wall.png", TestApp.Png);
         _app.Files.Paths.Enqueue(Path.Combine(_app.Root, "new_wall.png"));
         await wallpapers.ReplaceWallpaperCommand.ExecuteAsync(null);
@@ -117,8 +119,8 @@ public sealed class WallpapersViewModelTests : IDisposable
     [Fact]
     public async Task ExportingSavesThePngWhereTheUserChose()
     {
-        var wallpapers = _app.Window.WallpapersTab;
-        var target = Path.Combine(_app.Root, "export", "wall.png");
+        WallpapersViewModel wallpapers = _app.Window.WallpapersTab;
+        string target = Path.Combine(_app.Root, "export", "wall.png");
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
         _app.Files.Paths.Enqueue(target);
 

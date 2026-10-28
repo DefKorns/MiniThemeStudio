@@ -1,5 +1,6 @@
 using MiniThemeStudio.App.Controls;
 using MiniThemeStudio.App.Tests.TestDoubles;
+using MiniThemeStudio.App.ViewModels;
 
 namespace MiniThemeStudio.App.Tests.ViewModels;
 
@@ -9,7 +10,7 @@ public sealed class ScenesViewModelTests : IDisposable
 
     public ScenesViewModelTests()
     {
-        var basePath = _app.CreateBase();
+        string basePath = _app.CreateBase();
         _app.Window.OpenTheme(_app.CreateTheme(), basePath);
     }
 
@@ -18,7 +19,7 @@ public sealed class ScenesViewModelTests : IDisposable
     [Fact]
     public void SelectingANodeFillsItsFields()
     {
-        var scenes = _app.Window.ScenesTab;
+        ScenesViewModel scenes = _app.Window.ScenesTab;
 
         scenes.SelectedScenePath = "0";
 
@@ -32,7 +33,7 @@ public sealed class ScenesViewModelTests : IDisposable
     [Fact]
     public async Task ApplyingWritesTheSceneToTheDraftAndMarksTheThemeUnsaved()
     {
-        var scenes = _app.Window.ScenesTab;
+        ScenesViewModel scenes = _app.Window.ScenesTab;
         scenes.SelectedScenePath = "0";
         scenes.SceneNodeName = "wall_far";
         scenes.SceneNodeY = 12;
@@ -41,7 +42,7 @@ public sealed class ScenesViewModelTests : IDisposable
 
         Assert.Empty(_app.Errors.Failures.Select(failure => $"{failure.Failure}: {failure.Exception.Message}"));
         Assert.True(_app.Window.HasUnsavedChanges);
-        var draftScene = File.ReadAllText(Path.Combine(_app.Window.CurrentDraftPath!, "resources", "prefab", "bg.scn"));
+        string draftScene = File.ReadAllText(Path.Combine(_app.Window.CurrentDraftPath!, "resources", "prefab", "bg.scn"));
         Assert.Contains("\"name\":\"wall_far\"", draftScene);
         Assert.Contains("\"transform\":[1,0,0,0,1,12]", draftScene);
 
@@ -53,7 +54,7 @@ public sealed class ScenesViewModelTests : IDisposable
     [Fact]
     public async Task ApplyingWithoutChangesWritesNothing()
     {
-        var scenes = _app.Window.ScenesTab;
+        ScenesViewModel scenes = _app.Window.ScenesTab;
         scenes.SelectedScenePath = "0";
 
         await scenes.ApplyNodeChangesCommand.ExecuteAsync(null);
@@ -66,7 +67,7 @@ public sealed class ScenesViewModelTests : IDisposable
     [Fact]
     public void DiscardRestoresTheFieldsOfTheNode()
     {
-        var scenes = _app.Window.ScenesTab;
+        ScenesViewModel scenes = _app.Window.ScenesTab;
         scenes.SelectedScenePath = "0";
         scenes.SceneNodeX = 99;
 
@@ -78,7 +79,7 @@ public sealed class ScenesViewModelTests : IDisposable
     [Fact]
     public async Task AddingAnImageImportsThePngNextToTheSelectedImage()
     {
-        var scenes = _app.Window.ScenesTab;
+        ScenesViewModel scenes = _app.Window.ScenesTab;
         TestApp.WriteBytes(_app.Root, "logo.png", TestApp.Png);
         _app.Files.Paths.Enqueue(Path.Combine(_app.Root, "logo.png"));
         scenes.SelectedScenePath = "0";
@@ -98,7 +99,7 @@ public sealed class ScenesViewModelTests : IDisposable
     [Fact]
     public async Task DuplicatingSelectsTheCopy()
     {
-        var scenes = _app.Window.ScenesTab;
+        ScenesViewModel scenes = _app.Window.ScenesTab;
         scenes.SelectedScenePath = "0";
 
         await scenes.DuplicateNodeCommand.ExecuteAsync(null);
@@ -112,7 +113,7 @@ public sealed class ScenesViewModelTests : IDisposable
     [Fact]
     public async Task DeletingAsksFirstAndThenSelectsTheParent()
     {
-        var scenes = _app.Window.ScenesTab;
+        ScenesViewModel scenes = _app.Window.ScenesTab;
         scenes.SelectedScenePath = "0";
         _app.Dialogs.ConfirmationAnswer = false;
 
@@ -132,7 +133,7 @@ public sealed class ScenesViewModelTests : IDisposable
     [Fact]
     public void TheRootCannotBeDuplicatedOrDeleted()
     {
-        var scenes = _app.Window.ScenesTab;
+        ScenesViewModel scenes = _app.Window.ScenesTab;
 
         scenes.SelectedScenePath = "";
 
@@ -144,7 +145,7 @@ public sealed class ScenesViewModelTests : IDisposable
     [Fact]
     public async Task DroppingADraggedNodeWritesItsPosition()
     {
-        var scenes = _app.Window.ScenesTab;
+        ScenesViewModel scenes = _app.Window.ScenesTab;
         scenes.SelectedScenePath = "0";
 
         await scenes.MoveNodeCommand.ExecuteAsync(new SceneNodeMove("0", 40, 25));
@@ -169,7 +170,7 @@ public sealed class ScenesViewModelTests : IDisposable
             {"duration":1,"animations":[{"worldNodePath":["wall"],"type":"float","propertyId":"LocalPositionX","keyCurves":[{"time":0,"interp":"linear","value":[0,100]},{"time":1,"value":100}]}]}
             """);
         _app.Session.Reload();
-        var scenes = _app.Window.ScenesTab;
+        ScenesViewModel scenes = _app.Window.ScenesTab;
         Assert.Same(scenes.CurrentScene!.Root, scenes.PreviewRoot);
 
         scenes.SelectedAnimation = Assert.Single(scenes.SceneAnimations);
@@ -202,7 +203,7 @@ public sealed class ScenesViewModelTests : IDisposable
             ]}}
             """);
         _app.Session.Reload();
-        var scenes = _app.Window.ScenesTab;
+        ScenesViewModel scenes = _app.Window.ScenesTab;
         scenes.SelectedScenePath = "0";
         _app.Window.SelectedTabIndex = 2;
 

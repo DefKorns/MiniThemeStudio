@@ -30,7 +30,7 @@ public sealed class LuaColorPalette
 
     public void SetColor(PaletteColor color)
     {
-        var slot = _slots.FirstOrDefault(s => s.Name == color.Name)
+        ColorSlot slot = _slots.FirstOrDefault(s => s.Name == color.Name)
             ?? throw new KeyNotFoundException($"The palette has no colour named '{color.Name}'.");
         slot.Set(color);
     }
@@ -43,10 +43,10 @@ public sealed class LuaColorPalette
     {
         var duplicated = new Dictionary<int, LuaTemplateTable>();
         var seen = new HashSet<LuaTemplateTable>();
-        foreach (var instruction in prototype.Instructions)
+        foreach (uint instruction in prototype.Instructions)
         {
-            var op = (byte)instruction;
-            var a = (int)((instruction >> 8) & 0xff);
+            byte op = (byte)instruction;
+            int a = (int)((instruction >> 8) & 0xff);
             if (op == LuaPrototype.OpTdup)
             {
                 if (prototype.ConstantAt((int)(instruction >> 16)) is LuaTemplateTable table)
@@ -57,7 +57,7 @@ public sealed class LuaColorPalette
                 continue;
             }
 
-            if (op == LuaPrototype.OpTsets && duplicated.TryGetValue(a, out var template) && template.IsColor &&
+            if (op == LuaPrototype.OpTsets && duplicated.TryGetValue(a, out LuaTemplateTable? template) && template.IsColor &&
                 prototype.ConstantAt((int)((instruction >> 16) & 0xff)) is LuaStringConstant key && seen.Add(template))
             {
                 yield return new ColorSlot(key.Text, template);

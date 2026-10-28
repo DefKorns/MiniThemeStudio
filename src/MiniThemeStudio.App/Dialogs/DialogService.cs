@@ -28,7 +28,7 @@ public sealed class DialogService : IDialogService
         string cancelButtonText = "Go back",
         bool isDestructive = false)
     {
-        var result = await ShowAsync(
+        DialogResult result = await ShowAsync(
             new DialogRequest(
                 title,
                 message,

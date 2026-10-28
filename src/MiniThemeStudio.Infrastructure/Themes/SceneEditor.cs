@@ -29,9 +29,9 @@ public sealed class SceneEditor : ISceneEditor
     public SceneDocument Load(string themePath, string? baseUiPath, string sceneResourcePath)
     {
         var layer = new ThemeLayer(themePath, baseUiPath);
-        var path = layer.Resolve(sceneResourcePath)
+        string path = layer.Resolve(sceneResourcePath)
             ?? throw new FileNotFoundException($"Scene not found: resources{sceneResourcePath}");
-        var root = ParseScene(path)["rootWorldNode"] as JsonObject
+        JsonObject root = ParseScene(path)["rootWorldNode"] as JsonObject
             ?? throw new InvalidDataException($"{Path.GetFileName(path)} has no rootWorldNode.");
         return new SceneDocument(sceneResourcePath, layer.ResolveInTheme(sceneResourcePath) is not null, ReadNode(root, ""));
     }
@@ -41,8 +41,8 @@ public sealed class SceneEditor : ISceneEditor
         ArgumentNullException.ThrowIfNull(nodePath);
         ArgumentNullException.ThrowIfNull(edit);
 
-        var (layer, scene, root) = OpenScene(themeDraftPath, baseUiPath, sceneResourcePath);
-        var node = FindNode(root, nodePath, sceneResourcePath);
+        (ThemeLayer? layer, JsonObject? scene, JsonObject? root) = OpenScene(themeDraftPath, baseUiPath, sceneResourcePath);
+        JsonObject node = FindNode(root, nodePath, sceneResourcePath);
 
         if (edit.Name is { } name)
         {
@@ -86,11 +86,11 @@ public sealed class SceneEditor : ISceneEditor
         string? replacedTextureId = null;
         if (edit.TextureId is not null || edit.Width is not null || edit.Height is not null)
         {
-            var component = VisualComponent(node)
+            JsonObject component = VisualComponent(node)
                 ?? throw new InvalidDataException($"{node["name"]} does not draw an image.");
             if (edit.TextureId is { } textureId && component["type"]?.GetValue<string>() == "TextureComponent")
             {
-                var current = component["textureId"]?.GetValue<string>();
+                string? current = component["textureId"]?.GetValue<string>();
                 if (current != textureId)
                 {
                     replacedTextureId = current ?? "";
@@ -149,7 +149,7 @@ public sealed class SceneEditor : ISceneEditor
             .OrderByDescending(node => node.ComponentTypes.Contains("AnimatorComponent"))
             .ToList();
         var bindings = new List<SceneAnimationBinding>();
-        foreach (var path in (DependencyManifest.TryLoad(layer)?.OfType(DependencyManifest.SceneAnimation) ?? []).Select(resource => resource.Path).OfType<string>().Distinct(StringComparer.Ordinal))
+        foreach (string? path in (DependencyManifest.TryLoad(layer)?.OfType(DependencyManifest.SceneAnimation) ?? []).Select(resource => resource.Path).OfType<string>().Distinct(StringComparer.Ordinal))
         {
             if (layer.Resolve(path) is not { } file || ReadClip(path, file) is not { Tracks.Count: > 0 } clip)
             {
@@ -171,8 +171,8 @@ public sealed class SceneEditor : ISceneEditor
 
         var layer = new ThemeLayer(themeDraftPath, baseUiPath);
         var manifest = DependencyManifest.Load(layer);
-        var resourcePath = ThemeTextures.FreeResourcePath(layer, manifest, ImportedImagesFolder, SafeFileName(Path.GetFileNameWithoutExtension(sourceImagePath)));
-        var textureId = ThemeTextures.Register(layer, manifest, resourcePath, sourceImagePath);
+        string resourcePath = ThemeTextures.FreeResourcePath(layer, manifest, ImportedImagesFolder, SafeFileName(Path.GetFileNameWithoutExtension(sourceImagePath)));
+        string textureId = ThemeTextures.Register(layer, manifest, resourcePath, sourceImagePath);
         manifest.Save(layer);
         return textureId;
     }
@@ -183,18 +183,18 @@ public sealed class SceneEditor : ISceneEditor
         ArgumentException.ThrowIfNullOrWhiteSpace(textureId);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        var (layer, scene, root) = OpenScene(themeDraftPath, baseUiPath, sceneResourcePath);
-        var parent = FindNode(root, parentPath, sceneResourcePath);
+        (ThemeLayer? layer, JsonObject? scene, JsonObject? root) = OpenScene(themeDraftPath, baseUiPath, sceneResourcePath);
+        JsonObject parent = FindNode(root, parentPath, sceneResourcePath);
         var manifest = DependencyManifest.Load(layer);
         if (!manifest.IsTexture(textureId))
         {
             throw new InvalidDataException($"Texture {textureId} is not registered in dependencies.json.");
         }
 
-        var (width, height) = ThemeTextures.Size(layer, manifest, textureId)
+        (int width, int height) = ThemeTextures.Size(layer, manifest, textureId)
             ?? throw new FileNotFoundException($"The image of texture {textureId} was not found.");
-        var children = Children(parent);
-        var topLayer = children.OfType<JsonObject>().Select(child => Double(child["zIndex"]) ?? 0).DefaultIfEmpty(-1).Max();
+        JsonArray children = Children(parent);
+        double topLayer = children.OfType<JsonObject>().Select(child => Double(child["zIndex"]) ?? 0).DefaultIfEmpty(-1).Max();
 
         children.Add(ImageNode(UniqueName(children, name.Trim()), Math.Floor(topLayer) + 1, textureId, width, height));
 
@@ -206,15 +206,15 @@ public sealed class SceneEditor : ISceneEditor
 
     public string DuplicateNode(string themeDraftPath, string? baseUiPath, string sceneResourcePath, string nodePath)
     {
-        var (layer, scene, root) = OpenScene(themeDraftPath, baseUiPath, sceneResourcePath);
-        var (parentPath, index) = SplitPath(nodePath, "duplicated");
-        var siblings = Children(FindNode(root, parentPath, sceneResourcePath));
-        var original = FindNode(root, nodePath, sceneResourcePath);
+        (ThemeLayer? layer, JsonObject? scene, JsonObject? root) = OpenScene(themeDraftPath, baseUiPath, sceneResourcePath);
+        (string? parentPath, int index) = SplitPath(nodePath, "duplicated");
+        JsonArray siblings = Children(FindNode(root, parentPath, sceneResourcePath));
+        JsonObject original = FindNode(root, nodePath, sceneResourcePath);
 
         // the copy gets ids of its own; links between its nodes follow it, links to the rest of the scene stay
         var copy = (JsonObject)original.DeepClone();
         var newIds = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var owner in Nodes(copy).SelectMany(node => Components(node).Prepend(node)))
+        foreach (JsonObject? owner in Nodes(copy).SelectMany(node => Components(node).Prepend(node)))
         {
             if (String(owner["id"]) is { } id)
             {
@@ -223,9 +223,9 @@ public sealed class SceneEditor : ISceneEditor
             }
         }
 
-        foreach (var link in Descendants(copy).OfType<JsonObject>())
+        foreach (JsonObject link in Descendants(copy).OfType<JsonObject>())
         {
-            if (String(link["linkId"]) is { } linkId && newIds.TryGetValue(linkId, out var newId))
+            if (String(link["linkId"]) is { } linkId && newIds.TryGetValue(linkId, out string? newId))
             {
                 link["linkId"] = newId;
             }
@@ -246,10 +246,10 @@ public sealed class SceneEditor : ISceneEditor
 
     public void DeleteNode(string themeDraftPath, string? baseUiPath, string sceneResourcePath, string nodePath)
     {
-        var (layer, scene, root) = OpenScene(themeDraftPath, baseUiPath, sceneResourcePath);
-        var (parentPath, index) = SplitPath(nodePath, "deleted");
-        var siblings = Children(FindNode(root, parentPath, sceneResourcePath));
-        var node = FindNode(root, nodePath, sceneResourcePath);
+        (ThemeLayer? layer, JsonObject? scene, JsonObject? root) = OpenScene(themeDraftPath, baseUiPath, sceneResourcePath);
+        (string? parentPath, int index) = SplitPath(nodePath, "deleted");
+        JsonArray siblings = Children(FindNode(root, parentPath, sceneResourcePath));
+        JsonObject node = FindNode(root, nodePath, sceneResourcePath);
 
         // scripts reach nodes through links in the properties of other nodes: removing a linked node breaks them
         var removedIds = Nodes(node).SelectMany(removed => Components(removed).Prepend(removed))
@@ -257,7 +257,7 @@ public sealed class SceneEditor : ISceneEditor
             .OfType<string>()
             .ToHashSet(StringComparer.Ordinal);
         siblings.RemoveAt(index);
-        var linking = Nodes(root).FirstOrDefault(other => OwnFields(other).SelectMany(Descendants).OfType<JsonObject>()
+        JsonObject? linking = Nodes(root).FirstOrDefault(other => OwnFields(other).SelectMany(Descendants).OfType<JsonObject>()
             .Any(link => String(link["linkId"]) is { } linkId && removedIds.Contains(linkId)));
         if (linking is not null)
         {
@@ -277,15 +277,15 @@ public sealed class SceneEditor : ISceneEditor
             throw new ArgumentException($"The root node cannot be {action}.", nameof(nodePath));
         }
 
-        var slash = nodePath.LastIndexOf('/');
-        return int.TryParse(nodePath[(slash + 1)..], NumberStyles.None, CultureInfo.InvariantCulture, out var index)
+        int slash = nodePath.LastIndexOf('/');
+        return int.TryParse(nodePath[(slash + 1)..], NumberStyles.None, CultureInfo.InvariantCulture, out int index)
             ? (slash < 0 ? "" : nodePath[..slash], index)
             : throw new InvalidDataException($"Node {nodePath} not found.");
     }
 
     private static SceneAnimationClip? ReadClip(string resourcePath, string file)
     {
-        var animation = ParseScene(file);
+        JsonObject animation = ParseScene(file);
         var tracks = (animation["animations"] as JsonArray ?? []).OfType<JsonObject>()
             .Where(track => track["worldNodePath"] is JsonArray { Count: > 0 } && String(track["propertyId"]) is not null)
             .Select(track => new SceneAnimationTrack(
@@ -301,11 +301,11 @@ public sealed class SceneEditor : ISceneEditor
     // or [from, to, tangent out, tangent in] ("hermite")
     private static CurveKey ReadKey(JsonObject key)
     {
-        var time = Double(key["time"]) ?? 0;
+        double time = Double(key["time"]) ?? 0;
         if (key["value"] is JsonArray curve)
         {
             double At(int index) => index < curve.Count ? Double(curve[index]) ?? 0 : 0;
-            var interpolation = String(key["interp"]) == "hermite" && curve.Count >= 4 ? CurveInterpolation.Hermite : CurveInterpolation.Linear;
+            CurveInterpolation interpolation = String(key["interp"]) == "hermite" && curve.Count >= 4 ? CurveInterpolation.Hermite : CurveInterpolation.Linear;
             return new CurveKey(time, interpolation, At(0), At(1), At(2), At(3));
         }
 
@@ -345,9 +345,9 @@ public sealed class SceneEditor : ISceneEditor
 
     private static SceneVisual? ReadVisual(IReadOnlyList<JsonObject> components)
     {
-        foreach (var component in components)
+        foreach (JsonObject component in components)
         {
-            var kind = String(component["type"]) switch
+            SceneVisualKind? kind = String(component["type"]) switch
             {
                 "TextureComponent" => SceneVisualKind.Texture,
                 "SpriteComponent" => SceneVisualKind.Sprite,
@@ -359,9 +359,9 @@ public sealed class SceneEditor : ISceneEditor
                 continue;
             }
 
-            var size = Pair(component["size"]);
-            var pivot = Pair(component["pivot"]);
-            var repeat = Pair(component["uvRepeat"]);
+            (double First, double Second)? size = Pair(component["size"]);
+            (double First, double Second)? pivot = Pair(component["pivot"]);
+            (double First, double Second)? repeat = Pair(component["uvRepeat"]);
             var color = component["color"] as JsonArray;
             return new SceneVisual(
                 kind.Value,

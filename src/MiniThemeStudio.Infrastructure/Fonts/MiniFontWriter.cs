@@ -12,13 +12,13 @@ public static class MiniFontWriter
         ArgumentNullException.ThrowIfNull(font);
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
 
-        var dir = Path.GetDirectoryName(filePath);
+        string? dir = Path.GetDirectoryName(filePath);
         if (!string.IsNullOrEmpty(dir))
         {
             Directory.CreateDirectory(dir);
         }
 
-        using var stream = File.Create(filePath);
+        using FileStream stream = File.Create(filePath);
         Write(font, stream);
     }
 
@@ -35,8 +35,8 @@ public static class MiniFontWriter
         ArgumentNullException.ThrowIfNull(font);
         ArgumentNullException.ThrowIfNull(stream);
 
-        var bmfBytes = SerializeBmf(font);
-        var textureBytes = font.TexturePngBytes ?? [];
+        byte[] bmfBytes = SerializeBmf(font);
+        byte[] textureBytes = font.TexturePngBytes ?? [];
 
         using var writer = new BinaryWriter(stream, Encoding.UTF8, leaveOpen: true);
 
@@ -82,8 +82,8 @@ public static class MiniFontWriter
 
     private static void WriteInfoBlock(BinaryWriter writer, FontInfo info)
     {
-        var nameBytes = Encoding.UTF8.GetBytes(info.FontName ?? string.Empty);
-        var blockSize = (uint)(14 + nameBytes.Length + 1);
+        byte[] nameBytes = Encoding.UTF8.GetBytes(info.FontName ?? string.Empty);
+        uint blockSize = (uint)(14 + nameBytes.Length + 1);
 
         writer.Write((byte)1); // Block ID 1
         writer.Write(blockSize);
@@ -154,9 +154,9 @@ public static class MiniFontWriter
         using var ms = new MemoryStream();
         if (pageNames is { Count: > 0 })
         {
-            foreach (var name in pageNames)
+            foreach (string name in pageNames)
             {
-                var bytes = Encoding.UTF8.GetBytes(name);
+                byte[] bytes = Encoding.UTF8.GetBytes(name);
                 ms.Write(bytes);
                 ms.WriteByte(0);
             }
@@ -167,7 +167,7 @@ public static class MiniFontWriter
             ms.WriteByte(0);
         }
 
-        var pagesBytes = ms.ToArray();
+        byte[] pagesBytes = ms.ToArray();
         writer.Write((byte)3); // Block ID 3
         writer.Write((uint)pagesBytes.Length);
         writer.Write(pagesBytes);
@@ -175,13 +175,13 @@ public static class MiniFontWriter
 
     private static void WriteCharsBlock(BinaryWriter writer, System.Collections.Generic.IReadOnlyList<FontGlyph>? glyphs)
     {
-        var list = glyphs ?? [];
-        var blockSize = (uint)(list.Count * 20);
+        IReadOnlyList<FontGlyph> list = glyphs ?? [];
+        uint blockSize = (uint)(list.Count * 20);
 
         writer.Write((byte)4); // Block ID 4
         writer.Write(blockSize);
 
-        foreach (var g in list)
+        foreach (FontGlyph g in list)
         {
             writer.Write(g.Id);
             writer.Write((ushort)g.X);
@@ -198,11 +198,11 @@ public static class MiniFontWriter
 
     private static void WriteKerningBlock(BinaryWriter writer, System.Collections.Generic.IReadOnlyList<FontKerningPair> kerningPairs)
     {
-        var blockSize = (uint)(kerningPairs.Count * 10);
+        uint blockSize = (uint)(kerningPairs.Count * 10);
         writer.Write((byte)5); // Block ID 5
         writer.Write(blockSize);
 
-        foreach (var k in kerningPairs)
+        foreach (FontKerningPair k in kerningPairs)
         {
             writer.Write(k.First);
             writer.Write(k.Second);

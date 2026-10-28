@@ -35,10 +35,10 @@ public sealed class BaseFirmwareManagerTests : IDisposable
     [Fact]
     public async Task ImportsVerifiedTarGzAndRecordsManifest()
     {
-        var archivePath = CreateTarGz();
-        var manager = CreateManager(CreateDefinition(archivePath, "tar.gz"));
+        string archivePath = CreateTarGz();
+        BaseFirmwareManager manager = CreateManager(CreateDefinition(archivePath, "tar.gz"));
 
-        var result = await manager.ImportFromFileAsync(archivePath);
+        InstalledBaseInfo result = await manager.ImportFromFileAsync(archivePath);
 
         Assert.Equal(BaseInstallStatus.Valid, result.Status);
         Assert.Equal(Path.Combine(_basesPath, "snes", "eur", "2.0.13"), result.LocalPath);
@@ -51,10 +51,10 @@ public sealed class BaseFirmwareManagerTests : IDisposable
     [Fact]
     public async Task ImportsVerifiedSquashFsImage()
     {
-        var imagePath = CreateSquashFs();
-        var manager = CreateManager(CreateDefinition(imagePath, "squashfs"));
+        string imagePath = CreateSquashFs();
+        BaseFirmwareManager manager = CreateManager(CreateDefinition(imagePath, "squashfs"));
 
-        var result = await manager.ImportFromFileAsync(imagePath);
+        InstalledBaseInfo result = await manager.ImportFromFileAsync(imagePath);
 
         Assert.Equal(BaseInstallStatus.Valid, result.Status);
         Assert.Equal(_uiTreeSha256, UiTreeHash.ComputeForDirectory(result.LocalPath).Sha256);
@@ -63,12 +63,12 @@ public sealed class BaseFirmwareManagerTests : IDisposable
     [Fact]
     public async Task RejectsRenamedFileWithUnknownHash()
     {
-        var archivePath = CreateTarGz();
-        var manager = CreateManager(CreateDefinition(archivePath, "tar.gz"));
-        var impostorPath = Path.Combine(_rootPath, "dp-sneseur-release-v2.0.14-0-gd8b65c6.tar.gz");
+        string archivePath = CreateTarGz();
+        BaseFirmwareManager manager = CreateManager(CreateDefinition(archivePath, "tar.gz"));
+        string impostorPath = Path.Combine(_rootPath, "dp-sneseur-release-v2.0.14-0-gd8b65c6.tar.gz");
         File.WriteAllBytes(impostorPath, [0x1f, 0x8b, 1, 2, 3]);
 
-        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => manager.ImportFromFileAsync(impostorPath));
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() => manager.ImportFromFileAsync(impostorPath));
 
         Assert.Contains("not a recognised original firmware", exception.Message);
         Assert.False(Directory.Exists(Path.Combine(_basesPath, "snes")));
@@ -77,10 +77,10 @@ public sealed class BaseFirmwareManagerTests : IDisposable
     [Fact]
     public async Task RejectsSourceWhoseUiDoesNotMatchAndKeepsExistingBase()
     {
-        var archivePath = CreateTarGz();
-        var definition = CreateDefinition(archivePath, "tar.gz") with { UiTreeSha256 = new string('0', 64) };
-        var manager = CreateManager(definition);
-        var existingPath = Path.Combine(_basesPath, definition.RelativeStoragePath);
+        string archivePath = CreateTarGz();
+        FirmwareDefinition definition = CreateDefinition(archivePath, "tar.gz") with { UiTreeSha256 = new string('0', 64) };
+        BaseFirmwareManager manager = CreateManager(definition);
+        string existingPath = Path.Combine(_basesPath, definition.RelativeStoragePath);
         WriteFile(existingPath, "marker.txt", "preserved");
 
         await Assert.ThrowsAsync<InvalidDataException>(() => manager.ImportFromFileAsync(archivePath));
@@ -92,13 +92,13 @@ public sealed class BaseFirmwareManagerTests : IDisposable
     [Fact]
     public async Task ImportsFolderOnlyWhenContentMatchesOriginal()
     {
-        var manager = CreateManager(CreateDefinition(CreateTarGz(), "tar.gz"));
-        var modifiedPath = Path.Combine(_rootPath, "modified");
+        BaseFirmwareManager manager = CreateManager(CreateDefinition(CreateTarGz(), "tar.gz"));
+        string modifiedPath = Path.Combine(_rootPath, "modified");
         CopyDirectory(_uiPath, modifiedPath);
         WriteFile(modifiedPath, "resources/sprites/packed.json", "{}");
 
         await Assert.ThrowsAsync<InvalidDataException>(() => manager.ImportFromDirectoryAsync(modifiedPath));
-        var result = await manager.ImportFromDirectoryAsync(_uiPath);
+        InstalledBaseInfo result = await manager.ImportFromDirectoryAsync(_uiPath);
 
         Assert.Equal(BaseInstallStatus.Valid, result.Status);
     }
@@ -106,13 +106,13 @@ public sealed class BaseFirmwareManagerTests : IDisposable
     [Fact]
     public async Task SecondImportReusesInstalledBase()
     {
-        var archivePath = CreateTarGz();
-        var manager = CreateManager(CreateDefinition(archivePath, "tar.gz"));
-        var first = await manager.ImportFromFileAsync(archivePath);
-        var manifestPath = Path.Combine(first.LocalPath, BaseFirmwareManager.ManifestFileName);
-        var manifest = File.ReadAllText(manifestPath);
+        string archivePath = CreateTarGz();
+        BaseFirmwareManager manager = CreateManager(CreateDefinition(archivePath, "tar.gz"));
+        InstalledBaseInfo first = await manager.ImportFromFileAsync(archivePath);
+        string manifestPath = Path.Combine(first.LocalPath, BaseFirmwareManager.ManifestFileName);
+        string manifest = File.ReadAllText(manifestPath);
 
-        var second = await manager.ImportFromDirectoryAsync(_uiPath);
+        InstalledBaseInfo second = await manager.ImportFromDirectoryAsync(_uiPath);
 
         Assert.Equal(first.LocalPath, second.LocalPath);
         Assert.Equal(manifest, File.ReadAllText(manifestPath));
@@ -121,11 +121,11 @@ public sealed class BaseFirmwareManagerTests : IDisposable
     [Fact]
     public void FlagsBaseFolderWithoutManifestAsInvalid()
     {
-        var definition = CreateDefinition(CreateTarGz(), "tar.gz");
-        var manager = CreateManager(definition);
+        FirmwareDefinition definition = CreateDefinition(CreateTarGz(), "tar.gz");
+        BaseFirmwareManager manager = CreateManager(definition);
         CopyDirectory(_uiPath, Path.Combine(_basesPath, definition.RelativeStoragePath));
 
-        var info = Assert.Single(manager.GetInstalledBases());
+        InstalledBaseInfo info = Assert.Single(manager.GetInstalledBases());
 
         Assert.Equal(BaseInstallStatus.Invalid, info.Status);
         Assert.Null(manager.FindCompatibleBaseUiPath());
@@ -139,9 +139,9 @@ public sealed class BaseFirmwareManagerTests : IDisposable
             ["/var/squashfs/usr/share/ui/snes-eur"] = _uiPath,
             ["/usr/share/ui/snes-eur"] = Path.Combine(_rootPath, "missing"),
         });
-        var manager = CreateManager(CreateDefinition(CreateTarGz(), "tar.gz"), client);
+        BaseFirmwareManager manager = CreateManager(CreateDefinition(CreateTarGz(), "tar.gz"), client);
 
-        var result = await manager.ImportFromConsoleAsync(new ConsoleConnectionOptions("169.254.13.37"));
+        InstalledBaseInfo result = await manager.ImportFromConsoleAsync(new ConsoleConnectionOptions("169.254.13.37"));
 
         Assert.Equal(BaseInstallStatus.Valid, result.Status);
         Assert.Equal(["/var/squashfs/usr/share/ui/snes-eur"], client.Downloads);
@@ -150,13 +150,13 @@ public sealed class BaseFirmwareManagerTests : IDisposable
     [Fact]
     public async Task ConsoleImportRejectsModifiedUi()
     {
-        var modifiedPath = Path.Combine(_rootPath, "modified");
+        string modifiedPath = Path.Combine(_rootPath, "modified");
         CopyDirectory(_uiPath, modifiedPath);
         WriteFile(modifiedPath, "resources/sprites/packed.png", "theme");
         var client = new FakeConsoleClient(new Dictionary<string, string> { ["/usr/share/ui/snes-eur"] = modifiedPath });
-        var manager = CreateManager(CreateDefinition(CreateTarGz(), "tar.gz"), client);
+        BaseFirmwareManager manager = CreateManager(CreateDefinition(CreateTarGz(), "tar.gz"), client);
 
-        var exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
+        InvalidDataException exception = await Assert.ThrowsAsync<InvalidDataException>(() =>
             manager.ImportFromConsoleAsync(new ConsoleConnectionOptions("169.254.13.37")));
 
         Assert.Contains("modified", exception.Message);
@@ -165,11 +165,11 @@ public sealed class BaseFirmwareManagerTests : IDisposable
     [Fact]
     public async Task FindsBaseMatchingThemeRegion()
     {
-        var manager = CreateManager(CreateDefinition(CreateTarGz(), "tar.gz"));
+        BaseFirmwareManager manager = CreateManager(CreateDefinition(CreateTarGz(), "tar.gz"));
         await manager.ImportFromDirectoryAsync(_uiPath);
-        var themePath = Path.Combine(_rootPath, "theme");
+        string themePath = Path.Combine(_rootPath, "theme");
         WriteFile(themePath, "init.json", """{"engineFormat":9,"luaScripts":["/scripts/env/env_eur.lua"]}""");
-        var nesThemePath = Path.Combine(_rootPath, "other");
+        string nesThemePath = Path.Combine(_rootPath, "other");
         WriteFile(nesThemePath, "init.json", """{"engineFormat":8,"luaScripts":["/scripts/colors_nes.lua"]}""");
 
         Assert.Equal(Path.Combine(_basesPath, "snes", "eur", "2.0.13"), manager.FindCompatibleBaseUiPath(themePath));
@@ -196,10 +196,10 @@ public sealed class BaseFirmwareManagerTests : IDisposable
 
     private string CreateTarGz()
     {
-        var archivePath = Path.Combine(_rootPath, "firmware.tar.gz");
+        string archivePath = Path.Combine(_rootPath, "firmware.tar.gz");
         if (!File.Exists(archivePath))
         {
-            using var output = File.Create(archivePath);
+            using FileStream output = File.Create(archivePath);
             using var gzip = new GZipStream(output, CompressionLevel.Fastest);
             TarFile.CreateFromDirectory(Path.Combine(_rootPath, "rootfs"), gzip, includeBaseDirectory: false);
         }
@@ -209,32 +209,32 @@ public sealed class BaseFirmwareManagerTests : IDisposable
 
     private string CreateSquashFs()
     {
-        var imagePath = Path.Combine(_rootPath, "firmware.hsqs");
+        string imagePath = Path.Combine(_rootPath, "firmware.hsqs");
         var builder = new SquashFileSystemBuilder();
-        var rootfsPath = Path.Combine(_rootPath, "rootfs");
-        foreach (var filePath in Directory.EnumerateFiles(rootfsPath, "*", SearchOption.AllDirectories))
+        string rootfsPath = Path.Combine(_rootPath, "rootfs");
+        foreach (string filePath in Directory.EnumerateFiles(rootfsPath, "*", SearchOption.AllDirectories))
         {
-            var relativePath = Path.GetRelativePath(rootfsPath, filePath).Replace('/', '\\');
+            string relativePath = Path.GetRelativePath(rootfsPath, filePath).Replace('/', '\\');
             builder.AddFile(relativePath, new MemoryStream(File.ReadAllBytes(filePath)));
         }
 
-        using var output = File.Create(imagePath);
+        using FileStream output = File.Create(imagePath);
         builder.Build(output);
         return imagePath;
     }
 
     private static void WriteFile(string rootPath, string relativePath, string content)
     {
-        var path = Path.Combine(rootPath, relativePath);
+        string path = Path.Combine(rootPath, relativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, content);
     }
 
     private static void CopyDirectory(string sourcePath, string destinationPath)
     {
-        foreach (var filePath in Directory.EnumerateFiles(sourcePath, "*", SearchOption.AllDirectories))
+        foreach (string filePath in Directory.EnumerateFiles(sourcePath, "*", SearchOption.AllDirectories))
         {
-            var targetPath = Path.Combine(destinationPath, Path.GetRelativePath(sourcePath, filePath));
+            string targetPath = Path.Combine(destinationPath, Path.GetRelativePath(sourcePath, filePath));
             Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
             File.Copy(filePath, targetPath);
         }
@@ -253,7 +253,7 @@ public sealed class BaseFirmwareManagerTests : IDisposable
 
         public Task<bool> DirectoryExistsAsync(string remotePath, CancellationToken cancellationToken)
         {
-            return Task.FromResult(remoteDirectories.TryGetValue(remotePath, out var localPath) && Directory.Exists(localPath));
+            return Task.FromResult(remoteDirectories.TryGetValue(remotePath, out string? localPath) && Directory.Exists(localPath));
         }
 
         public Task DownloadDirectoryAsync(string remotePath, string localPath, CancellationToken cancellationToken)

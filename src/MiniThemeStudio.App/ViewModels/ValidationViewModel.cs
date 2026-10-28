@@ -78,7 +78,7 @@ public sealed partial class ValidationViewModel : ViewModelBase
             return;
         }
 
-        var result = Validate(draft);
+        ThemeValidationResult result = Validate(draft);
         ValidationSummary = result.IsValid
             ? (result.HasWarnings ? "Validation passed with notices." : "Theme is fully valid!")
             : "Validation found errors that must be fixed.";
@@ -105,7 +105,7 @@ public sealed partial class ValidationViewModel : ViewModelBase
             return;
         }
 
-        var confirmed = await _dialogService.ShowConfirmationAsync(
+        bool confirmed = await _dialogService.ShowConfirmationAsync(
             "Delete unused image?",
             image.OverridesBase
                 ? $"No scene draws resources/{image.RelativePath}. Its replacement is removed and the Base image is kept."
@@ -155,7 +155,7 @@ public sealed partial class ValidationViewModel : ViewModelBase
 
     private ThemeValidationResult Validate(ThemeDraft draft)
     {
-        var result = _validator.Validate(draft.DraftPath, _session.BaseUiPath, _audio.ValidationOptions);
+        ThemeValidationResult result = _validator.Validate(draft.DraftPath, _session.BaseUiPath, _audio.ValidationOptions);
         ValidationIssues = result.Issues;
         IsThemeValid = result.IsValid;
         return result;
@@ -163,12 +163,12 @@ public sealed partial class ValidationViewModel : ViewModelBase
 
     private void Reload()
     {
-        var report = _session.Report;
+        ThemeResourceReport report = _session.Report;
         MissingTextures = report.MissingTextures;
         SelectedMissingTexture = MissingTextures.Count > 0 ? MissingTextures[0] : null;
 
         // a Base image nobody draws is not part of the theme, so only the theme's own files are reported
-        var selectedPath = SelectedUnusedImage?.RelativePath;
+        string? selectedPath = SelectedUnusedImage?.RelativePath;
         UnusedImages = _session.Draft is { } draft
             ? _assetManager.GetExtraAssets(draft.DraftPath, _session.BaseUiPath)
                 .Where(asset => !asset.IsFromBaseUi)

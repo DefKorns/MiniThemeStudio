@@ -14,10 +14,10 @@ public sealed class ThemePaletteEditor : IThemePaletteEditor
 
         var layer = new ThemeLayer(themeDraftPath, baseUiPath);
         var palettes = new List<ThemePalette>();
-        foreach (var relativePath in RelativePaths(layer, ScriptsFolder, "colors_*.lua"))
+        foreach (string relativePath in RelativePaths(layer, ScriptsFolder, "colors_*.lua"))
         {
-            var (filePath, fromBase) = Resolve(layer, relativePath);
-            var region = Path.GetFileNameWithoutExtension(relativePath)["colors_".Length..];
+            (string? filePath, bool fromBase) = Resolve(layer, relativePath);
+            string region = Path.GetFileNameWithoutExtension(relativePath)["colors_".Length..];
             palettes.Add(new ThemePalette(region, relativePath, filePath, fromBase, LuaColorPalette.Read(filePath).Colors));
         }
 
@@ -30,9 +30,9 @@ public sealed class ThemePaletteEditor : IThemePaletteEditor
 
         var layer = new ThemeLayer(themeDraftPath, baseUiPath);
         var usages = new List<PaletteColorUsage>();
-        foreach (var scene in RelativePaths(layer, "", "*.scn"))
+        foreach (string scene in RelativePaths(layer, "", "*.scn"))
         {
-            var (filePath, _) = Resolve(layer, scene);
+            (string? filePath, bool _) = Resolve(layer, scene);
             if (JsonNode.Parse(File.ReadAllText(filePath))?["rootWorldNode"] is JsonObject root)
             {
                 CollectUsages(root, "", scene, usages);
@@ -41,12 +41,12 @@ public sealed class ThemePaletteEditor : IThemePaletteEditor
 
         // LuaJIT bytecode keeps the strings a script uses as plain text, so a colour named in a script shows up as bytes
         var names = GetPalettes(themeDraftPath, baseUiPath).SelectMany(p => p.Colors).Select(c => c.Name).Distinct().ToList();
-        foreach (var script in RelativePaths(layer, ScriptsFolder, "*.lua")
+        foreach (string? script in RelativePaths(layer, ScriptsFolder, "*.lua")
             .Where(path => !Path.GetFileName(path).StartsWith("colors_", StringComparison.OrdinalIgnoreCase)))
         {
-            var (filePath, _) = Resolve(layer, script);
-            var bytes = File.ReadAllBytes(filePath);
-            foreach (var name in names.Where(name => bytes.AsSpan().IndexOf(System.Text.Encoding.UTF8.GetBytes(name)) >= 0))
+            (string? filePath, bool _) = Resolve(layer, script);
+            byte[] bytes = File.ReadAllBytes(filePath);
+            foreach (string? name in names.Where(name => bytes.AsSpan().IndexOf(System.Text.Encoding.UTF8.GetBytes(name)) >= 0))
             {
                 usages.Add(new PaletteColorUsage(name, script, "(Lua script)", null));
             }
@@ -61,13 +61,13 @@ public sealed class ThemePaletteEditor : IThemePaletteEditor
         ArgumentNullException.ThrowIfNull(relativePaths);
 
         var layer = new ThemeLayer(themeDraftPath, baseUiPath);
-        foreach (var relativePath in relativePaths)
+        foreach (string relativePath in relativePaths)
         {
-            var (sourcePath, _) = Resolve(layer, relativePath);
+            (string? sourcePath, bool _) = Resolve(layer, relativePath);
             var palette = LuaColorPalette.Read(sourcePath);
             palette.SetColor(color);
 
-            var targetPath = layer.ThemeResourceFile(ToResourcePath(relativePath));
+            string targetPath = layer.ThemeResourceFile(ToResourcePath(relativePath));
             Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
             palette.Write(targetPath);
         }
@@ -79,7 +79,7 @@ public sealed class ThemePaletteEditor : IThemePaletteEditor
 
     private static (string FilePath, bool FromBase) Resolve(ThemeLayer layer, string relativePath)
     {
-        var resourcePath = ToResourcePath(relativePath);
+        string resourcePath = ToResourcePath(relativePath);
         if (layer.ResolveInTheme(resourcePath) is { } themeFile)
         {
             return (themeFile, false);
@@ -92,7 +92,7 @@ public sealed class ThemePaletteEditor : IThemePaletteEditor
 
     private static string ToResourcePath(string relativePath)
     {
-        var path = relativePath.Replace('\\', '/');
+        string path = relativePath.Replace('\\', '/');
         return path.StartsWith(ResourcesFolder + "/", StringComparison.OrdinalIgnoreCase)
             ? path[ResourcesFolder.Length..]
             : throw new ArgumentException($"Expected a path inside {ResourcesFolder}/: {relativePath}", nameof(relativePath));
@@ -100,17 +100,17 @@ public sealed class ThemePaletteEditor : IThemePaletteEditor
 
     private static void CollectUsages(JsonObject node, string parentPath, string scene, List<PaletteColorUsage> usages)
     {
-        var path = $"{parentPath}/{node["name"]?.GetValue<string>()}";
-        foreach (var component in node["components"]?.AsArray().OfType<JsonObject>() ?? [])
+        string path = $"{parentPath}/{node["name"]?.GetValue<string>()}";
+        foreach (JsonObject component in node["components"]?.AsArray().OfType<JsonObject>() ?? [])
         {
             if (component["properties"]?["colorName"]?.GetValue<string>() is { Length: > 0 } colorName)
             {
-                var text = component["text"]?.GetValue<string>();
+                string? text = component["text"]?.GetValue<string>();
                 usages.Add(new PaletteColorUsage(colorName, scene, path, string.IsNullOrEmpty(text) ? null : text));
             }
         }
 
-        foreach (var child in node["children"]?.AsArray().OfType<JsonObject>() ?? [])
+        foreach (JsonObject child in node["children"]?.AsArray().OfType<JsonObject>() ?? [])
         {
             CollectUsages(child, path, scene, usages);
         }

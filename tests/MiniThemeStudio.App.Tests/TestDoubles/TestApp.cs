@@ -34,7 +34,7 @@ public sealed class TestApp : IDisposable
                 ConsoleHost: "169.254.13.37",
                 InitialSetupCompleted: true));
 
-            var services = new ServiceCollection().AddMiniThemeStudio();
+            IServiceCollection services = new ServiceCollection().AddMiniThemeStudio();
             services.AddSingleton<IAppSettingsStore>(settings);
             services.AddSingleton<IFirmwareRegistry>(_ => FirmwareRegistry.CreateDefault());
             services.AddSingleton<IBaseFirmwareManager>(provider =>
@@ -80,7 +80,7 @@ public sealed class TestApp : IDisposable
     // a Base with one scene (bg.scn) drawing one texture (wall.png), and the sprite atlas every Base has
     public string CreateBase()
     {
-        var basePath = Path.Combine(Root, "base");
+        string basePath = Path.Combine(Root, "base");
         WriteFile(basePath, "dependencies.json", """
             {"resources":[
               {"id":"scene","type":"Scene","dependencies":[{"id":"wall","refCount":1}],"path":"/prefab/bg.scn","groupId":"1"},
@@ -102,21 +102,21 @@ public sealed class TestApp : IDisposable
     // a theme that changes nothing of its Base
     public string CreateTheme()
     {
-        var themePath = Path.Combine(Root, "themes", "my_theme");
+        string themePath = Path.Combine(Root, "themes", "my_theme");
         WriteFile(themePath, "author.txt", "Tester");
         return themePath;
     }
 
     public static void WriteFile(string root, string relativePath, string content)
     {
-        var path = Path.Combine(root, relativePath);
+        string path = Path.Combine(root, relativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, content);
     }
 
     public static void WriteBytes(string root, string relativePath, byte[] content)
     {
-        var path = Path.Combine(root, relativePath);
+        string path = Path.Combine(root, relativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllBytes(path, content);
     }

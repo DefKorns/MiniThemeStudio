@@ -101,10 +101,10 @@ public sealed partial class PixelBackgroundViewModel : ViewModelBase
             return;
         }
 
-        var palettes = _paletteEditor.GetPalettes(draft.DraftPath, _session.BaseUiPath);
+        IReadOnlyList<ThemePalette> palettes = _paletteEditor.GetPalettes(draft.DraftPath, _session.BaseUiPath);
         if (await _errorHandler.TryRunAsync("Cannot change the background colours", () =>
         {
-            foreach (var row in changed)
+            foreach (BackgroundColorRow? row in changed)
             {
                 var targets = palettes.Where(palette => palette.Colors.Any(color => color.Name == row.ColorName)).Select(palette => palette.RelativePath).ToList();
                 _paletteEditor.SetColor(draft.DraftPath, _session.BaseUiPath, PaletteColor.FromBytes(row.ColorName, row.Color.R, row.Color.G, row.Color.B, row.Color.A), targets);
@@ -122,7 +122,7 @@ public sealed partial class PixelBackgroundViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(DiffersFromBase))]
     private async Task RestoreBaseColorsAsync()
     {
-        foreach (var row in Colors)
+        foreach (BackgroundColorRow row in Colors)
         {
             row.Color = row.BaseColor;
         }
@@ -134,7 +134,7 @@ public sealed partial class PixelBackgroundViewModel : ViewModelBase
     [RelayCommand]
     private void ResetColors()
     {
-        foreach (var row in Colors)
+        foreach (BackgroundColorRow row in Colors)
         {
             row.Color = row.Saved;
         }
@@ -203,8 +203,8 @@ public sealed partial class PixelBackgroundViewModel : ViewModelBase
         var roots = new[] { draft.DraftPath, _session.BaseUiPath }.Where(root => root is not null).Select(root => root!).ToList();
         Images = ReadImages(roots).ToList();
 
-        var palette = Images.Count == 0 ? [] : _paletteEditor.GetPalettes(draft.DraftPath, _session.BaseUiPath).SelectMany(candidate => candidate.Colors).ToList();
-        var basePalette = Images.Count == 0 || _session.BaseUiPath is not { } baseUiPath
+        List<PaletteColor> palette = Images.Count == 0 ? [] : _paletteEditor.GetPalettes(draft.DraftPath, _session.BaseUiPath).SelectMany(candidate => candidate.Colors).ToList();
+        List<PaletteColor> basePalette = Images.Count == 0 || _session.BaseUiPath is not { } baseUiPath
             ? palette
             : _paletteEditor.GetPalettes(baseUiPath).SelectMany(candidate => candidate.Colors).ToList();
         Colors = ReadColors(palette, basePalette).ToList();
@@ -215,9 +215,9 @@ public sealed partial class PixelBackgroundViewModel : ViewModelBase
 
     private IEnumerable<BackgroundImageRow> ReadImages(List<string> roots)
     {
-        foreach (var (name, label, description) in BackgroundImages)
+        foreach ((string? name, string? label, string? description) in BackgroundImages)
         {
-            var relativePath = $"sprites/{name}.png";
+            string relativePath = $"sprites/{name}.png";
             if (roots.Select(root => Path.Combine(root, "resources", relativePath)).FirstOrDefault(File.Exists) is not { } imagePath)
             {
                 continue;
@@ -230,11 +230,11 @@ public sealed partial class PixelBackgroundViewModel : ViewModelBase
 
     private static IEnumerable<BackgroundColorRow> ReadColors(List<PaletteColor> palette, List<PaletteColor> basePalette)
     {
-        foreach (var (name, label) in BackgroundColors)
+        foreach ((string? name, string? label) in BackgroundColors)
         {
             if (palette.FirstOrDefault(color => color.Name == name) is { } color)
             {
-                var baseColor = basePalette.Where(candidate => candidate.Name == name).Select(candidate => (PaletteColor?)candidate).FirstOrDefault() ?? color;
+                PaletteColor baseColor = basePalette.Where(candidate => candidate.Name == name).Select(candidate => (PaletteColor?)candidate).FirstOrDefault() ?? color;
                 yield return new BackgroundColorRow(name, label, ToColor(color), ToColor(baseColor));
             }
         }

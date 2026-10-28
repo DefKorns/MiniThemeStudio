@@ -105,7 +105,7 @@ public sealed class ScenePreview : Control
 
     public override void Render(DrawingContext context)
     {
-        var scale = Math.Min(Bounds.Width / ScreenWidth, Bounds.Height / ScreenHeight);
+        double scale = Math.Min(Bounds.Width / ScreenWidth, Bounds.Height / ScreenHeight);
         if (scale <= 0)
         {
             return;
@@ -115,11 +115,11 @@ public sealed class ScenePreview : Control
         _screenMatrix = new Matrix(scale, 0, 0, -scale, _screen.Center.X, _screen.Center.Y);
         Collect(_screenMatrix);
 
-        using var clip = context.PushClip(new Rect(Bounds.Size));
+        using DrawingContext.PushedState clip = context.PushClip(new Rect(Bounds.Size));
         context.FillRectangle(ScreenBrush, _screen);
         using (context.PushRenderOptions(new RenderOptions { BitmapInterpolationMode = BitmapInterpolationMode.None }))
         {
-            foreach (var item in _items)
+            foreach (DrawItem item in _items)
             {
                 Draw(context, item);
             }
@@ -143,7 +143,7 @@ public sealed class ScenePreview : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
-        var position = e.GetPosition(this);
+        Point position = e.GetPosition(this);
         if (FindAt(position) is not { } item)
         {
             return;
@@ -152,15 +152,15 @@ public sealed class ScenePreview : Control
         e.Handled = true;
 
         // pressing inside the selected group drags the whole group; anything else is selected and dragged alone
-        var clicked = item.Node.Path;
-        var target = SelectedPath is { Length: > 0 } selected && (clicked == selected || clicked.StartsWith(selected + "/", StringComparison.Ordinal))
+        string clicked = item.Node.Path;
+        string target = SelectedPath is { Length: > 0 } selected && (clicked == selected || clicked.StartsWith(selected + "/", StringComparison.Ordinal))
             ? selected
             : clicked;
         SelectedPath = target;
         if (MoveCommand is null
             || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed
             || Root?.SelfAndDescendants().FirstOrDefault(node => node.Path == target) is not { } node
-            || !ParentWorld(target).TryInvert(out var toParent))
+            || !ParentWorld(target).TryInvert(out Matrix toParent))
         {
             return;
         }
@@ -212,14 +212,14 @@ public sealed class ScenePreview : Control
         base.OnPointerMoved(e);
         if (_drag is { } drag)
         {
-            var position = e.GetPosition(this);
+            Point position = e.GetPosition(this);
             if (!drag.IsMoving && Point.Distance(position, drag.Start) < DragThreshold)
             {
                 return;
             }
 
             // whole pixels in the parent's space, Y up, whatever the zoom of the preview
-            var delta = drag.ToParent.Transform(position) - drag.ToParent.Transform(drag.Start);
+            Point delta = drag.ToParent.Transform(position) - drag.ToParent.Transform(drag.Start);
             drag.IsMoving = true;
             drag.Offset = new Vector(Math.Round(drag.OriginX + delta.X) - drag.OriginX, Math.Round(drag.OriginY + delta.Y) - drag.OriginY);
             Cursor = new Cursor(StandardCursorType.SizeAll);
@@ -228,7 +228,7 @@ public sealed class ScenePreview : Control
             return;
         }
 
-        var hovered = FindAt(e.GetPosition(this));
+        DrawItem? hovered = FindAt(e.GetPosition(this));
         if (hovered?.Node.Path != _hoveredPath)
         {
             _hoveredPath = hovered?.Node.Path;
@@ -254,16 +254,16 @@ public sealed class ScenePreview : Control
         }
 
         if (BranchPath is null
-            || !int.TryParse(BranchPath, NumberStyles.None, CultureInfo.InvariantCulture, out var index)
+            || !int.TryParse(BranchPath, NumberStyles.None, CultureInfo.InvariantCulture, out int index)
             || index >= root.Children.Count)
         {
             Collect(root, screenMatrix, false, 1);
             return;
         }
 
-        var rootWorld = ToMatrix(root.Transform) * screenMatrix;
+        Matrix rootWorld = ToMatrix(root.Transform) * screenMatrix;
         _worlds[root.Path] = rootWorld;
-        var branch = root.Children[index];
+        SceneNode branch = root.Children[index];
         Collect(branch, rootWorld, !root.Visible || !root.Enabled, root.Alpha);
 
         // menus waiting off screen (e.g. at y=720) are slid in by scripts: show them where they are used
@@ -278,16 +278,16 @@ public sealed class ScenePreview : Control
     // alpha is what the node's ancestors leave of its opacity
     private void Collect(SceneNode node, Matrix parentWorld, bool hiddenAncestor, double alpha)
     {
-        var hidden = hiddenAncestor || !node.Visible || !node.Enabled;
+        bool hidden = hiddenAncestor || !node.Visible || !node.Enabled;
         if (hidden && !ShowHidden)
         {
             return;
         }
 
-        var transform = _drag is { IsMoving: true } drag && drag.Path == node.Path
+        SceneTransform transform = _drag is { IsMoving: true } drag && drag.Path == node.Path
             ? node.Transform with { X = node.Transform.X + drag.Offset.X, Y = node.Transform.Y + drag.Offset.Y }
             : node.Transform;
-        var world = ToMatrix(transform) * parentWorld;
+        Matrix world = ToMatrix(transform) * parentWorld;
         _worlds[node.Path] = world;
         alpha *= Math.Clamp(node.Alpha, 0, 1);
         if (node.Visual is { } visual && CreateItem(node, visual, world, hidden, alpha) is { } item)
@@ -295,7 +295,7 @@ public sealed class ScenePreview : Control
             _items.Add(item);
         }
 
-        foreach (var child in node.Children.OrderBy(child => child.ZIndex))
+        foreach (SceneNode? child in node.Children.OrderBy(child => child.ZIndex))
         {
             Collect(child, world, hidden, alpha);
         }
@@ -329,7 +329,7 @@ public sealed class ScenePreview : Control
         }
 
         // pivots are fractions from the top-left of the image; atlas sprites carry theirs in pixels
-        var (pivotX, pivotY) = !double.IsNaN(visual.PivotX)
+        (double pivotX, double pivotY) = !double.IsNaN(visual.PivotX)
             ? (visual.PivotX, visual.PivotY)
             : image is { Pivot: { } pivot, LogicalSize: { Width: > 0, Height: > 0 } logical }
                 ? (pivot.X / logical.Width, pivot.Y / logical.Height)
@@ -347,8 +347,8 @@ public sealed class ScenePreview : Control
 
     private static void Draw(DrawingContext context, DrawItem item)
     {
-        using var transform = context.PushTransform(item.Transform);
-        using var opacity = context.PushOpacity(Math.Clamp(item.Visual.Opacity, 0, 1) * item.Alpha * (item.Hidden ? 0.35 : 1));
+        using DrawingContext.PushedState transform = context.PushTransform(item.Transform);
+        using DrawingContext.PushedState opacity = context.PushOpacity(Math.Clamp(item.Visual.Opacity, 0, 1) * item.Alpha * (item.Hidden ? 0.35 : 1));
         if (item.Text is { } text)
         {
             context.DrawText(text, default);
@@ -362,20 +362,20 @@ public sealed class ScenePreview : Control
         }
 
         // uvRepeat tiles the image over the node size (wrapping walls use it)
-        var columns = (int)Math.Clamp(Math.Round(item.Visual.RepeatX), 1, 16);
-        var rows = (int)Math.Clamp(Math.Round(item.Visual.RepeatY), 1, 16);
+        int columns = (int)Math.Clamp(Math.Round(item.Visual.RepeatX), 1, 16);
+        int rows = (int)Math.Clamp(Math.Round(item.Visual.RepeatY), 1, 16);
         var tile = new Size(item.Size.Width / columns, item.Size.Height / rows);
-        var scaleX = tile.Width / Math.Max(1, image.LogicalSize.Width);
-        var scaleY = tile.Height / Math.Max(1, image.LogicalSize.Height);
+        double scaleX = tile.Width / Math.Max(1, image.LogicalSize.Width);
+        double scaleY = tile.Height / Math.Max(1, image.LogicalSize.Height);
 
         // uvOffset slides the texture inside the node (scrolling backgrounds animate it): the tiles move left and
         // wrap around, so one more column fills the gap they leave
-        var shift = item.Visual.OffsetX - Math.Floor(item.Visual.OffsetX);
-        using var clip = shift > 0 ? context.PushClip(new Rect(item.Size)) : default(DrawingContext.PushedState?);
-        var lastColumn = shift > 0 ? columns : columns - 1;
-        for (var row = 0; row < rows; row++)
+        double shift = item.Visual.OffsetX - Math.Floor(item.Visual.OffsetX);
+        using DrawingContext.PushedState? clip = shift > 0 ? context.PushClip(new Rect(item.Size)) : default(DrawingContext.PushedState?);
+        int lastColumn = shift > 0 ? columns : columns - 1;
+        for (int row = 0; row < rows; row++)
         {
-            for (var column = 0; column <= lastColumn; column++)
+            for (int column = 0; column <= lastColumn; column++)
             {
                 var destination = new Rect(
                     (column - shift) * tile.Width + image.Placement.X * scaleX,
@@ -389,7 +389,7 @@ public sealed class ScenePreview : Control
 
     private void DrawSelection(DrawingContext context)
     {
-        if (SelectedPath is not { } path || !_worlds.TryGetValue(path, out var world))
+        if (SelectedPath is not { } path || !_worlds.TryGetValue(path, out Matrix world))
         {
             return;
         }
@@ -401,7 +401,7 @@ public sealed class ScenePreview : Control
         else
         {
             // a group: frame what its children draw
-            var prefix = path.Length == 0 ? "" : path + "/";
+            string prefix = path.Length == 0 ? "" : path + "/";
             var corners = _items.Where(item => item.Node.Path.StartsWith(prefix, StringComparison.Ordinal)).SelectMany(Corners).ToList();
             if (corners.Count > 0)
             {
@@ -412,7 +412,7 @@ public sealed class ScenePreview : Control
             }
         }
 
-        var origin = world.Transform(default);
+        Point origin = world.Transform(default);
         context.DrawLine(SelectionPen, origin - new Vector(8, 0), origin + new Vector(8, 0));
         context.DrawLine(SelectionPen, origin - new Vector(0, 8), origin + new Vector(0, 8));
     }
@@ -420,14 +420,14 @@ public sealed class ScenePreview : Control
     // the world matrix a node's transform is applied to: its parent's, or the screen's for the root
     private Matrix ParentWorld(string path)
     {
-        var slash = path.LastIndexOf('/');
-        var parentPath = path.Length == 0 ? null : slash < 0 ? "" : path[..slash];
-        return parentPath is not null && _worlds.TryGetValue(parentPath, out var parentWorld) ? parentWorld : _screenMatrix;
+        int slash = path.LastIndexOf('/');
+        string? parentPath = path.Length == 0 ? null : slash < 0 ? "" : path[..slash];
+        return parentPath is not null && _worlds.TryGetValue(parentPath, out Matrix parentWorld) ? parentWorld : _screenMatrix;
     }
 
     private static void DrawOutline(DrawingContext context, Point[] corners, IPen pen)
     {
-        for (var index = 0; index < corners.Length; index++)
+        for (int index = 0; index < corners.Length; index++)
         {
             context.DrawLine(pen, corners[index], corners[(index + 1) % corners.Length]);
         }
@@ -435,10 +435,10 @@ public sealed class ScenePreview : Control
 
     private DrawItem? FindAt(Point position)
     {
-        for (var index = _items.Count - 1; index >= 0; index--)
+        for (int index = _items.Count - 1; index >= 0; index--)
         {
-            var item = _items[index];
-            if (item.Transform.TryInvert(out var inverse) && new Rect(item.Size).Contains(inverse.Transform(position)))
+            DrawItem item = _items[index];
+            if (item.Transform.TryInvert(out Matrix inverse) && new Rect(item.Size).Contains(inverse.Transform(position)))
             {
                 return item;
             }
@@ -449,7 +449,7 @@ public sealed class ScenePreview : Control
 
     private static Point[] Corners(DrawItem item)
     {
-        var size = item.Size;
+        Size size = item.Size;
         return [
             item.Transform.Transform(default),
             item.Transform.Transform(new Point(size.Width, 0)),

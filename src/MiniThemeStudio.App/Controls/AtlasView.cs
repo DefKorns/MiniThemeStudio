@@ -114,7 +114,7 @@ public sealed class AtlasView : Control
             context.DrawImage(source, new Rect(source.Size), destination);
         }
 
-        foreach (var sprite in Sprites ?? [])
+        foreach (SpriteRegion sprite in Sprites ?? [])
         {
             context.DrawRectangle(null, OutlinePen, ToView(sprite).Deflate(0.5));
         }
@@ -124,10 +124,10 @@ public sealed class AtlasView : Control
             context.DrawRectangle(null, HoverPen, ToView(hovered).Deflate(0.5));
         }
 
-        var marked = MarkedSprites ?? [];
-        for (var index = 0; index < marked.Count; index++)
+        IReadOnlyList<SpriteRegion> marked = MarkedSprites ?? [];
+        for (int index = 0; index < marked.Count; index++)
         {
-            var area = ToView(marked[index]);
+            Rect area = ToView(marked[index]);
             context.DrawRectangle(MarkFill, MarkPen, area.Deflate(1));
             var label = new FormattedText(
                 (index + 1).ToString(CultureInfo.InvariantCulture),
@@ -149,7 +149,7 @@ public sealed class AtlasView : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
-        var position = e.GetPosition(this);
+        Point position = e.GetPosition(this);
         if (Zoom > 0)
         {
             AtlasPointerPressed?.Invoke(this, new PixelPoint((int)(position.X / Zoom), (int)(position.Y / Zoom)));
@@ -197,7 +197,7 @@ public sealed class AtlasView : Control
 
     private Rect ToView(SpriteRegion sprite)
     {
-        var frame = sprite.Frame;
+        AtlasRectangle frame = sprite.Frame;
         return new Rect(frame.X * Zoom, frame.Y * Zoom, frame.Width * Zoom, frame.Height * Zoom);
     }
 }

@@ -215,7 +215,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var hadUnsavedChanges = HasUnsavedChanges;
+        bool hadUnsavedChanges = HasUnsavedChanges;
         _session.BaseUiPath = baseUiPath;
         LoadDraft(_session.Draft);
         HasUnsavedChanges = hadUnsavedChanges;
@@ -245,13 +245,13 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var system = PackagingSystem
+        string system = PackagingSystem
             ?? throw new OperationFailedException("Choose the Base of this theme first (click the console badge in the header).");
         ValidationTab.EnsureValidFor("exporting");
 
-        var previewPath = $"{Path.TrimEndingDirectorySeparator(_session.Draft.SavePath)}.png";
-        var result = _themeExporter.ExportPackage(_session.Draft.DraftPath, outputDirectory, system, PackagingName, previewPath, _session.BaseUiPath, AudioTab.ExportOptions);
-        var summary = $"Exported {result.FileCount} changed files to {result.PackagePath} ({result.UnchangedFilesSkipped} unchanged Base files left out)";
+        string previewPath = $"{Path.TrimEndingDirectorySeparator(_session.Draft.SavePath)}.png";
+        ThemePackageResult result = _themeExporter.ExportPackage(_session.Draft.DraftPath, outputDirectory, system, PackagingName, previewPath, _session.BaseUiPath, AudioTab.ExportOptions);
+        string summary = $"Exported {result.FileCount} changed files to {result.PackagePath} ({result.UnchangedFilesSkipped} unchanged Base files left out)";
         Status = result.IncludesPreview
             ? $"{summary}."
             : $"{summary}, without a preview (no {Path.GetFileName(previewPath)} next to the theme folder).";
@@ -305,7 +305,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void LoadDraft(ThemeDraft draft)
     {
-        var metadata = _metadataReader.Read(draft.DraftPath, Path.GetFileName(draft.SavePath));
+        ThemeMetadata metadata = _metadataReader.Read(draft.DraftPath, Path.GetFileName(draft.SavePath));
         ThemeName = metadata.Name;
         Author = metadata.Author ?? "Not specified";
         ThemePath = draft.SavePath;

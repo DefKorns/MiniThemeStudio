@@ -6,6 +6,8 @@ using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using MiniThemeStudio.Core.Settings;
 using MiniThemeStudio.Infrastructure.Audio;
+using System.Collections.Generic;
+using MiniThemeStudio.Core.Audio;
 
 namespace MiniThemeStudio.App.Views;
 
@@ -130,7 +132,7 @@ public sealed partial class SettingsDialog : Window
 
     private async void BrowseFillFont_Click(object? sender, RoutedEventArgs e)
     {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        IReadOnlyList<IStorageFile> files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Select the fill font",
             AllowMultiple = false,
@@ -142,7 +144,7 @@ public sealed partial class SettingsDialog : Window
 
     private async void BrowseFFmpeg_Click(object? sender, RoutedEventArgs e)
     {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        IReadOnlyList<IStorageFile> files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Select FFmpeg executable",
             AllowMultiple = false,
@@ -166,7 +168,7 @@ public sealed partial class SettingsDialog : Window
 
     private async System.Threading.Tasks.Task ValidateFFmpegAsync()
     {
-        var path = FFmpegTextBox.Text?.Trim() ?? "";
+        string path = FFmpegTextBox.Text?.Trim() ?? "";
         if (string.IsNullOrEmpty(path))
         {
             FFmpegTextBox.Classes.Set("invalid-path", false);
@@ -174,7 +176,7 @@ public sealed partial class SettingsDialog : Window
             return;
         }
 
-        var status = await new FFmpegAudioConverter().GetStatusAsync(path);
+        FFmpegStatus status = await new FFmpegAudioConverter().GetStatusAsync(path);
         if (status.IsAvailable)
         {
             FFmpegTextBox.Classes.Set("invalid-path", false);
@@ -202,14 +204,14 @@ public sealed partial class SettingsDialog : Window
     {
         UpdatePathValidation(DraftRootTextBox, false);
         UpdatePathValidation(ThemeDestinationTextBox, true);
-        var fillFont = FillFontTextBox.Text?.Trim() ?? "";
+        string fillFont = FillFontTextBox.Text?.Trim() ?? "";
         FillFontTextBox.Classes.Set("invalid-path", fillFont.Length > 0 && !File.Exists(fillFont));
     }
 
     private static void UpdatePathValidation(TextBox textBox, bool allowsEmpty)
     {
-        var path = textBox.Text?.Trim() ?? "";
-        var isValid = (allowsEmpty && path.Length == 0) || Directory.Exists(path);
+        string path = textBox.Text?.Trim() ?? "";
+        bool isValid = (allowsEmpty && path.Length == 0) || Directory.Exists(path);
         textBox.Classes.Set("invalid-path", !isValid);
         ToolTip.SetTip(textBox, path.Length == 0 ? null : path);
     }
@@ -231,7 +233,7 @@ public sealed partial class SettingsDialog : Window
 
     private async System.Threading.Tasks.Task<string?> PickFolderAsync(string title)
     {
-        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        IReadOnlyList<IStorageFolder> folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
             Title = title,
             AllowMultiple = false,
@@ -249,7 +251,7 @@ public sealed partial class SettingsDialog : Window
             return;
         }
 
-        if (!TryGetConsoleHost(out var consoleHost))
+        if (!TryGetConsoleHost(out string? consoleHost))
         {
             SetFeedback("Enter a valid network IP address.", true);
             return;

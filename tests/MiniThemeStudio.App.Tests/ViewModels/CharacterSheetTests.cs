@@ -1,5 +1,6 @@
 using MiniThemeStudio.App.Models;
 using MiniThemeStudio.App.Tests.TestDoubles;
+using MiniThemeStudio.App.ViewModels;
 using MiniThemeStudio.Core.Themes;
 using SkiaSharp;
 
@@ -12,7 +13,7 @@ public sealed class CharacterSheetTests : IDisposable
 
     public CharacterSheetTests()
     {
-        var basePath = _app.CreateBase();
+        string basePath = _app.CreateBase();
         SavePng(Path.Combine(basePath, "resources", "sprites", "characters_sbm.png"), 128, 64, (2, 1, 12, 16), (18, 1, 15, 16), (2, 18, 12, 16));
         SavePng(Path.Combine(basePath, "resources", "sprites", "wallpaper-hvc.png"), 64, 16, (2, 0, 12, 16), (18, 0, 12, 16), (32, 0, 32, 16));
         _app.Window.OpenTheme(_app.CreateTheme(), basePath);
@@ -23,13 +24,13 @@ public sealed class CharacterSheetTests : IDisposable
     [Fact]
     public void TheSheetShowsInsteadOfTheAnimations()
     {
-        var characters = _app.Window.CharactersTab;
+        CharactersViewModel characters = _app.Window.CharactersTab;
 
         Assert.True(characters.ShowSheet);
         Assert.False(characters.ShowSimpleFrames);
         Assert.False(characters.ShowAdvancedFrames);
         Assert.Equal(["Menu characters", "Background characters"], characters.Sheets.Select(sheet => sheet.Title));
-        var menu = characters.Sheets[0];
+        SheetView menu = characters.Sheets[0];
         Assert.Equal(["Mario", "Luigi"], menu.Rows.Select(row => row.Label));
         Assert.Equal(["Mario 1", "Mario 2"], menu.Rows[0].Frames.Select(frame => frame.Label));
         Assert.Equal("up to 16 × 16", menu.Rows[1].Frames[0].SizeText);
@@ -46,8 +47,8 @@ public sealed class CharacterSheetTests : IDisposable
     [Fact]
     public async Task APictureReplacesItsFrameInTheThemesSheet()
     {
-        var characters = _app.Window.CharactersTab;
-        var picture = Path.Combine(_app.Root, "luigi.png");
+        CharactersViewModel characters = _app.Window.CharactersTab;
+        string picture = Path.Combine(_app.Root, "luigi.png");
         SavePng(picture, 12, 16);
         _app.Files.Paths.Enqueue(picture);
 
@@ -63,10 +64,10 @@ public sealed class CharacterSheetTests : IDisposable
     [Fact]
     public async Task TheFramesOfARowArePickedOnASpriteSheet()
     {
-        var characters = _app.Window.CharactersTab;
+        CharactersViewModel characters = _app.Window.CharactersTab;
         var picked = Enumerable.Range(0, 3).Select(index =>
         {
-            var path = Path.Combine(_app.Root, $"picked{index}.png");
+            string path = Path.Combine(_app.Root, $"picked{index}.png");
             SavePng(path, 16, 16, (2, 2, 10, 14));
             return path;
         }).ToList();
@@ -84,19 +85,19 @@ public sealed class CharacterSheetTests : IDisposable
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         using var bitmap = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
         bitmap.Erase(SKColors.Transparent);
-        foreach (var (x, y, w, h) in inked.Length == 0 ? [(0, 0, width, height)] : inked)
+        foreach ((int x, int y, int w, int h) in inked.Length == 0 ? [(0, 0, width, height)] : inked)
         {
-            for (var row = y; row < y + h; row++)
+            for (int row = y; row < y + h; row++)
             {
-                for (var column = x; column < x + w; column++)
+                for (int column = x; column < x + w; column++)
                 {
                     bitmap.SetPixel(column, row, SKColors.Green);
                 }
             }
         }
 
-        using var png = bitmap.Encode(SKEncodedImageFormat.Png, 100);
-        using var file = File.Create(path);
+        using SKData png = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+        using FileStream file = File.Create(path);
         png.SaveTo(file);
     }
 }

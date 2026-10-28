@@ -10,10 +10,10 @@ internal static class SceneJson
     public static (ThemeLayer Layer, JsonObject Scene, JsonObject Root) OpenScene(string themeDraftPath, string? baseUiPath, string sceneResourcePath)
     {
         var layer = new ThemeLayer(themeDraftPath, baseUiPath);
-        var sourcePath = layer.Resolve(sceneResourcePath)
+        string sourcePath = layer.Resolve(sceneResourcePath)
             ?? throw new FileNotFoundException($"Scene not found: resources{sceneResourcePath}");
-        var scene = ParseScene(sourcePath);
-        var root = scene["rootWorldNode"] as JsonObject
+        JsonObject scene = ParseScene(sourcePath);
+        JsonObject root = scene["rootWorldNode"] as JsonObject
             ?? throw new InvalidDataException($"{Path.GetFileName(sourcePath)} has no rootWorldNode.");
         return (layer, scene, root);
     }
@@ -74,7 +74,7 @@ internal static class SceneJson
         }
 
         var manifest = DependencyManifest.Load(layer);
-        foreach (var (textureId, count) in counts)
+        foreach ((string? textureId, int count) in counts)
         {
             manifest.ChangeReferenceCount(DependencyManifest.Scene, sceneResourcePath, textureId, sign * count);
         }
@@ -97,7 +97,7 @@ internal static class SceneJson
     public static IEnumerable<JsonObject> Nodes(JsonObject node)
     {
         yield return node;
-        foreach (var descendant in (node["children"] as JsonArray ?? []).OfType<JsonObject>().SelectMany(Nodes))
+        foreach (JsonObject? descendant in (node["children"] as JsonArray ?? []).OfType<JsonObject>().SelectMany(Nodes))
         {
             yield return descendant;
         }
@@ -112,13 +112,13 @@ internal static class SceneJson
     public static IEnumerable<JsonNode> Descendants(JsonNode node)
     {
         yield return node;
-        var children = node switch
+        IEnumerable<JsonNode?> children = node switch
         {
             JsonObject json => json.Select(field => field.Value),
             JsonArray array => array.AsEnumerable(),
             _ => [],
         };
-        foreach (var descendant in children.OfType<JsonNode>().SelectMany(Descendants))
+        foreach (JsonNode? descendant in children.OfType<JsonNode>().SelectMany(Descendants))
         {
             yield return descendant;
         }
@@ -139,8 +139,8 @@ internal static class SceneJson
     public static string UniqueName(JsonArray siblings, string name)
     {
         var taken = siblings.OfType<JsonObject>().Select(sibling => String(sibling["name"])).OfType<string>().ToHashSet(StringComparer.Ordinal);
-        var unique = name;
-        for (var number = 2; taken.Contains(unique); number++)
+        string unique = name;
+        for (int number = 2; taken.Contains(unique); number++)
         {
             unique = $"{name} {number.ToString(CultureInfo.InvariantCulture)}";
         }
@@ -150,13 +150,13 @@ internal static class SceneJson
 
     public static string ChildPath(string parentPath, int index)
     {
-        var text = index.ToString(CultureInfo.InvariantCulture);
+        string text = index.ToString(CultureInfo.InvariantCulture);
         return parentPath.Length == 0 ? text : $"{parentPath}/{text}";
     }
 
     public static string SafeFileName(string name)
     {
-        var safe = new string(name.ToLowerInvariant().Select(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-' ? character : '_').ToArray()).Trim('_');
+        string safe = new string(name.ToLowerInvariant().Select(character => char.IsAsciiLetterOrDigit(character) || character is '_' or '-' ? character : '_').ToArray()).Trim('_');
         return safe.Length == 0 ? "image" : safe;
     }
 
@@ -170,11 +170,11 @@ internal static class SceneJson
 
     public static JsonObject? FindNode(JsonObject? root, string path)
     {
-        var node = root;
-        foreach (var part in path.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        JsonObject? node = root;
+        foreach (string part in path.Split('/', StringSplitOptions.RemoveEmptyEntries))
         {
             if (node?["children"] is not JsonArray children
-                || !int.TryParse(part, NumberStyles.None, CultureInfo.InvariantCulture, out var index)
+                || !int.TryParse(part, NumberStyles.None, CultureInfo.InvariantCulture, out int index)
                 || index >= children.Count)
             {
                 return null;
@@ -206,16 +206,16 @@ internal static class SceneJson
 
     public static double? Double(JsonNode? value)
     {
-        return value is JsonValue json && json.TryGetValue<double>(out var number) ? number : null;
+        return value is JsonValue json && json.TryGetValue<double>(out double number) ? number : null;
     }
 
     public static bool? Bool(JsonNode? value)
     {
-        return value is JsonValue json && json.TryGetValue<bool>(out var flag) ? flag : null;
+        return value is JsonValue json && json.TryGetValue<bool>(out bool flag) ? flag : null;
     }
 
     public static string? String(JsonNode? value)
     {
-        return value is JsonValue json && json.TryGetValue<string>(out var text) ? text : null;
+        return value is JsonValue json && json.TryGetValue<string>(out string? text) ? text : null;
     }
 }

@@ -205,13 +205,13 @@ public sealed partial class ScenesViewModel : ViewModelBase
             return;
         }
 
-        var draftPath = _session.Draft.DraftPath;
-        var parentPath = NewNodeParentPath;
-        var name = Path.GetFileNameWithoutExtension(imagePath);
+        string draftPath = _session.Draft.DraftPath;
+        string parentPath = NewNodeParentPath;
+        string name = Path.GetFileNameWithoutExtension(imagePath);
         string? nodePath = null;
         if (await _errorHandler.TryRunAsync($"Cannot add {Path.GetFileName(imagePath)}", () =>
         {
-            var textureId = _sceneEditor.ImportTexture(draftPath, _session.BaseUiPath, imagePath);
+            string textureId = _sceneEditor.ImportTexture(draftPath, _session.BaseUiPath, imagePath);
             nodePath = _sceneEditor.AddImageNode(draftPath, _session.BaseUiPath, scene.ResourcePath, parentPath, textureId, name);
             return Task.CompletedTask;
         }))
@@ -228,7 +228,7 @@ public sealed partial class ScenesViewModel : ViewModelBase
             return;
         }
 
-        var draftPath = _session.Draft.DraftPath;
+        string draftPath = _session.Draft.DraftPath;
         string? copyPath = null;
         if (await _errorHandler.TryRunAsync($"Cannot duplicate {node.Name}", () =>
         {
@@ -248,8 +248,8 @@ public sealed partial class ScenesViewModel : ViewModelBase
             return;
         }
 
-        var descendants = node.SelfAndDescendants().Count() - 1;
-        var message = descendants == 0
+        int descendants = node.SelfAndDescendants().Count() - 1;
+        string message = descendants == 0
             ? $"Delete {node.Name} from {scene.FileName}?"
             : $"Delete {node.Name} and the {descendants} node{(descendants == 1 ? "" : "s")} inside it from {scene.FileName}?";
         if (!await _dialogs.ShowConfirmationAsync("Delete node", message + " Only this theme's copy of the scene changes.", acceptButtonText: "Delete", isDestructive: true))
@@ -257,8 +257,8 @@ public sealed partial class ScenesViewModel : ViewModelBase
             return;
         }
 
-        var draftPath = _session.Draft.DraftPath;
-        var parentPath = node.Path.LastIndexOf('/') is var slash and >= 0 ? node.Path[..slash] : "";
+        string draftPath = _session.Draft.DraftPath;
+        string parentPath = node.Path.LastIndexOf('/') is var slash and >= 0 ? node.Path[..slash] : "";
         if (await _errorHandler.TryRunAsync($"Cannot delete {node.Name}", () =>
         {
             _sceneEditor.DeleteNode(draftPath, _session.BaseUiPath, scene.ResourcePath, node.Path);
@@ -278,7 +278,7 @@ public sealed partial class ScenesViewModel : ViewModelBase
             return;
         }
 
-        var draftPath = _session.Draft.DraftPath;
+        string draftPath = _session.Draft.DraftPath;
         if (await _errorHandler.TryRunAsync($"Cannot move {node.Name}", () =>
         {
             _sceneEditor.EditNode(draftPath, _session.BaseUiPath, scene.ResourcePath, node.Path, new SceneNodeEdit(X: move.X, Y: move.Y));
@@ -297,7 +297,7 @@ public sealed partial class ScenesViewModel : ViewModelBase
             return;
         }
 
-        var visual = node.Visual;
+        SceneVisual? visual = node.Visual;
         var edit = new SceneNodeEdit(
             Name: SceneNodeName != node.Name ? SceneNodeName : null,
             X: Changed(SceneNodeX, node.Transform.X),
@@ -313,8 +313,8 @@ public sealed partial class ScenesViewModel : ViewModelBase
             return;
         }
 
-        var draftPath = _session.Draft.DraftPath;
-        var name = SceneNodeName;
+        string draftPath = _session.Draft.DraftPath;
+        string name = SceneNodeName;
         if (await _errorHandler.TryRunAsync($"Cannot change {node.Name}", () =>
         {
             _sceneEditor.EditNode(draftPath, _session.BaseUiPath, scene.ResourcePath, node.Path, edit);
@@ -336,7 +336,7 @@ public sealed partial class ScenesViewModel : ViewModelBase
     [RelayCommand]
     private void ResetSceneNodeFields()
     {
-        var node = SelectedSceneNode;
+        SceneNode? node = SelectedSceneNode;
         SceneNodeName = node?.Name ?? "";
         SceneNodeVisible = node?.Visible ?? false;
         SceneNodeX = node is null ? null : (decimal)node.Transform.X;
@@ -361,11 +361,11 @@ public sealed partial class ScenesViewModel : ViewModelBase
             return;
         }
 
-        var draftPath = _session.Draft.DraftPath;
+        string draftPath = _session.Draft.DraftPath;
         if (await _errorHandler.TryRunAsync($"Cannot replace {texture.Name}", () =>
         {
-            var target = Path.Combine(draftPath, "resources", texture.RelativePath);
-            var definition = new[] { draftPath, _session.BaseUiPath }
+            string target = Path.Combine(draftPath, "resources", texture.RelativePath);
+            string? definition = new[] { draftPath, _session.BaseUiPath }
                 .Where(root => root is not null)
                 .Select(root => Path.Combine(root!, "resources", Path.ChangeExtension(texture.RelativePath, ".json")))
                 .FirstOrDefault(File.Exists);
@@ -384,7 +384,7 @@ public sealed partial class ScenesViewModel : ViewModelBase
         // spriteId is "<atlas texture id>.<sprite name>"
         if (SelectedSceneNode?.Visual is { Kind: SceneVisualKind.Sprite, SpriteId: { } spriteId } && spriteId.IndexOf('.') is var dot and > 0)
         {
-            var textureId = spriteId[..dot];
+            string textureId = spriteId[..dot];
             SpriteRequested?.Invoke(this, new SceneSpriteRequest(textureId, spriteId[(dot + 1)..], _images.TextureImagePaths.GetValueOrDefault(textureId)));
         }
     }
@@ -408,9 +408,9 @@ public sealed partial class ScenesViewModel : ViewModelBase
             return;
         }
 
-        var draftPath = _session.Draft.DraftPath;
-        var previousScene = SelectedSceneResource;
-        var previousPath = SelectedScenePath;
+        string draftPath = _session.Draft.DraftPath;
+        string? previousScene = SelectedSceneResource;
+        string? previousPath = SelectedScenePath;
         SceneResources = _sceneEditor.GetScenes(draftPath, _session.BaseUiPath);
         SelectedSceneResource = null;
         SelectedSceneResource = previousScene is not null && SceneResources.Contains(previousScene)
@@ -534,7 +534,7 @@ public sealed partial class ScenesViewModel : ViewModelBase
     private static void AddRows(SceneNode node, int depth, List<SceneTreeRow> rows)
     {
         rows.Add(new SceneTreeRow(node, depth));
-        foreach (var child in node.Children)
+        foreach (SceneNode child in node.Children)
         {
             AddRows(child, depth + 1, rows);
         }

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using MiniThemeStudio.App.Tests.TestDoubles;
+using MiniThemeStudio.App.ViewModels;
 using MiniThemeStudio.Core.Audio;
 using MiniThemeStudio.Core.Settings;
 using MiniThemeStudio.Infrastructure.Audio;
@@ -12,7 +13,7 @@ public sealed class AudioViewModelTests : IDisposable
 
     public AudioViewModelTests()
     {
-        var basePath = _app.CreateBase();
+        string basePath = _app.CreateBase();
         TestApp.WriteBytes(basePath, "resources/sounds/hvc/bgm_home.wav", WavAudioReader.CreateMinimalPcm16Wav(44100, 2, 441));
         _app.Window.OpenTheme(_app.CreateTheme(), basePath);
     }
@@ -24,7 +25,7 @@ public sealed class AudioViewModelTests : IDisposable
     [Fact]
     public void ListsTheHomeAndBootMusic()
     {
-        var audio = _app.Window.AudioTab;
+        AudioViewModel audio = _app.Window.AudioTab;
 
         Assert.Equal(["bgm_home", "bgm_boot"], audio.BgmTracks.Select(track => track.Name));
         Assert.Equal("bgm_home", audio.SelectedBgmTrack?.Name);
@@ -35,8 +36,8 @@ public sealed class AudioViewModelTests : IDisposable
     [Fact]
     public async Task AReplacedTrackCanBeRevertedToTheBase()
     {
-        var audio = _app.Window.AudioTab;
-        var replacement = Path.Combine(_app.Root, "song.wav");
+        AudioViewModel audio = _app.Window.AudioTab;
+        string replacement = Path.Combine(_app.Root, "song.wav");
         File.WriteAllBytes(replacement, WavAudioReader.CreateMinimalPcm16Wav(44100, 2, 441));
         _app.Files.Paths.Enqueue(replacement);
 
@@ -56,7 +57,7 @@ public sealed class AudioViewModelTests : IDisposable
     [Fact]
     public async Task SilencingTheBootMusicWritesAnEmptyWav()
     {
-        var audio = _app.Window.AudioTab;
+        AudioViewModel audio = _app.Window.AudioTab;
 
         await audio.MuteTrackCommand.ExecuteAsync("bgm_boot");
 
@@ -68,11 +69,11 @@ public sealed class AudioViewModelTests : IDisposable
     [Fact]
     public async Task ConvertingWithoutFFmpegSaysWhatIsMissing()
     {
-        var audio = _app.Window.AudioTab;
+        AudioViewModel audio = _app.Window.AudioTab;
 
         await audio.ConvertTrackCommand.ExecuteAsync("bgm_home");
 
-        var (exception, failure) = Assert.Single(_app.Errors.Failures);
+        (Exception? exception, string? failure) = Assert.Single(_app.Errors.Failures);
         Assert.Equal("Cannot convert bgm_home", failure);
         Assert.Equal("FFmpeg executable is not configured in Settings.", exception.Message);
     }
@@ -80,9 +81,9 @@ public sealed class AudioViewModelTests : IDisposable
     [Fact]
     public void TheOptionsAreSavedAsAppSettingsAndValidateTheThemeAgain()
     {
-        var audio = _app.Window.AudioTab;
-        var settings = _app.Services.GetRequiredService<IAppSettingsStore>();
-        var changes = 0;
+        AudioViewModel audio = _app.Window.AudioTab;
+        IAppSettingsStore settings = _app.Services.GetRequiredService<IAppSettingsStore>();
+        int changes = 0;
         audio.OptionsChanged += (_, _) => changes++;
 
         audio.IsBgmMono = true;

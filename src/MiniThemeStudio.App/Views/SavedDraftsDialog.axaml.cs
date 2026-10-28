@@ -29,7 +29,7 @@ public sealed partial class SavedDraftsDialog : Window
         InitializeComponent();
         DraftsListBox.SelectionChanged += (_, _) =>
         {
-            var hasSelection = DraftsListBox.SelectedItem is SavedDraft;
+            bool hasSelection = DraftsListBox.SelectedItem is SavedDraft;
             OpenButton.IsEnabled = hasSelection;
             DeleteButton.IsEnabled = hasSelection;
         };
@@ -38,7 +38,7 @@ public sealed partial class SavedDraftsDialog : Window
 
     private void Refresh()
     {
-        var drafts = _listDrafts();
+        IReadOnlyList<SavedDraft> drafts = _listDrafts();
         DraftsListBox.ItemsSource = drafts;
         DraftsListBox.SelectedIndex = drafts.Count > 0 ? 0 : -1;
         StatusText.Text = drafts.Count == 0 ? "No saved drafts yet. Use Save draft in the header." : "";
@@ -64,7 +64,7 @@ public sealed partial class SavedDraftsDialog : Window
             return;
         }
 
-        var confirmed = await _dialogService.ShowConfirmationAsync(
+        bool confirmed = await _dialogService.ShowConfirmationAsync(
             "Delete saved draft?",
             $"'{draft.Name}' saved at {draft.SavedAt:g} will be removed. The theme folder itself is not touched.",
             DialogVariant.Warning,

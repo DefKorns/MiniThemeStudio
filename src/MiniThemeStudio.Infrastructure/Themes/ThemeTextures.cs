@@ -14,13 +14,13 @@ internal static class ThemeTextures
     {
         ArgumentNullException.ThrowIfNull(layer);
         ArgumentNullException.ThrowIfNull(manifest);
-        var (width, height) = ReadSize(sourceImagePath)
+        (int width, int height) = ReadSize(sourceImagePath)
             ?? throw new InvalidDataException($"{Path.GetFileName(sourceImagePath)} is not a valid PNG image.");
 
-        var definitionResourcePath = Path.ChangeExtension(resourcePath, ".json");
-        var textureId = manifest.AddTexture(resourcePath, definitionResourcePath);
+        string definitionResourcePath = Path.ChangeExtension(resourcePath, ".json");
+        string textureId = manifest.AddTexture(resourcePath, definitionResourcePath);
 
-        var imagePath = layer.ThemeResourceFile(resourcePath);
+        string imagePath = layer.ThemeResourceFile(resourcePath);
         Directory.CreateDirectory(Path.GetDirectoryName(imagePath)!);
         File.Copy(sourceImagePath, imagePath, false);
         layer.WriteThemeResource(
@@ -38,8 +38,8 @@ internal static class ThemeTextures
     {
         ArgumentNullException.ThrowIfNull(layer);
         ArgumentNullException.ThrowIfNull(manifest);
-        var resourcePath = $"{folder}/{name}.png";
-        for (var number = 2; manifest.Resources.Any(resource => resource.Path == resourcePath) || layer.Resolve(resourcePath) is not null; number++)
+        string resourcePath = $"{folder}/{name}.png";
+        for (int number = 2; manifest.Resources.Any(resource => resource.Path == resourcePath) || layer.Resolve(resourcePath) is not null; number++)
         {
             resourcePath = $"{folder}/{name}_{number.ToString(CultureInfo.InvariantCulture)}.png";
         }
@@ -58,11 +58,11 @@ internal static class ThemeTextures
             throw new FileNotFoundException($"The theme has no image at resources{imageResourcePath}.");
         }
 
-        var definitionPath = layer.ResolveInTheme(Path.ChangeExtension(imageResourcePath, ".json"));
+        string? definitionPath = layer.ResolveInTheme(Path.ChangeExtension(imageResourcePath, ".json"));
         if (layer.ResolveInBase(imageResourcePath) is null && DependencyManifest.TryLoad(layer) is { } manifest
             && manifest.Resources.FirstOrDefault(resource => resource.Type == DependencyManifest.TextureResource && resource.Path == imageResourcePath) is { } texture)
         {
-            var users = manifest.UsersOf(texture.Id);
+            IReadOnlyList<string> users = manifest.UsersOf(texture.Id);
             if (users.Count > 0)
             {
                 throw new InvalidDataException($"{Path.GetFileName(imageResourcePath)} is still drawn by {string.Join(", ", users.Select(Path.GetFileName))}.");
@@ -89,7 +89,7 @@ internal static class ThemeTextures
             return null;
         }
 
-        var definitionPath = manifest.OfType(DependencyManifest.SpriteSheet)
+        string? definitionPath = manifest.OfType(DependencyManifest.SpriteSheet)
             .Where(sheet => sheet.References.Any(reference => reference.Id == textureId))
             .Select(sheet => sheet.Path)
             .Append(Path.ChangeExtension(imageResourcePath, ".json"))
@@ -98,8 +98,8 @@ internal static class ThemeTextures
             .FirstOrDefault(path => path is not null);
         if (definitionPath is not null
             && JsonNode.Parse(File.ReadAllText(definitionPath))?["texture"] is JsonObject texture
-            && texture["width"] is JsonValue width && width.TryGetValue<int>(out var definedWidth) && definedWidth > 0
-            && texture["height"] is JsonValue height && height.TryGetValue<int>(out var definedHeight) && definedHeight > 0)
+            && texture["width"] is JsonValue width && width.TryGetValue<int>(out int definedWidth) && definedWidth > 0
+            && texture["height"] is JsonValue height && height.TryGetValue<int>(out int definedHeight) && definedHeight > 0)
         {
             return (definedWidth, definedHeight);
         }
@@ -110,7 +110,7 @@ internal static class ThemeTextures
     private static (int Width, int Height)? ReadSize(string imagePath)
     {
         // the header is enough: the pixels are not decoded
-        using var codec = File.Exists(imagePath) ? SKCodec.Create(imagePath) : null;
+        using SKCodec? codec = File.Exists(imagePath) ? SKCodec.Create(imagePath) : null;
         return codec is { Info: { Width: > 0, Height: > 0 } info } ? (info.Width, info.Height) : null;
     }
 }

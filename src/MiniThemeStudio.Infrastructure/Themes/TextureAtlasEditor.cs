@@ -9,9 +9,9 @@ public sealed class TextureAtlasEditor : ITextureAtlasEditor
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        using var atlas = DecodeBitmap(request.AtlasImagePath, "atlas");
-        using var replacement = DecodeBitmap(request.ReplacementImagePath, "replacement");
-        var frame = request.Sprite.Frame;
+        using SKBitmap atlas = DecodeBitmap(request.AtlasImagePath, "atlas");
+        using SKBitmap replacement = DecodeBitmap(request.ReplacementImagePath, "replacement");
+        AtlasRectangle frame = request.Sprite.Frame;
 
         if (replacement.Width != frame.Width || replacement.Height != frame.Height)
         {
@@ -40,7 +40,7 @@ public sealed class TextureAtlasEditor : ITextureAtlasEditor
             canvas.Flush();
         }
 
-        var temporaryPath = request.AtlasImagePath + $".{Guid.NewGuid():N}.tmp";
+        string temporaryPath = request.AtlasImagePath + $".{Guid.NewGuid():N}.tmp";
 
         try
         {
@@ -74,9 +74,9 @@ public sealed class TextureAtlasEditor : ITextureAtlasEditor
     private static void SavePng(SKBitmap bitmap, string path)
     {
         using var image = SKImage.FromBitmap(bitmap);
-        using var data = image.Encode(SKEncodedImageFormat.Png, 100)
+        using SKData data = image.Encode(SKEncodedImageFormat.Png, 100)
             ?? throw new InvalidDataException("The atlas could not be encoded as PNG.");
-        using var stream = File.Create(path);
+        using FileStream stream = File.Create(path);
         data.SaveTo(stream);
     }
 }

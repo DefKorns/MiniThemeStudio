@@ -1,4 +1,5 @@
 using MiniThemeStudio.App.Tests.TestDoubles;
+using MiniThemeStudio.App.ViewModels;
 using MiniThemeStudio.Core.Fonts;
 using MiniThemeStudio.Infrastructure.Fonts;
 using SkiaSharp;
@@ -11,7 +12,7 @@ public sealed class FontsViewModelTests : IDisposable
 
     public FontsViewModelTests()
     {
-        var basePath = _app.CreateBase();
+        string basePath = _app.CreateBase();
         MiniFontWriter.Write(SmallFont(), Path.Combine(Directory.CreateDirectory(Path.Combine(basePath, "resources", "fonts")).FullName, "s.fnt"));
         _app.Window.OpenTheme(_app.CreateTheme(), basePath);
     }
@@ -24,7 +25,7 @@ public sealed class FontsViewModelTests : IDisposable
     [Fact]
     public void LoadsTheFontOfTheBaseWithItsPreviews()
     {
-        var fonts = _app.Window.FontsTab;
+        FontsViewModel fonts = _app.Window.FontsTab;
 
         Assert.Equal("Small UI Font (s)", fonts.SelectedFont?.DisplayName);
         Assert.Equal(4, fonts.FontGlyphs.Count);
@@ -41,7 +42,7 @@ public sealed class FontsViewModelTests : IDisposable
     [Fact]
     public void GlyphsCanBeFoundByCharacterOrCode()
     {
-        var fonts = _app.Window.FontsTab;
+        FontsViewModel fonts = _app.Window.FontsTab;
 
         fonts.GlyphSearchText = "Ж";
         Assert.Equal('Ж', Assert.Single(fonts.FilteredFontGlyphs).Character);
@@ -56,7 +57,7 @@ public sealed class FontsViewModelTests : IDisposable
     [Fact]
     public async Task FillingAddsTheMissingCharactersToADraftCopy()
     {
-        var fonts = _app.Window.FontsTab;
+        FontsViewModel fonts = _app.Window.FontsTab;
 
         await fonts.CompleteFontCommand.ExecuteAsync(null);
 
@@ -70,9 +71,9 @@ public sealed class FontsViewModelTests : IDisposable
     [Fact]
     public async Task ExportingWritesTheFontAndItsTexture()
     {
-        var fonts = _app.Window.FontsTab;
-        var fontTarget = Path.Combine(_app.Root, "s_export.fnt");
-        var textureTarget = Path.Combine(_app.Root, "s_texture.png");
+        FontsViewModel fonts = _app.Window.FontsTab;
+        string fontTarget = Path.Combine(_app.Root, "s_export.fnt");
+        string textureTarget = Path.Combine(_app.Root, "s_texture.png");
         _app.Files.Paths.Enqueue(fontTarget);
         _app.Files.Paths.Enqueue(textureTarget);
 
@@ -88,10 +89,10 @@ public sealed class FontsViewModelTests : IDisposable
     public async Task TheNesFontsInTheConsolesFolderAreListedAndAPlaceholderCanBeFilled()
     {
         // the NES keeps l, m and s in fonts/nes; its title font is a 1 x 1 placeholder with a space only
-        var basePath = Path.Combine(_app.Root, "base");
+        string basePath = Path.Combine(_app.Root, "base");
         MiniFontWriter.Write(SmallFont(), Path.Combine(Directory.CreateDirectory(Path.Combine(basePath, "resources", "fonts", "nes")).FullName, "m.fnt"));
         using (var pixel = new SKBitmap(1, 1))
-        using (var png = SKImage.FromBitmap(pixel).Encode(SKEncodedImageFormat.Png, 100))
+        using (SKData png = SKImage.FromBitmap(pixel).Encode(SKEncodedImageFormat.Png, 100))
         {
             MiniFontWriter.Write(new MiniFont(
                 formatType: 1,
@@ -104,7 +105,7 @@ public sealed class FontsViewModelTests : IDisposable
         }
 
         _app.Session.Reload();
-        var fonts = _app.Window.FontsTab;
+        FontsViewModel fonts = _app.Window.FontsTab;
 
         Assert.Equal(["title", "m", "s"], fonts.Fonts.Select(font => font.Name));
         Assert.Equal("fonts/medium.fnt", fonts.Fonts.Single(font => font.Name == "m").RelativePath);
@@ -120,12 +121,12 @@ public sealed class FontsViewModelTests : IDisposable
     public void AThemesOwnFontsFolderReplacesTheBaseFonts()
     {
         // as in the om_themes: fonts/small.fnt beside resources
-        var small = SmallFont();
+        MiniFont small = SmallFont();
         MiniFontWriter.Write(new MiniFont(small.FormatType, small.Info, small.Common, small.PageNames, small.Glyphs.Take(2).ToList(), small.KerningPairs, small.TexturePngBytes), DraftFont);
         _app.Session.Reload();
-        var fonts = _app.Window.FontsTab;
+        FontsViewModel fonts = _app.Window.FontsTab;
 
-        var font = fonts.Fonts.Single(candidate => candidate.Name == "s");
+        FontAsset font = fonts.Fonts.Single(candidate => candidate.Name == "s");
         Assert.False(font.IsFromBaseUi);
         Assert.Equal(2, font.GlyphCount);
         Assert.Equal(DraftFont, font.FilePath);
@@ -134,11 +135,11 @@ public sealed class FontsViewModelTests : IDisposable
     [Fact]
     public async Task AFontAnOlderDraftKeptInResourcesMovesToTheFontsFolder()
     {
-        var older = Path.Combine(_app.Window.CurrentDraftPath!, "resources", "fonts", "s.fnt");
+        string older = Path.Combine(_app.Window.CurrentDraftPath!, "resources", "fonts", "s.fnt");
         Directory.CreateDirectory(Path.GetDirectoryName(older)!);
         MiniFontWriter.Write(SmallFont(), older);
         _app.Session.Reload();
-        var fonts = _app.Window.FontsTab;
+        FontsViewModel fonts = _app.Window.FontsTab;
 
         await fonts.CompleteFontCommand.ExecuteAsync(null);
 
@@ -150,7 +151,7 @@ public sealed class FontsViewModelTests : IDisposable
     private static MiniFont SmallFont()
     {
         using var bitmap = new SKBitmap(64, 64);
-        using var png = SKImage.FromBitmap(bitmap).Encode(SKEncodedImageFormat.Png, 100);
+        using SKData png = SKImage.FromBitmap(bitmap).Encode(SKEncodedImageFormat.Png, 100);
         return new MiniFont(
             formatType: 1,
             info: new FontInfo("Small", 28, false, false, true, false, 0, 100, 0, 0, 0, 0, 0, 0, 0, 0),

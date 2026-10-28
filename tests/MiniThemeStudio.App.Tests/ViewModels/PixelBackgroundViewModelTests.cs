@@ -13,7 +13,7 @@ public sealed class PixelBackgroundViewModelTests : IDisposable
 
     public PixelBackgroundViewModelTests()
     {
-        var basePath = _app.CreateBase();
+        string basePath = _app.CreateBase();
         Directory.Delete(Path.Combine(basePath, "resources", "layout", "asset", "sprite", "wallpaper"), true);
         TestApp.WriteBytes(basePath, "resources/scripts/colors_nes.lua", PaletteFixtures.SampleBytes);
         SavePng(Path.Combine(basePath, "resources", "sprites", "wallpaper-dots.png"), 32, 32);
@@ -35,7 +35,7 @@ public sealed class PixelBackgroundViewModelTests : IDisposable
 
         // the sample palette has bg_base = {0.5, 0.25, 0.75, 1}
         Assert.Equal(["Background", "Mario's colour", "Luigi's colour"], Background.Colors.Select(row => row.Label));
-        var color = Background.Colors[0];
+        BackgroundColorRow color = Background.Colors[0];
         Assert.Equal("Background", color.Label);
         Assert.Equal(Color.FromRgb(128, 64, 191), color.Saved);
     }
@@ -72,16 +72,16 @@ public sealed class PixelBackgroundViewModelTests : IDisposable
     [Fact]
     public async Task APictureKeepsItsSize()
     {
-        var wrong = Path.Combine(_app.Root, "dot.png");
+        string wrong = Path.Combine(_app.Root, "dot.png");
         SavePng(wrong, 16, 16);
         _app.Files.Paths.Enqueue(wrong);
 
         await Background.ReplaceImageCommand.ExecuteAsync(Background.Images[0]);
 
-        var (exception, _) = Assert.Single(_app.Errors.Failures);
+        (Exception? exception, string _) = Assert.Single(_app.Errors.Failures);
         Assert.Equal("Dot must be 32 × 32 pixels, like the image it replaces; dot.png is 16 × 16.", exception.Message);
 
-        var right = Path.Combine(_app.Root, "dot32.png");
+        string right = Path.Combine(_app.Root, "dot32.png");
         SavePng(right, 32, 32);
         _app.Files.Paths.Enqueue(right);
         await Background.ReplaceImageCommand.ExecuteAsync(Background.Images[0]);
@@ -95,8 +95,8 @@ public sealed class PixelBackgroundViewModelTests : IDisposable
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         using var bitmap = new SKBitmap(width, height);
         bitmap.Erase(SKColors.White);
-        using var png = bitmap.Encode(SKEncodedImageFormat.Png, 100);
-        using var file = File.Create(path);
+        using SKData png = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+        using FileStream file = File.Create(path);
         png.SaveTo(file);
     }
 }

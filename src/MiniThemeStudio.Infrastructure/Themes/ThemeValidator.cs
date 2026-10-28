@@ -38,8 +38,8 @@ public sealed class ThemeValidator(IThemeResourceIndexer? resourceIndexer = null
             issues.Add(new ThemeValidationIssue("No sprite atlas found (resources/sprites/packed.json, nes.json or hvc.json).", true));
         }
 
-        var themeSpritesPath = Path.GetFullPath(Path.Combine(themeDraftPath, "resources", "sprites"));
-        foreach (var atlas in atlases)
+        string themeSpritesPath = Path.GetFullPath(Path.Combine(themeDraftPath, "resources", "sprites"));
+        foreach (TextureAtlas atlas in atlases)
         {
             if (!Path.GetFullPath(atlas.DefinitionPath).StartsWith(themeSpritesPath, StringComparison.OrdinalIgnoreCase))
             {
@@ -57,14 +57,14 @@ public sealed class ThemeValidator(IThemeResourceIndexer? resourceIndexer = null
         }
 
         // Validate wallpapers if present
-        var wallpaperDir = Path.Combine(themeDraftPath, "resources", "layout", "asset", "sprite", "wallpaper");
+        string wallpaperDir = Path.Combine(themeDraftPath, "resources", "layout", "asset", "sprite", "wallpaper");
         if (Directory.Exists(wallpaperDir))
         {
             ValidateWallpapers(wallpaperDir, issues);
         }
 
         // Validate fonts if present
-        foreach (var fontsDir in new[] { Path.Combine(themeDraftPath, ThemeFonts.Folder), Path.Combine(themeDraftPath, "resources", "fonts") })
+        foreach (string? fontsDir in new[] { Path.Combine(themeDraftPath, ThemeFonts.Folder), Path.Combine(themeDraftPath, "resources", "fonts") })
         {
             if (Directory.Exists(fontsDir))
             {
@@ -73,7 +73,7 @@ public sealed class ThemeValidator(IThemeResourceIndexer? resourceIndexer = null
         }
 
         // Validate sounds / BGM if present
-        var soundsDir = Path.Combine(themeDraftPath, "resources", "sounds");
+        string soundsDir = Path.Combine(themeDraftPath, "resources", "sounds");
         if (Directory.Exists(soundsDir))
         {
             if (options.IncludeBgm)
@@ -93,8 +93,8 @@ public sealed class ThemeValidator(IThemeResourceIndexer? resourceIndexer = null
         }
 
         // Check if delta package
-        var initJson = Path.Combine(themeDraftPath, "init.json");
-        var depsJson = Path.Combine(themeDraftPath, "dependencies.json");
+        string initJson = Path.Combine(themeDraftPath, "init.json");
+        string depsJson = Path.Combine(themeDraftPath, "dependencies.json");
         if (!File.Exists(initJson) || !File.Exists(depsJson))
         {
             issues.Add(new ThemeValidationIssue("Theme is an incomplete delta mod. System files will be inherited from the console stock firmware.", false));
@@ -102,31 +102,31 @@ public sealed class ThemeValidator(IThemeResourceIndexer? resourceIndexer = null
 
         issues.AddRange(_resourceIndexer.Analyze(themeDraftPath, baseUiPath).Issues);
 
-        var isValid = issues.TrueForAll(i => !i.IsError);
+        bool isValid = issues.TrueForAll(i => !i.IsError);
         return new ThemeValidationResult(isValid, issues);
     }
 
     private static void ValidateFonts(string fontsDir, List<ThemeValidationIssue> issues)
     {
-        foreach (var file in Directory.EnumerateFiles(fontsDir, "*.*"))
+        foreach (string file in Directory.EnumerateFiles(fontsDir, "*.*"))
         {
-            var ext = Path.GetExtension(file);
+            string ext = Path.GetExtension(file);
             if (!ext.Equals(".fnt", StringComparison.OrdinalIgnoreCase) && !ext.Equals(".font", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            var fontName = Path.GetFileNameWithoutExtension(file);
+            string fontName = Path.GetFileNameWithoutExtension(file);
             if (FirmwareFonts.IsFirmwareOnly(fontName))
             {
                 continue;
             }
 
-            var fileName = Path.GetFileName(file);
+            string fileName = Path.GetFileName(file);
             try
             {
-                var font = MiniFontReader.Read(file);
-                var validation = FontValidator.Validate(font);
+                MiniFont font = MiniFontReader.Read(file);
+                FontValidationResult validation = FontValidator.Validate(font);
 
                 if (!validation.HasBasicAscii)
                 {
@@ -164,9 +164,9 @@ public sealed class ThemeValidator(IThemeResourceIndexer? resourceIndexer = null
                 false));
         }
 
-        foreach (var sprite in atlas.Sprites)
+        foreach (SpriteRegion sprite in atlas.Sprites)
         {
-            var frame = sprite.Frame;
+            AtlasRectangle frame = sprite.Frame;
             if (frame.X < 0 || frame.Y < 0 || frame.X + frame.Width > bmp.Width || frame.Y + frame.Height > bmp.Height)
             {
                 issues.Add(new ThemeValidationIssue(
@@ -178,7 +178,7 @@ public sealed class ThemeValidator(IThemeResourceIndexer? resourceIndexer = null
 
     private static void ValidateWallpapers(string wallpaperDir, List<ThemeValidationIssue> issues)
     {
-        foreach (var png in Directory.EnumerateFiles(wallpaperDir, "*.png"))
+        foreach (string png in Directory.EnumerateFiles(wallpaperDir, "*.png"))
         {
             try
             {
@@ -200,23 +200,23 @@ public sealed class ThemeValidator(IThemeResourceIndexer? resourceIndexer = null
         var soundFiles = Directory.EnumerateFiles(soundsDir, "*.*", SearchOption.AllDirectories)
             .Where(f => Path.GetFileName(f).StartsWith("bgm_", StringComparison.OrdinalIgnoreCase))
             .ToList();
-        var ffmpegConfigured = !string.IsNullOrWhiteSpace(options.FFmpegPath) && File.Exists(options.FFmpegPath);
+        bool ffmpegConfigured = !string.IsNullOrWhiteSpace(options.FFmpegPath) && File.Exists(options.FFmpegPath);
 
-        foreach (var file in soundFiles)
+        foreach (string? file in soundFiles)
         {
-            var fileName = Path.GetFileName(file);
-            var isBgm = true;
+            string fileName = Path.GetFileName(file);
+            bool isBgm = true;
 
             if (!BgmAudioValidator.IsSupportedAudioFile(file))
             {
                 continue;
             }
 
-            var validation = BgmAudioValidator.Validate(file, isBgm ? options.BgmChannels : null);
+            BgmValidationResult validation = BgmAudioValidator.Validate(file, isBgm ? options.BgmChannels : null);
 
             if (validation.IsValid)
             {
-                foreach (var warning in validation.Warnings)
+                foreach (string warning in validation.Warnings)
                 {
                     issues.Add(new ThemeValidationIssue(warning, false));
                 }
@@ -240,11 +240,11 @@ public sealed class ThemeValidator(IThemeResourceIndexer? resourceIndexer = null
             }
             else
             {
-                foreach (var error in validation.Errors)
+                foreach (string error in validation.Errors)
                 {
                     issues.Add(new ThemeValidationIssue(error, true));
                 }
-                foreach (var warning in validation.Warnings)
+                foreach (string warning in validation.Warnings)
                 {
                     issues.Add(new ThemeValidationIssue(warning, false));
                 }

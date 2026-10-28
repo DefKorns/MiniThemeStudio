@@ -33,7 +33,7 @@ public sealed class DependencyManifestTests : IDisposable
     {
         var manifest = DependencyManifest.Load(Layer());
 
-        var scene = manifest.FindByPath(DependencyManifest.Scene, "/prefab/bg.scn")!;
+        ManifestResource scene = manifest.FindByPath(DependencyManifest.Scene, "/prefab/bg.scn")!;
         Assert.Equal("scene", scene.Id);
         Assert.Equal([new ManifestReference(WallId, 2), new ManifestReference("anim", 1)], scene.References);
         Assert.True(manifest.IsTexture(WallId));
@@ -60,11 +60,11 @@ public sealed class DependencyManifestTests : IDisposable
     {
         var manifest = DependencyManifest.Load(Layer());
 
-        var textureId = manifest.AddTexture("/layout/asset/sprite/wallpaper/wall_mid.png", "/layout/asset/sprite/wallpaper/wall_mid.json");
+        string textureId = manifest.AddTexture("/layout/asset/sprite/wallpaper/wall_mid.png", "/layout/asset/sprite/wallpaper/wall_mid.json");
 
         Assert.True(Guid.TryParse(textureId, out _));
         Assert.True(manifest.IsTexture(textureId));
-        var sheet = manifest.FindById($"sheet_{textureId}")!;
+        ManifestResource sheet = manifest.FindById($"sheet_{textureId}")!;
         Assert.Equal(DependencyManifest.SpriteSheet, sheet.Type);
         Assert.Equal([new ManifestReference(textureId, 1)], sheet.References);
         Assert.Throws<IOException>(() => manifest.AddTexture("/layout/asset/sprite/wallpaper/wall.png", "/x.json"));
@@ -116,7 +116,7 @@ public sealed class DependencyManifestTests : IDisposable
 
         manifest.Save(Layer());
 
-        var saved = JsonNode.Parse(File.ReadAllText(Path.Combine(_themePath, "dependencies.json")))!;
+        JsonNode saved = JsonNode.Parse(File.ReadAllText(Path.Combine(_themePath, "dependencies.json")))!;
         Assert.Equal("""[{"id":"1"}]""", saved["resourceGroups"]!.ToJsonString());
         Assert.True(saved["resources"]![0]!["custom"]!.GetValue<bool>());
         Assert.DoesNotContain("\"refCount\":3", File.ReadAllText(Path.Combine(_basePath, "dependencies.json")));

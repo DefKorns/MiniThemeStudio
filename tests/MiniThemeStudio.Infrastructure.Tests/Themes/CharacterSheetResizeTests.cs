@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using MiniThemeStudio.Core.Themes;
 using MiniThemeStudio.Infrastructure.Themes;
 using SkiaSharp;
 
@@ -13,7 +14,7 @@ public sealed class CharacterSheetResizeTests : IDisposable
 
     public CharacterSheetResizeTests()
     {
-        var sprites = Path.Combine(_basePath, "resources", "sprites");
+        string sprites = Path.Combine(_basePath, "resources", "sprites");
         Directory.CreateDirectory(sprites);
         using (var sheet = new SKBitmap(new SKImageInfo(128, 64, SKColorType.Rgba8888, SKAlphaType.Unpremul)))
         {
@@ -21,7 +22,7 @@ public sealed class CharacterSheetResizeTests : IDisposable
             Fill(sheet, 0, 1, 16, 16, SKColors.Red);
             Fill(sheet, 18, 1, 16, 16, SKColors.Green);
             Fill(sheet, 0, 35, 16, 16, SKColors.Yellow);
-            using var png = sheet.Encode(SKEncodedImageFormat.Png, 100);
+            using SKData png = sheet.Encode(SKEncodedImageFormat.Png, 100);
             File.WriteAllBytes(Path.Combine(sprites, "characters_sbm.png"), png.ToArray());
         }
 
@@ -39,7 +40,7 @@ public sealed class CharacterSheetResizeTests : IDisposable
     [Fact]
     public void TheFramesAreThePlacesTheScriptCuts()
     {
-        var sheet = Assert.Single(_editor.GetSheets(_themePath, _basePath));
+        CharacterSheet sheet = Assert.Single(_editor.GetSheets(_themePath, _basePath));
 
         Assert.True(sheet.CanResize);
         Assert.Equal(["Mario", "Block"], sheet.RowNames);
@@ -51,12 +52,12 @@ public sealed class CharacterSheetResizeTests : IDisposable
     [Fact]
     public void ALargerRowLaysTheSheetOutAgainAndRewritesTheScript()
     {
-        var sheet = _editor.GetSheets(_themePath, _basePath)[0];
+        CharacterSheet sheet = _editor.GetSheets(_themePath, _basePath)[0];
 
         _editor.ResizeRow(_themePath, _basePath, sheet, 0, 28, 36);
 
         // Mario's cells are 28 x 36 two pixels apart; the block moves down under them
-        var resized = _editor.GetSheets(_themePath, _basePath)[0];
+        CharacterSheet resized = _editor.GetSheets(_themePath, _basePath)[0];
         Assert.False(resized.IsFromBaseUi);
         Assert.Equal(
             [new(0, 0, 0, 1, 28, 36, 0, 1, 28, 36), new(0, 1, 30, 1, 28, 36, 30, 1, 28, 36), new(1, 0, 0, 38, 16, 16, 0, 38, 16, 16)],
@@ -76,16 +77,16 @@ public sealed class CharacterSheetResizeTests : IDisposable
             Assert.Equal(SKColors.Yellow, pixels.GetPixel(0, 38));
         }
 
-        var json = JsonNode.Parse(File.ReadAllText(Path.Combine(_themePath, "resources", "sprites", "characters_sbm.json")))!;
+        JsonNode json = JsonNode.Parse(File.ReadAllText(Path.Combine(_themePath, "resources", "sprites", "characters_sbm.json")))!;
         Assert.Equal(128, json["texture"]!["width"]!.GetValue<int>());
 
         // and a 27 x 36 picture now fits without being made smaller
-        var picture = Path.Combine(_themePath, "big.png");
+        string picture = Path.Combine(_themePath, "big.png");
         using (var big = new SKBitmap(new SKImageInfo(27, 36, SKColorType.Rgba8888, SKAlphaType.Unpremul)))
         {
             big.Erase(SKColors.Blue);
             big.SetPixel(1, 1, SKColors.White);
-            using var png = big.Encode(SKEncodedImageFormat.Png, 100);
+            using SKData png = big.Encode(SKEncodedImageFormat.Png, 100);
             File.WriteAllBytes(picture, png.ToArray());
         }
 
@@ -95,21 +96,21 @@ public sealed class CharacterSheetResizeTests : IDisposable
     [Fact]
     public void AWiderSheetGrowsToTheNextPowerOfTwo()
     {
-        var sheet = _editor.GetSheets(_themePath, _basePath)[0];
+        CharacterSheet sheet = _editor.GetSheets(_themePath, _basePath)[0];
 
         _editor.ResizeRow(_themePath, _basePath, sheet, 0, 80, 40);
 
         using var pixels = SKBitmap.Decode(Path.Combine(_themePath, "resources", "sprites", "characters_sbm.png"));
         Assert.Equal((256, 64), (pixels.Width, pixels.Height));
-        var json = JsonNode.Parse(File.ReadAllText(Path.Combine(_themePath, "resources", "sprites", "characters_sbm.json")))!;
+        JsonNode json = JsonNode.Parse(File.ReadAllText(Path.Combine(_themePath, "resources", "sprites", "characters_sbm.json")))!;
         Assert.Equal(256, json["texture"]!["width"]!.GetValue<int>());
     }
 
     private static void Fill(SKBitmap bitmap, int x, int y, int width, int height, SKColor color)
     {
-        for (var row = y; row < y + height; row++)
+        for (int row = y; row < y + height; row++)
         {
-            for (var column = x; column < x + width; column++)
+            for (int column = x; column < x + width; column++)
             {
                 bitmap.SetPixel(column, row, color);
             }

@@ -50,7 +50,7 @@ public partial class MainWindowViewModel
             return true;
         }
 
-        var choice = await _dialogService.ShowChoiceAsync(
+        DialogResult choice = await _dialogService.ShowChoiceAsync(
             "Save draft before exiting?",
             "The open theme has unsaved changes. Save them as a draft to resume next time, or exit and discard them.",
             "Save draft and exit",
@@ -86,7 +86,7 @@ public partial class MainWindowViewModel
     [RelayCommand]
     private async Task ShowSavedDraftsAsync()
     {
-        var draft = await _appDialogs.PickSavedDraftAsync(
+        SavedDraft? draft = await _appDialogs.PickSavedDraftAsync(
             ListSavedDrafts,
             candidate => RunAsync("Cannot delete draft", () => DeleteSavedDraft(candidate)));
         if (draft is not null)
@@ -103,7 +103,7 @@ public partial class MainWindowViewModel
             return;
         }
 
-        var baseUiPath = _baseFirmwareManager.FindCompatibleBaseUiPath(path);
+        string? baseUiPath = _baseFirmwareManager.FindCompatibleBaseUiPath(path);
         if (baseUiPath is null)
         {
             baseUiPath = await AskForBaseAsync(path, "The console of this theme could not be detected. Choose the Base it was made for.");
@@ -205,7 +205,7 @@ public partial class MainWindowViewModel
 
     private async Task<string?> AskForBaseAsync(string themePath, string message, string? currentBaseUiPath = null)
     {
-        var installedBases = ValidBases();
+        List<InstalledBaseInfo> installedBases = ValidBases();
         if (installedBases.Count == 0)
         {
             await _appDialogs.ManageBasesAsync();
@@ -216,15 +216,15 @@ public partial class MainWindowViewModel
             }
         }
 
-        var preferredPath = currentBaseUiPath ?? _baseFirmwareManager.FindCompatibleBaseUiPath(themePath);
-        var preferred = installedBases.FirstOrDefault(info => info.LocalPath == preferredPath);
+        string? preferredPath = currentBaseUiPath ?? _baseFirmwareManager.FindCompatibleBaseUiPath(themePath);
+        InstalledBaseInfo? preferred = installedBases.FirstOrDefault(info => info.LocalPath == preferredPath);
         return (await _appDialogs.SelectBaseAsync(installedBases, preferred, message))?.LocalPath;
     }
 
     // the configured destination, created when missing, or a folder the user picks
     private async Task<string?> GetThemeDestinationParentPathAsync()
     {
-        var configuredPath = _settingsStore.Current.DefaultThemeDestinationPath;
+        string configuredPath = _settingsStore.Current.DefaultThemeDestinationPath;
         if (string.IsNullOrWhiteSpace(configuredPath))
         {
             return await _fileDialogs.PickFolderAsync("Select destination parent folder");

@@ -8,11 +8,11 @@ public sealed class TextureAtlasReaderTests
     [Fact]
     public void ReadReturnsNullWhenPackedDefinitionDoesNotExist()
     {
-        var rootPath = Directory.CreateTempSubdirectory().FullName;
+        string rootPath = Directory.CreateTempSubdirectory().FullName;
 
         try
         {
-            var atlas = new TextureAtlasReader().Read(rootPath);
+            TextureAtlas? atlas = new TextureAtlasReader().Read(rootPath);
 
             Assert.Null(atlas);
         }
@@ -25,8 +25,8 @@ public sealed class TextureAtlasReaderTests
     [Fact]
     public void ReadMapsTextureAndSpriteData()
     {
-        var rootPath = Directory.CreateTempSubdirectory().FullName;
-        var spritesPath = Path.Combine(rootPath, "resources", "sprites");
+        string rootPath = Directory.CreateTempSubdirectory().FullName;
+        string spritesPath = Path.Combine(rootPath, "resources", "sprites");
         Directory.CreateDirectory(spritesPath);
         File.WriteAllText(
             Path.Combine(spritesPath, "packed.json"),
@@ -46,13 +46,13 @@ public sealed class TextureAtlasReaderTests
 
         try
         {
-            var atlas = new TextureAtlasReader().Read(rootPath);
+            TextureAtlas? atlas = new TextureAtlasReader().Read(rootPath);
 
             Assert.NotNull(atlas);
             Assert.Equal("texture-id", atlas.TextureId);
             Assert.Equal(512, atlas.Size.Width);
             Assert.Equal(1024, atlas.Size.Height);
-            var sprite = Assert.Single(atlas.Sprites);
+            SpriteRegion sprite = Assert.Single(atlas.Sprites);
             Assert.Equal("arrow_left.png", sprite.Name);
             Assert.Equal(495, sprite.Frame.X);
             Assert.Equal(22, sprite.Frame.Height);
@@ -67,22 +67,22 @@ public sealed class TextureAtlasReaderTests
     [Fact]
     public void ReadAllFindsNesAtlasesFromBaseAndPrefersThemeImages()
     {
-        var themeRootPath = Directory.CreateTempSubdirectory().FullName;
-        var baseRootPath = Directory.CreateTempSubdirectory().FullName;
-        var themeSpritesPath = Path.Combine(themeRootPath, "resources", "sprites");
-        var baseSpritesPath = Path.Combine(baseRootPath, "resources", "sprites");
+        string themeRootPath = Directory.CreateTempSubdirectory().FullName;
+        string baseRootPath = Directory.CreateTempSubdirectory().FullName;
+        string themeSpritesPath = Path.Combine(themeRootPath, "resources", "sprites");
+        string baseSpritesPath = Path.Combine(baseRootPath, "resources", "sprites");
         Directory.CreateDirectory(themeSpritesPath);
         Directory.CreateDirectory(baseSpritesPath);
         File.WriteAllText(Path.Combine(baseSpritesPath, "nes.json"), AtlasJson("nes", 2));
         File.WriteAllText(Path.Combine(baseSpritesPath, "dot_num.json"), AtlasJson("dots", 11));
         File.WriteAllText(Path.Combine(baseSpritesPath, "dummy.json"), AtlasJson("dummy", 1));
         File.WriteAllText(Path.Combine(baseSpritesPath, "broken.json"), """{"sprites":{"a":{},"b":{}}}""");
-        var themeImagePath = Path.Combine(themeSpritesPath, "nes.png");
+        string themeImagePath = Path.Combine(themeSpritesPath, "nes.png");
         File.WriteAllBytes(themeImagePath, [1]);
 
         try
         {
-            var atlases = new TextureAtlasReader().ReadAll(themeRootPath, baseRootPath);
+            IReadOnlyList<TextureAtlas> atlases = new TextureAtlasReader().ReadAll(themeRootPath, baseRootPath);
 
             Assert.Equal(["nes", "dot_num"], atlases.Select(atlas => atlas.Name));
             Assert.Equal(themeImagePath, atlases[0].ImagePath);
@@ -100,8 +100,8 @@ public sealed class TextureAtlasReaderTests
     [Fact]
     public void ReadDefaultsMissingSpriteMetrics()
     {
-        var rootPath = Directory.CreateTempSubdirectory().FullName;
-        var spritesPath = Path.Combine(rootPath, "resources", "sprites");
+        string rootPath = Directory.CreateTempSubdirectory().FullName;
+        string spritesPath = Path.Combine(rootPath, "resources", "sprites");
         Directory.CreateDirectory(spritesPath);
         File.WriteAllText(
             Path.Combine(spritesPath, "packed.json"),
@@ -109,7 +109,7 @@ public sealed class TextureAtlasReaderTests
 
         try
         {
-            var sprite = Assert.Single(new TextureAtlasReader().Read(rootPath)!.Sprites);
+            SpriteRegion sprite = Assert.Single(new TextureAtlasReader().Read(rootPath)!.Sprites);
 
             Assert.Equal(new AtlasPoint(10, 5), sprite.Pivot);
             Assert.Equal(new AtlasSize(20, 10), sprite.SourceSize);
@@ -124,9 +124,9 @@ public sealed class TextureAtlasReaderTests
     [Fact]
     public void DependencyFramesOverridePackedDefinition()
     {
-        var themeRootPath = Directory.CreateTempSubdirectory().FullName;
-        var baseRootPath = Directory.CreateTempSubdirectory().FullName;
-        var baseSpritesPath = Path.Combine(baseRootPath, "resources", "sprites");
+        string themeRootPath = Directory.CreateTempSubdirectory().FullName;
+        string baseRootPath = Directory.CreateTempSubdirectory().FullName;
+        string baseSpritesPath = Path.Combine(baseRootPath, "resources", "sprites");
         Directory.CreateDirectory(baseSpritesPath);
         File.WriteAllText(Path.Combine(baseSpritesPath, "packed.json"), AtlasJson("tex", 2));
         File.WriteAllText(Path.Combine(themeRootPath, "dependencies.json"), """
@@ -156,7 +156,7 @@ public sealed class TextureAtlasReaderTests
 
     private static string AtlasJson(string id, int spriteCount)
     {
-        var sprites = string.Join(",", Enumerable.Range(0, spriteCount).Select(index =>
+        string sprites = string.Join(",", Enumerable.Range(0, spriteCount).Select(index =>
             $$"""
             "s{{index}}":{"textureFrame":[{{index * 2}},0,2,2],"pivot":[1,1],"sourceSize":[2,2],"sourceOffset":[0,0]}
             """));
@@ -166,13 +166,13 @@ public sealed class TextureAtlasReaderTests
     [Fact]
     public void ReadUsesBaseDefinitionAndThemeImageForDifferentialTheme()
     {
-        var themeRootPath = Directory.CreateTempSubdirectory().FullName;
-        var baseRootPath = Directory.CreateTempSubdirectory().FullName;
-        var themeSpritesPath = Path.Combine(themeRootPath, "resources", "sprites");
-        var baseSpritesPath = Path.Combine(baseRootPath, "resources", "sprites");
+        string themeRootPath = Directory.CreateTempSubdirectory().FullName;
+        string baseRootPath = Directory.CreateTempSubdirectory().FullName;
+        string themeSpritesPath = Path.Combine(themeRootPath, "resources", "sprites");
+        string baseSpritesPath = Path.Combine(baseRootPath, "resources", "sprites");
         Directory.CreateDirectory(themeSpritesPath);
         Directory.CreateDirectory(baseSpritesPath);
-        var themeImagePath = Path.Combine(themeSpritesPath, "packed.png");
+        string themeImagePath = Path.Combine(themeSpritesPath, "packed.png");
         File.WriteAllBytes(themeImagePath, [1]);
         File.WriteAllText(
             Path.Combine(baseSpritesPath, "packed.json"),
@@ -185,7 +185,7 @@ public sealed class TextureAtlasReaderTests
 
         try
         {
-            var atlas = new TextureAtlasReader().Read(themeRootPath, baseRootPath);
+            TextureAtlas? atlas = new TextureAtlasReader().Read(themeRootPath, baseRootPath);
 
             Assert.NotNull(atlas);
             Assert.Equal("base-texture", atlas.TextureId);

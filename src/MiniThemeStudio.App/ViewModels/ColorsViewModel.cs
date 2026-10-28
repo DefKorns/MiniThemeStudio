@@ -92,9 +92,9 @@ public sealed partial class ColorsViewModel : ViewModelBase
             return;
         }
 
-        var name = row.Name;
+        string name = row.Name;
         var color = PaletteColor.FromBytes(name, EditColor.R, EditColor.G, EditColor.B, EditColor.A);
-        var targets = ApplyColorToAllRegions
+        List<string> targets = ApplyColorToAllRegions
             ? Palettes.Where(p => p.Colors.Any(c => c.Name == name)).Select(p => p.RelativePath).ToList()
             : [palette.RelativePath];
 
@@ -118,7 +118,7 @@ public sealed partial class ColorsViewModel : ViewModelBase
             return;
         }
 
-        var previous = SelectedPalette?.RelativePath;
+        string? previous = SelectedPalette?.RelativePath;
         _allColorUsages = _paletteEditor.GetUsages(_session.Draft.DraftPath, _session.BaseUiPath);
         Palettes = _paletteEditor.GetPalettes(_session.Draft.DraftPath, _session.BaseUiPath);
         SelectedPalette = Palettes.FirstOrDefault(p => p.RelativePath.Equals(previous, StringComparison.OrdinalIgnoreCase))
@@ -127,10 +127,10 @@ public sealed partial class ColorsViewModel : ViewModelBase
 
     private static PaletteColorRow ToRow(PaletteColor color)
     {
-        var r = PaletteColor.ChannelToByte(color.Red);
-        var g = PaletteColor.ChannelToByte(color.Green);
-        var b = PaletteColor.ChannelToByte(color.Blue);
-        var a = PaletteColor.ChannelToByte(color.Alpha);
+        byte r = PaletteColor.ChannelToByte(color.Red);
+        byte g = PaletteColor.ChannelToByte(color.Green);
+        byte b = PaletteColor.ChannelToByte(color.Blue);
+        byte a = PaletteColor.ChannelToByte(color.Alpha);
         return new PaletteColorRow(color.Name, new ImmutableSolidColorBrush(Color.FromArgb(a, r, g, b)), ToHex(r, g, b, a), color);
     }
 

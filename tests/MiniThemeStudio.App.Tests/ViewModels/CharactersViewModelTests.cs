@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using MiniThemeStudio.App.Models;
 using MiniThemeStudio.App.Tests.TestDoubles;
+using MiniThemeStudio.App.ViewModels;
 using MiniThemeStudio.Core.Themes;
 using SkiaSharp;
 
@@ -15,7 +16,7 @@ public sealed class CharactersViewModelTests : IDisposable
     // a hero running on two 24x32 frames for 0.1 s, then back to the first frame after the loop
     public CharactersViewModelTests()
     {
-        var basePath = _app.CreateBase();
+        string basePath = _app.CreateBase();
         TestApp.WriteFile(basePath, "dependencies.json", """
             {"resources":[
               {"id":"scene","type":"Scene","dependencies":[{"id":"wall","refCount":1}],"path":"/prefab/bg.scn","groupId":"1"},
@@ -36,7 +37,7 @@ public sealed class CharactersViewModelTests : IDisposable
               {"worldNodePath":["N","Sprite_Hero_0"],"type":"resource","componentType":"TextureComponent","propertyId":"Texture","keyCurves":[{"time":0,"value":"t1"},{"time":0.05,"value":"t2"},{"time":0.2,"value":"t1"}]}
             ]}
             """);
-        foreach (var (frame, id) in new[] { ("hero_run01", "t1"), ("hero_run02", "t2") })
+        foreach ((string? frame, string? id) in new[] { ("hero_run01", "t1"), ("hero_run02", "t2") })
         {
             TestApp.WriteFile(basePath, $"resources/layout/asset/sprite/hero/{frame}.json", $$$"""{"texture":{"id":"{{{id}}}","width":24,"height":32},"sprites":{}}""");
             SavePng(Path.Combine(basePath, "resources", "layout", "asset", "sprite", "hero", $"{frame}.png"), 24, 32);
@@ -52,7 +53,7 @@ public sealed class CharactersViewModelTests : IDisposable
     [Fact]
     public void ShowsTheRunAnimationWithItsFrames()
     {
-        var characters = _app.Window.CharactersTab;
+        CharactersViewModel characters = _app.Window.CharactersTab;
 
         Assert.Equal(["hero"], characters.Characters);
         Assert.Equal("run", characters.SelectedAnimation?.Name);
@@ -67,13 +68,13 @@ public sealed class CharactersViewModelTests : IDisposable
     [Fact]
     public async Task ChangingTheFrameTimeRewritesTheAnimationInTheDraft()
     {
-        var characters = _app.Window.CharactersTab;
+        CharactersViewModel characters = _app.Window.CharactersTab;
         characters.FrameTimeMilliseconds = 25;
 
         await characters.ApplyFrameTimeCommand.ExecuteAsync(null);
 
         Assert.Empty(_app.Errors.Failures.Select(failure => $"{failure.Failure}: {failure.Exception.Message}"));
-        var animation = JsonNode.Parse(File.ReadAllText(Path.Combine(DraftPath, RunAnimation)))!;
+        JsonNode animation = JsonNode.Parse(File.ReadAllText(Path.Combine(DraftPath, RunAnimation)))!;
         Assert.Equal(0.05, animation["duration"]!.GetValue<double>(), 6);
         Assert.Equal("run", characters.SelectedAnimation?.Name);
         Assert.Equal(25, characters.FrameTimeMilliseconds);
@@ -83,7 +84,7 @@ public sealed class CharactersViewModelTests : IDisposable
     [Fact]
     public async Task FlippingFramesTurnsOffTheMirroredPreview()
     {
-        var characters = _app.Window.CharactersTab;
+        CharactersViewModel characters = _app.Window.CharactersTab;
         characters.IsPreviewMirrored = true;
 
         await characters.MirrorSelectedFramesCommand.ExecuteAsync(new List<object>());
@@ -100,10 +101,10 @@ public sealed class CharactersViewModelTests : IDisposable
     [Fact]
     public async Task NewFramesReplaceTheLoopAndAddTexturesForTheExtraOnes()
     {
-        var characters = _app.Window.CharactersTab;
+        CharactersViewModel characters = _app.Window.CharactersTab;
         var frames = Enumerable.Range(1, 3).Select(index =>
         {
-            var path = Path.Combine(_app.Root, $"new{index}.png");
+            string path = Path.Combine(_app.Root, $"new{index}.png");
             SavePng(path, 24, 32);
             return path;
         }).ToList();
@@ -121,7 +122,7 @@ public sealed class CharactersViewModelTests : IDisposable
     [Fact]
     public void SimpleEditingListsEveryFrameOfTheCharacter()
     {
-        var characters = _app.Window.CharactersTab;
+        CharactersViewModel characters = _app.Window.CharactersTab;
 
         Assert.Equal(["Run 1", "Run 2"], characters.CharacterFrames.Select(frame => frame.Label));
         Assert.Equal("24 × 32", characters.CharacterFrames[0].SizeText);
@@ -131,17 +132,17 @@ public sealed class CharactersViewModelTests : IDisposable
     [Fact]
     public async Task AFrameIsReplacedByAPictureOfItsSize()
     {
-        var characters = _app.Window.CharactersTab;
-        var wrongSize = Path.Combine(_app.Root, "big.png");
+        CharactersViewModel characters = _app.Window.CharactersTab;
+        string wrongSize = Path.Combine(_app.Root, "big.png");
         SavePng(wrongSize, 30, 40);
         _app.Files.Paths.Enqueue(wrongSize);
 
         await characters.ReplaceFrameCommand.ExecuteAsync(characters.CharacterFrames[1]);
 
-        var (exception, _) = Assert.Single(_app.Errors.Failures);
+        (Exception? exception, string _) = Assert.Single(_app.Errors.Failures);
         Assert.Equal("Run 2 must be 24 × 32 pixels, like the frame it replaces; big.png is 30 × 40.", exception.Message);
 
-        var rightSize = Path.Combine(_app.Root, "run2.png");
+        string rightSize = Path.Combine(_app.Root, "run2.png");
         SavePng(rightSize, 24, 32);
         _app.Files.Paths.Enqueue(rightSize);
         await characters.ReplaceFrameCommand.ExecuteAsync(characters.CharacterFrames[1]);
@@ -157,8 +158,8 @@ public sealed class CharactersViewModelTests : IDisposable
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         using var bitmap = new SKBitmap(width, height);
         bitmap.Erase(SKColors.Red);
-        using var png = SKImage.FromBitmap(bitmap).Encode(SKEncodedImageFormat.Png, 100);
-        using var file = File.Create(path);
+        using SKData png = SKImage.FromBitmap(bitmap).Encode(SKEncodedImageFormat.Png, 100);
+        using FileStream file = File.Create(path);
         png.SaveTo(file);
     }
 }

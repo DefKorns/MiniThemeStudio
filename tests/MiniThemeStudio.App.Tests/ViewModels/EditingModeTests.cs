@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using MiniThemeStudio.App.Tests.TestDoubles;
+using MiniThemeStudio.App.ViewModels;
 using MiniThemeStudio.Core.Settings;
 
 namespace MiniThemeStudio.App.Tests.ViewModels;
@@ -13,7 +14,7 @@ public sealed class EditingModeTests : IDisposable
     [Fact]
     public void ThemesStartInSimpleEditingAndTheChoiceIsSaved()
     {
-        var mode = _app.Window.Mode;
+        EditingMode mode = _app.Window.Mode;
         Assert.True(mode.IsSimple);
 
         mode.IsAdvanced = true;

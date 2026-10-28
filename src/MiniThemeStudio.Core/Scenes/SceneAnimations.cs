@@ -54,15 +54,15 @@ public static class SceneAnimationEvaluator
             return key.Interpolation == CurveInterpolation.Constant || time < key.Time ? key.From : key.To;
         }
 
-        var span = next.Time - key.Time;
-        var s = span > 0 ? Math.Clamp((time - key.Time) / span, 0, 1) : 1;
+        double span = next.Time - key.Time;
+        double s = span > 0 ? Math.Clamp((time - key.Time) / span, 0, 1) : 1;
         if (key.Interpolation == CurveInterpolation.Linear)
         {
             return key.From + ((key.To - key.From) * s);
         }
 
-        var s2 = s * s;
-        var s3 = s2 * s;
+        double s2 = s * s;
+        double s3 = s2 * s;
         return (((2 * s3) - (3 * s2) + 1) * key.From)
             + ((s3 - (2 * s2) + s) * span * key.TangentOut)
             + (((-2 * s3) + (3 * s2)) * key.To)
@@ -97,8 +97,8 @@ public static class SceneAnimationEvaluator
     {
         ArgumentNullException.ThrowIfNull(animator);
         ArgumentNullException.ThrowIfNull(nodePath);
-        var node = animator;
-        foreach (var name in nodePath)
+        SceneNode? node = animator;
+        foreach (string name in nodePath)
         {
             node = node.Children.FirstOrDefault(child => child.Name == name);
             if (node is null)
@@ -113,28 +113,28 @@ public static class SceneAnimationEvaluator
     private static SceneNode Rebuild(SceneNode node, Dictionary<string, List<SceneAnimationTrack>> tracksByNode, double time)
     {
         var children = node.Children.Select(child => Rebuild(child, tracksByNode, time)).ToList();
-        var animated = node with { Children = children };
-        return tracksByNode.TryGetValue(node.Path, out var tracks) ? Animate(animated, tracks, time) : animated;
+        SceneNode animated = node with { Children = children };
+        return tracksByNode.TryGetValue(node.Path, out List<SceneAnimationTrack>? tracks) ? Animate(animated, tracks, time) : animated;
     }
 
     private static SceneNode Animate(SceneNode node, List<SceneAnimationTrack> tracks, double time)
     {
-        var transform = node.Transform;
+        SceneTransform transform = node.Transform;
 
         // scale and rotation are rebuilt from what the matrix holds, so the ones not animated are kept;
         // a mirrored node is read as a negative X scale, as the console flips its characters
-        var determinant = (transform.A * transform.D) - (transform.B * transform.C);
-        var scaleX = Math.Sqrt((transform.A * transform.A) + (transform.C * transform.C)) * (determinant < 0 ? -1 : 1);
-        var rotation = determinant < 0 ? Math.Atan2(-transform.C, -transform.A) : Math.Atan2(transform.C, transform.A);
-        var scaleY = scaleX > 0 ? determinant / scaleX : transform.D;
-        var x = transform.X;
-        var y = transform.Y;
-        var visible = node.Visible;
-        var alpha = node.Alpha;
-        var visual = node.Visual;
-        var reshaped = false;
+        double determinant = (transform.A * transform.D) - (transform.B * transform.C);
+        double scaleX = Math.Sqrt((transform.A * transform.A) + (transform.C * transform.C)) * (determinant < 0 ? -1 : 1);
+        double rotation = determinant < 0 ? Math.Atan2(-transform.C, -transform.A) : Math.Atan2(transform.C, transform.A);
+        double scaleY = scaleX > 0 ? determinant / scaleX : transform.D;
+        double x = transform.X;
+        double y = transform.Y;
+        bool visible = node.Visible;
+        double alpha = node.Alpha;
+        SceneVisual? visual = node.Visual;
+        bool reshaped = false;
 
-        foreach (var track in tracks)
+        foreach (SceneAnimationTrack track in tracks)
         {
             switch (track.PropertyId)
             {
@@ -152,8 +152,8 @@ public static class SceneAnimationEvaluator
             }
         }
 
-        var (sin, cos) = Math.SinCos(rotation);
-        var animatedTransform = reshaped
+        (double sin, double cos) = Math.SinCos(rotation);
+        SceneTransform animatedTransform = reshaped
             ? new SceneTransform(scaleX * cos, -scaleY * sin, x, scaleX * sin, scaleY * cos, y)
             : transform with { X = x, Y = y };
         return node with { Transform = animatedTransform, Visible = visible, Alpha = alpha, Visual = visual };
@@ -167,7 +167,7 @@ public static class SceneAnimationEvaluator
             return null;
         }
 
-        var index = 0;
+        int index = 0;
         while (index + 1 < keys.Count && keys[index + 1].Time <= time)
         {
             index++;

@@ -162,7 +162,7 @@ public sealed partial class FontsViewModel : ViewModelBase
             return;
         }
 
-        var previous = SelectedFont;
+        FontAsset? previous = SelectedFont;
         Fonts = _assetManager.GetFonts(_session.Draft.DraftPath, _session.BaseUiPath);
         SelectedFont = Fonts.FirstOrDefault(f => f.Name.Equals(previous?.Name, StringComparison.OrdinalIgnoreCase))
             ?? (Fonts.Count > 0 ? Fonts[0] : null);
@@ -225,13 +225,13 @@ public sealed partial class FontsViewModel : ViewModelBase
     /// </summary>
     private void SyncScriptCheckboxesToFont(MiniFont font)
     {
-        var hasJapanese = false;
-        var hasCyrillic = false;
-        var hasGreek = false;
+        bool hasJapanese = false;
+        bool hasCyrillic = false;
+        bool hasGreek = false;
 
-        foreach (var g in font.Glyphs)
+        foreach (FontGlyph g in font.Glyphs)
         {
-            var c = (char)g.Id;
+            char c = (char)g.Id;
             if (!hasJapanese && IsJapaneseChar(c))
             {
                 hasJapanese = true;
@@ -274,7 +274,7 @@ public sealed partial class FontsViewModel : ViewModelBase
             return;
         }
 
-        var query = GlyphSearchText.Trim();
+        string query = GlyphSearchText.Trim();
         FilteredFontGlyphs = FontGlyphs
             .Where(g => g.Id.ToString(System.Globalization.CultureInfo.InvariantCulture).Contains(query, StringComparison.OrdinalIgnoreCase) ||
                         g.Character.ToString().Contains(query, StringComparison.OrdinalIgnoreCase) ||
@@ -300,20 +300,20 @@ public sealed partial class FontsViewModel : ViewModelBase
             }
 
             const int pad = 14;
-            var lineH = Math.Max(12, CurrentLoadedFont.Common.LineHeight);
-            var lines = EffectiveSampleText.Split('\n');
-            var totalH = Math.Max(64, lines.Length * lineH + pad * 2);
+            int lineH = Math.Max(12, CurrentLoadedFont.Common.LineHeight);
+            string[] lines = EffectiveSampleText.Split('\n');
+            int totalH = Math.Max(64, lines.Length * lineH + pad * 2);
             const int totalW = 620;
 
             using var surface = SKSurface.Create(new SKImageInfo(totalW, totalH, SKColorType.Rgba8888, SKAlphaType.Premul));
-            var canvas = surface.Canvas;
+            SKCanvas canvas = surface.Canvas;
             canvas.Clear(new SKColor(0x18, 0x18, 0x1B));
 
-            var y = pad;
-            foreach (var line in lines)
+            int y = pad;
+            foreach (string line in lines)
             {
-                var x = pad;
-                foreach (var ch in line)
+                int x = pad;
+                foreach (char ch in line)
                 {
                     if (!ConvertJapanese && IsJapaneseChar(ch))
                     {
@@ -330,7 +330,7 @@ public sealed partial class FontsViewModel : ViewModelBase
                         continue;
                     }
 
-                    var glyph = CurrentLoadedFont.GetGlyph(ch);
+                    FontGlyph? glyph = CurrentLoadedFont.GetGlyph(ch);
                     if (glyph is { Width: > 0, Height: > 0 })
                     {
                         var srcRect = new SKRect(glyph.X, glyph.Y, glyph.X + glyph.Width, glyph.Y + glyph.Height);
@@ -351,8 +351,8 @@ public sealed partial class FontsViewModel : ViewModelBase
                 y += lineH;
             }
 
-            using var image = surface.Snapshot();
-            using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+            using SKImage image = surface.Snapshot();
+            using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
             using var ms = new MemoryStream(data.ToArray());
             FontSamplePreview = new Bitmap(ms);
         }
@@ -440,7 +440,7 @@ public sealed partial class FontsViewModel : ViewModelBase
             return;
         }
 
-        var extension = Path.GetExtension(font.FilePath);
+        string extension = Path.GetExtension(font.FilePath);
         if (await _fileDialogs.SaveFileAsync($"Export font file {font.DisplayName}", $"{font.Name}{extension}", extension.TrimStart('.'), ConsoleFont) is { } savePath
             && await RunAsync("Cannot export font", () => _assetManager.ExportFont(font, savePath)))
         {
@@ -457,8 +457,8 @@ public sealed partial class FontsViewModel : ViewModelBase
             return;
         }
 
-        var scripts = SelectedScripts;
-        var fillFontPath = FillFontPath;
+        ExtraScripts scripts = SelectedScripts;
+        string? fillFontPath = FillFontPath;
         if (await RunAsync("Cannot fill the font", () => _assetManager.CompleteFont(draft.DraftPath, font, scripts, fillFontPath)))
         {
             _session.NotifyContentChanged();
@@ -473,8 +473,8 @@ public sealed partial class FontsViewModel : ViewModelBase
             return;
         }
 
-        var scripts = SelectedScripts;
-        var fillFontPath = FillFontPath;
+        ExtraScripts scripts = SelectedScripts;
+        string? fillFontPath = FillFontPath;
         if (await RunAsync("Cannot convert font", () => _assetManager.ImportTrueTypeFont(draft.DraftPath, font, fontOrZipPath, null, false, scripts, fillFontPath)))
         {
             _session.NotifyContentChanged();

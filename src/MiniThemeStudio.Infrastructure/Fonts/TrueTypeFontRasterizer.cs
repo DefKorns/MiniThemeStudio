@@ -14,20 +14,20 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
 
         if (fontOrZipPath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
         {
-            using var archive = ZipFile.OpenRead(fontOrZipPath);
-            var entry = archive.Entries.FirstOrDefault(e =>
+            using ZipArchive archive = ZipFile.OpenRead(fontOrZipPath);
+            ZipArchiveEntry entry = archive.Entries.FirstOrDefault(e =>
                 e.FullName.EndsWith(".ttf", StringComparison.OrdinalIgnoreCase) ||
                 e.FullName.EndsWith(".otf", StringComparison.OrdinalIgnoreCase))
                 ?? throw new InvalidDataException($"No .ttf or .otf font found inside zip archive: {fontOrZipPath}");
 
-            using var entryStream = entry.Open();
+            using Stream entryStream = entry.Open();
             using var ms = new MemoryStream();
             entryStream.CopyTo(ms);
             ms.Position = 0;
             return Rasterize(ms, options, Path.GetFileNameWithoutExtension(entry.Name));
         }
 
-        using var fileStream = File.OpenRead(fontOrZipPath);
+        using FileStream fileStream = File.OpenRead(fontOrZipPath);
         return Rasterize(fileStream, options, Path.GetFileNameWithoutExtension(fontOrZipPath));
     }
 
@@ -36,14 +36,14 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
         ArgumentNullException.ThrowIfNull(fontStream);
         ArgumentNullException.ThrowIfNull(options);
 
-        using var typeface = SKTypeface.FromStream(fontStream)
+        using SKTypeface typeface = SKTypeface.FromStream(fontStream)
             ?? throw new InvalidDataException("Invalid TrueType or OpenType font stream.");
 
-        var effectiveFontName = !string.IsNullOrWhiteSpace(fontName) ? fontName
+        string effectiveFontName = !string.IsNullOrWhiteSpace(fontName) ? fontName
             : !string.IsNullOrWhiteSpace(typeface.FamilyName) ? typeface.FamilyName
             : "CustomFont";
 
-        var fontSize = Math.Clamp(options.FontSize, 6, 96);
+        int fontSize = Math.Clamp(options.FontSize, 6, 96);
 
         using var paint = new SKPaint
         {
@@ -53,40 +53,40 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
             Color = SKColors.White,
         };
 
-        paint.GetFontMetrics(out var metrics);
-        var lineHeight = (int)Math.Ceiling(metrics.Descent - metrics.Ascent + metrics.Leading);
-        var baseOffset = (int)Math.Ceiling(-metrics.Ascent);
+        paint.GetFontMetrics(out SKFontMetrics metrics);
+        int lineHeight = (int)Math.Ceiling(metrics.Descent - metrics.Ascent + metrics.Leading);
+        int baseOffset = (int)Math.Ceiling(-metrics.Ascent);
         if (lineHeight <= 0)
         {
             lineHeight = fontSize + 4;
         }
 
         // ── Build full character set ──────────────────────────────────────────
-        var charset = BuildCharacterSet(options);
+        IReadOnlyList<char> charset = BuildCharacterSet(options);
 
         // ── Resolve glyphs ───────────────────────────────────────────────────
         var pendingGlyphs = new List<(char Ch, char DrawChar, SKRect Bounds, float Advance)>();
 
-        foreach (var c in charset)
+        foreach (char c in charset)
         {
             // Space — always from the custom font metrics
             if (c == ' ')
             {
                 var bounds = new SKRect();
-                var advance = paint.MeasureText(" ", ref bounds);
+                float advance = paint.MeasureText(" ", ref bounds);
                 advance = advance > 0 ? advance : fontSize / 2f;
                 pendingGlyphs.Add((c, ' ', SKRect.Empty, advance));
                 continue;
             }
 
             // 1. Try custom typeface
-            var glyphId = typeface.GetGlyph(c);
-            var drawChar = c;
+            ushort glyphId = typeface.GetGlyph(c);
+            char drawChar = c;
 
             // Uppercase fallback for pixel fonts that only have caps
             if (glyphId == 0 && char.IsLower(c))
             {
-                var upper = char.ToUpperInvariant(c);
+                char upper = char.ToUpperInvariant(c);
                 if (typeface.GetGlyph(upper) != 0)
                 {
                     glyphId = typeface.GetGlyph(upper);
@@ -97,7 +97,7 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
             if (glyphId != 0)
             {
                 var bounds = new SKRect();
-                var advance = paint.MeasureText(drawChar.ToString(), ref bounds);
+                float advance = paint.MeasureText(drawChar.ToString(), ref bounds);
                 if (bounds.Width > 0 && bounds.Height > 0)
                 {
                     pendingGlyphs.Add((c, drawChar, bounds, advance));
@@ -106,23 +106,23 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
         }
 
         // ── Shelf packing into atlas ─────────────────────────────────────────
-        var atlasWidth = options.AtlasWidth > 0 ? options.AtlasWidth : 512;
+        int atlasWidth = options.AtlasWidth > 0 ? options.AtlasWidth : 512;
         const int padding = 2;
-        var curX = padding;
-        var curY = padding;
-        var rowHeight = 0;
+        int curX = padding;
+        int curY = padding;
+        int rowHeight = 0;
 
         var packedGlyphs = new List<(char Ch, char DrawChar, SKRect Bounds, float Advance, int X, int Y, int W, int H)>();
 
-        foreach (var item in pendingGlyphs)
+        foreach ((char Ch, char DrawChar, SKRect Bounds, float Advance) item in pendingGlyphs)
         {
             if (item.Ch == ' ')
             {
                 continue;
             }
 
-            var w = (int)Math.Ceiling(item.Bounds.Width);
-            var h = (int)Math.Ceiling(item.Bounds.Height);
+            int w = (int)Math.Ceiling(item.Bounds.Width);
+            int h = (int)Math.Ceiling(item.Bounds.Height);
 
             if (curX + w + padding > atlasWidth)
             {
@@ -137,22 +137,22 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
             curX += w + padding;
         }
 
-        var atlasHeight = NextPowerOfTwo(curY + rowHeight + padding);
+        int atlasHeight = NextPowerOfTwo(curY + rowHeight + padding);
 
         // ── Render onto atlas surface ────────────────────────────────────────
         using var surface = SKSurface.Create(new SKImageInfo(atlasWidth, atlasHeight, SKColorType.Rgba8888, SKAlphaType.Premul));
-        var canvas = surface.Canvas;
+        SKCanvas canvas = surface.Canvas;
         canvas.Clear(SKColors.Transparent);
 
         var finalGlyphs = new List<FontGlyph>();
 
         // Space glyph (zero-size, XAdvance only)
-        var spaceItem = pendingGlyphs.FirstOrDefault(p => p.Ch == ' ');
-        var spaceAdv = spaceItem.Advance > 0 ? (int)Math.Round(spaceItem.Advance) : fontSize / 2;
+        (char Ch, char DrawChar, SKRect Bounds, float Advance) spaceItem = pendingGlyphs.FirstOrDefault(p => p.Ch == ' ');
+        int spaceAdv = spaceItem.Advance > 0 ? (int)Math.Round(spaceItem.Advance) : fontSize / 2;
         finalGlyphs.Add(new FontGlyph(Id: ' ', X: 0, Y: 0, Width: 0, Height: 0,
             XOffset: 0, YOffset: 0, XAdvance: spaceAdv, Page: 0, Channel: 15));
 
-        foreach (var p in packedGlyphs)
+        foreach ((char Ch, char DrawChar, SKRect Bounds, float Advance, int X, int Y, int W, int H) p in packedGlyphs)
         {
             canvas.DrawText(p.DrawChar.ToString(), p.X - p.Bounds.Left, p.Y - p.Bounds.Top, paint);
 
@@ -162,8 +162,8 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
                 (int)Math.Round(p.Advance), 0, 15));
         }
 
-        using var image = surface.Snapshot();
-        using var pngData = image.Encode(SKEncodedImageFormat.Png, 100);
+        using SKImage image = surface.Snapshot();
+        using SKData pngData = image.Encode(SKEncodedImageFormat.Png, 100);
 
         var rasterized = new MiniFont(
             formatType: 1,
@@ -190,7 +190,7 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
 
     private static int NextPowerOfTwo(int value)
     {
-        var power = 64;
+        int power = 64;
         while (power < value && power < 4096)
         {
             power *= 2;

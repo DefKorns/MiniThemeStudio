@@ -1,4 +1,6 @@
 using System.Text.Json.Nodes;
+using MiniThemeStudio.Core.Audio;
+using MiniThemeStudio.Core.Fonts;
 using MiniThemeStudio.Core.Themes;
 using MiniThemeStudio.Infrastructure.Themes;
 using SkiaSharp;
@@ -10,9 +12,9 @@ public sealed class ThemeAssetManagerTests
     [Fact]
     public void ExportPackedSpriteExtractsExactSubRectangle()
     {
-        var tempDir = Directory.CreateTempSubdirectory().FullName;
-        var atlasPath = Path.Combine(tempDir, "packed.png");
-        var outputPath = Path.Combine(tempDir, "extracted.png");
+        string tempDir = Directory.CreateTempSubdirectory().FullName;
+        string atlasPath = Path.Combine(tempDir, "packed.png");
+        string outputPath = Path.Combine(tempDir, "extracted.png");
 
         using (var bmp = new SKBitmap(10, 10))
         {
@@ -20,8 +22,8 @@ public sealed class ThemeAssetManagerTests
             bmp.SetPixel(2, 2, SKColors.Red);
             bmp.SetPixel(3, 3, SKColors.Green);
             using var img = SKImage.FromBitmap(bmp);
-            using var data = img.Encode(SKEncodedImageFormat.Png, 100);
-            using var stream = File.Create(atlasPath);
+            using SKData data = img.Encode(SKEncodedImageFormat.Png, 100);
+            using FileStream stream = File.Create(atlasPath);
             data.SaveTo(stream);
         }
 
@@ -53,12 +55,12 @@ public sealed class ThemeAssetManagerTests
     [Fact]
     public void ReplaceWallpaperUpdatesPngAndJsonDimensions()
     {
-        var tempDir = Directory.CreateTempSubdirectory().FullName;
-        var wallpaperDir = Path.Combine(tempDir, "resources", "layout", "asset", "sprite", "wallpaper");
+        string tempDir = Directory.CreateTempSubdirectory().FullName;
+        string wallpaperDir = Path.Combine(tempDir, "resources", "layout", "asset", "sprite", "wallpaper");
         Directory.CreateDirectory(wallpaperDir);
 
-        var targetPng = Path.Combine(wallpaperDir, "wall.png");
-        var replacementPng = Path.Combine(tempDir, "replacement.png");
+        string targetPng = Path.Combine(wallpaperDir, "wall.png");
+        string replacementPng = Path.Combine(tempDir, "replacement.png");
 
         SaveSolidPng(replacementPng, 64, 32, SKColors.Blue);
 
@@ -72,7 +74,7 @@ public sealed class ThemeAssetManagerTests
             Assert.Equal(64, loaded.Width);
             Assert.Equal(32, loaded.Height);
 
-            var texture = ReadJson(Path.Combine(wallpaperDir, "wall.json"))["texture"]!;
+            JsonNode texture = ReadJson(Path.Combine(wallpaperDir, "wall.json"))["texture"]!;
             Assert.Equal(64, texture["width"]!.GetValue<int>());
             Assert.Equal(32, texture["height"]!.GetValue<int>());
         }
@@ -85,10 +87,10 @@ public sealed class ThemeAssetManagerTests
     [Fact]
     public void EnsureDraftCopyKeepsBaseAtlasUntouchedWhenSpriteIsReplaced()
     {
-        var tempDir = Directory.CreateTempSubdirectory().FullName;
-        var draftDir = Path.Combine(tempDir, "draft");
-        var baseAtlas = Path.Combine(tempDir, "base", "resources", "sprites", "packed.png");
-        var replacementPng = Path.Combine(tempDir, "replacement.png");
+        string tempDir = Directory.CreateTempSubdirectory().FullName;
+        string draftDir = Path.Combine(tempDir, "draft");
+        string baseAtlas = Path.Combine(tempDir, "base", "resources", "sprites", "packed.png");
+        string replacementPng = Path.Combine(tempDir, "replacement.png");
         Directory.CreateDirectory(draftDir);
         Directory.CreateDirectory(Path.GetDirectoryName(baseAtlas)!);
         SaveSolidPng(baseAtlas, 4, 4, SKColors.Red);
@@ -96,7 +98,7 @@ public sealed class ThemeAssetManagerTests
 
         try
         {
-            var draftAtlas = new ThemeAssetManager().EnsureDraftCopy(
+            string draftAtlas = new ThemeAssetManager().EnsureDraftCopy(
                 draftDir,
                 Path.Combine("resources", "sprites", "packed.png"),
                 baseAtlas);
@@ -120,8 +122,8 @@ public sealed class ThemeAssetManagerTests
     [Fact]
     public void EnsureDraftCopyRejectsPathOutsideDraft()
     {
-        var tempDir = Directory.CreateTempSubdirectory().FullName;
-        var source = Path.Combine(tempDir, "source.png");
+        string tempDir = Directory.CreateTempSubdirectory().FullName;
+        string source = Path.Combine(tempDir, "source.png");
         SaveSolidPng(source, 1, 1, SKColors.Red);
 
         try
@@ -141,10 +143,10 @@ public sealed class ThemeAssetManagerTests
     [Fact]
     public void ReplaceWallpaperFromBaseKeepsTextureIdAndLeavesBaseJsonUntouched()
     {
-        var tempDir = Directory.CreateTempSubdirectory().FullName;
-        var baseJson = Path.Combine(tempDir, "base", "wall.json");
-        var targetPng = Path.Combine(tempDir, "draft", "wall.png");
-        var replacementPng = Path.Combine(tempDir, "replacement.png");
+        string tempDir = Directory.CreateTempSubdirectory().FullName;
+        string baseJson = Path.Combine(tempDir, "base", "wall.json");
+        string targetPng = Path.Combine(tempDir, "draft", "wall.png");
+        string replacementPng = Path.Combine(tempDir, "replacement.png");
         Directory.CreateDirectory(Path.GetDirectoryName(baseJson)!);
         const string baseContent = """{"texture":{"id":"1c75bca3-310d-48f1-95ad-20e7ebc294c6","width":512,"height":178},"sprites":{}}""";
         File.WriteAllText(baseJson, baseContent);
@@ -154,7 +156,7 @@ public sealed class ThemeAssetManagerTests
         {
             new ThemeAssetManager().ReplaceWallpaper(targetPng, replacementPng, baseJson);
 
-            var texture = ReadJson(Path.ChangeExtension(targetPng, ".json"))["texture"]!;
+            JsonNode texture = ReadJson(Path.ChangeExtension(targetPng, ".json"))["texture"]!;
             Assert.Equal("1c75bca3-310d-48f1-95ad-20e7ebc294c6", texture["id"]!.GetValue<string>());
             Assert.Equal(baseContent, File.ReadAllText(baseJson));
         }
@@ -167,9 +169,9 @@ public sealed class ThemeAssetManagerTests
     [Fact]
     public void ReplaceWithDifferentSizeUpdatesFullTextureSprite()
     {
-        var tempDir = Directory.CreateTempSubdirectory().FullName;
-        var targetPng = Path.Combine(tempDir, "goku.png");
-        var replacementPng = Path.Combine(tempDir, "replacement.png");
+        string tempDir = Directory.CreateTempSubdirectory().FullName;
+        string targetPng = Path.Combine(tempDir, "goku.png");
+        string replacementPng = Path.Combine(tempDir, "replacement.png");
         SaveSolidPng(targetPng, 48, 48, SKColors.Red);
         File.WriteAllText(
             Path.ChangeExtension(targetPng, ".json"),
@@ -180,8 +182,8 @@ public sealed class ThemeAssetManagerTests
         {
             new ThemeAssetManager().ReplaceExtraAsset(targetPng, replacementPng);
 
-            var root = ReadJson(Path.ChangeExtension(targetPng, ".json"));
-            var sprite = root["sprites"]!["Default"]!;
+            JsonNode root = ReadJson(Path.ChangeExtension(targetPng, ".json"));
+            JsonNode sprite = root["sprites"]!["Default"]!;
             Assert.Equal("3e60e2df", root["texture"]!["id"]!.GetValue<string>());
             Assert.Equal("[0,0,64,32]", sprite["textureFrame"]!.ToJsonString());
             Assert.Equal("[64,32]", sprite["sourceSize"]!.ToJsonString());
@@ -197,10 +199,10 @@ public sealed class ThemeAssetManagerTests
     [Fact]
     public void ReplaceWithDifferentSizeRejectsSubSpritesAndKeepsFiles()
     {
-        var tempDir = Directory.CreateTempSubdirectory().FullName;
-        var targetPng = Path.Combine(tempDir, "dot_num.png");
-        var targetJson = Path.ChangeExtension(targetPng, ".json");
-        var replacementPng = Path.Combine(tempDir, "replacement.png");
+        string tempDir = Directory.CreateTempSubdirectory().FullName;
+        string targetPng = Path.Combine(tempDir, "dot_num.png");
+        string targetJson = Path.ChangeExtension(targetPng, ".json");
+        string replacementPng = Path.Combine(tempDir, "replacement.png");
         SaveSolidPng(targetPng, 32, 32, SKColors.Red);
         const string jsonContent = """{"texture":{"id":"4ebe20df","width":32,"height":32},"sprites":{"Sprite1":{"textureFrame":[0,0,8,8],"pivot":[4,4],"sourceSize":[8,8],"sourceOffset":[0,0]}}}""";
         File.WriteAllText(targetJson, jsonContent);
@@ -224,10 +226,10 @@ public sealed class ThemeAssetManagerTests
     [Fact]
     public void ExtraAssetsExcludeSpriteAtlases()
     {
-        var themeDir = Directory.CreateTempSubdirectory().FullName;
-        var baseDir = Directory.CreateTempSubdirectory().FullName;
-        var themeSprites = Path.Combine(themeDir, "resources", "sprites");
-        var baseSprites = Path.Combine(baseDir, "resources", "sprites");
+        string themeDir = Directory.CreateTempSubdirectory().FullName;
+        string baseDir = Directory.CreateTempSubdirectory().FullName;
+        string themeSprites = Path.Combine(themeDir, "resources", "sprites");
+        string baseSprites = Path.Combine(baseDir, "resources", "sprites");
         Directory.CreateDirectory(Path.Combine(themeSprites, "sampleasset"));
         Directory.CreateDirectory(baseSprites);
         SaveSolidPng(Path.Combine(themeSprites, "nes.png"), 4, 4, SKColors.Red);
@@ -240,7 +242,7 @@ public sealed class ThemeAssetManagerTests
 
         try
         {
-            var assets = new ThemeAssetManager().GetExtraAssets(themeDir, baseDir);
+            IReadOnlyList<ExtraAsset> assets = new ThemeAssetManager().GetExtraAssets(themeDir, baseDir);
 
             Assert.Equal(
                 ["sprites/logo.png", "sprites/sampleasset/goku.png"],
@@ -256,10 +258,10 @@ public sealed class ThemeAssetManagerTests
     [Fact]
     public void ExtraAssetsTellBaseReplacedAndAddedImagesApart()
     {
-        var themeDir = Directory.CreateTempSubdirectory().FullName;
-        var baseDir = Directory.CreateTempSubdirectory().FullName;
-        var themeSprites = Path.Combine(themeDir, "resources", "sprites");
-        var baseSprites = Path.Combine(baseDir, "resources", "sprites");
+        string themeDir = Directory.CreateTempSubdirectory().FullName;
+        string baseDir = Directory.CreateTempSubdirectory().FullName;
+        string themeSprites = Path.Combine(themeDir, "resources", "sprites");
+        string baseSprites = Path.Combine(baseDir, "resources", "sprites");
         Directory.CreateDirectory(themeSprites);
         Directory.CreateDirectory(baseSprites);
         SaveSolidPng(Path.Combine(baseSprites, "inherited.png"), 4, 4, SKColors.Red);
@@ -288,8 +290,8 @@ public sealed class ThemeAssetManagerTests
     [Fact]
     public void ProvideMissingTextureKeepsReferencedTextureId()
     {
-        var draftDir = Directory.CreateTempSubdirectory().FullName;
-        var sourcePng = Path.Combine(draftDir, "..", $"{Guid.NewGuid():N}.png");
+        string draftDir = Directory.CreateTempSubdirectory().FullName;
+        string sourcePng = Path.Combine(draftDir, "..", $"{Guid.NewGuid():N}.png");
         SaveSolidPng(sourcePng, 48, 48, SKColors.Green);
         var missing = new MissingTexture(
             "3e60e2df-39af-42b8-b28c-9ac3cd1a785c",
@@ -301,7 +303,7 @@ public sealed class ThemeAssetManagerTests
         {
             new ThemeAssetManager().ProvideMissingTexture(draftDir, missing, sourcePng);
 
-            var root = ReadJson(Path.Combine(draftDir, missing.DefinitionRelativePath));
+            JsonNode root = ReadJson(Path.Combine(draftDir, missing.DefinitionRelativePath));
             Assert.True(File.Exists(Path.Combine(draftDir, missing.ImageRelativePath)));
             Assert.Equal(missing.TextureId, root["texture"]!["id"]!.GetValue<string>());
             Assert.Equal("[0,0,48,48]", root["sprites"]!["Default"]!["textureFrame"]!.ToJsonString());
@@ -322,19 +324,19 @@ public sealed class ThemeAssetManagerTests
         using var bitmap = new SKBitmap(width, height);
         bitmap.Erase(color);
         using var image = SKImage.FromBitmap(bitmap);
-        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-        using var stream = File.Create(path);
+        using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
+        using FileStream stream = File.Create(path);
         data.SaveTo(stream);
     }
 
     [Fact]
     public void GetFontsDiscoversFontsFromBaseAndDraft()
     {
-        var tempBase = Directory.CreateTempSubdirectory().FullName;
-        var tempDraft = Directory.CreateTempSubdirectory().FullName;
+        string tempBase = Directory.CreateTempSubdirectory().FullName;
+        string tempDraft = Directory.CreateTempSubdirectory().FullName;
 
-        var baseFontsDir = Path.Combine(tempBase, "resources", "fonts");
-        var draftFontsDir = Path.Combine(tempDraft, "resources", "fonts");
+        string baseFontsDir = Path.Combine(tempBase, "resources", "fonts");
+        string draftFontsDir = Path.Combine(tempDraft, "resources", "fonts");
         Directory.CreateDirectory(baseFontsDir);
         Directory.CreateDirectory(draftFontsDir);
 
@@ -354,11 +356,11 @@ public sealed class ThemeAssetManagerTests
         try
         {
             var manager = new ThemeAssetManager();
-            var fonts = manager.GetFonts(tempDraft, tempBase);
+            IReadOnlyList<FontAsset> fonts = manager.GetFonts(tempDraft, tempBase);
 
             Assert.Equal(2, fonts.Count);
-            var fontL = fonts.FirstOrDefault(f => f.Name == "l");
-            var fontS = fonts.FirstOrDefault(f => f.Name == "s");
+            FontAsset? fontL = fonts.FirstOrDefault(f => f.Name == "l");
+            FontAsset? fontS = fonts.FirstOrDefault(f => f.Name == "s");
 
             Assert.NotNull(fontL);
             Assert.True(fontL.IsFromBaseUi);
@@ -378,10 +380,10 @@ public sealed class ThemeAssetManagerTests
     [Fact]
     public void GetFontsListsTheBaseTitleFontAsItIs()
     {
-        var tempBase = Directory.CreateTempSubdirectory().FullName;
-        var tempDraft = Directory.CreateTempSubdirectory().FullName;
+        string tempBase = Directory.CreateTempSubdirectory().FullName;
+        string tempDraft = Directory.CreateTempSubdirectory().FullName;
 
-        var baseFontsDir = Path.Combine(tempBase, "resources", "fonts");
+        string baseFontsDir = Path.Combine(tempBase, "resources", "fonts");
         Directory.CreateDirectory(baseFontsDir);
 
         // Mock stock firmware title.font with only 1 glyph
@@ -399,9 +401,9 @@ public sealed class ThemeAssetManagerTests
         try
         {
             var manager = new ThemeAssetManager();
-            var fonts = manager.GetFonts(tempDraft, tempBase);
+            IReadOnlyList<FontAsset> fonts = manager.GetFonts(tempDraft, tempBase);
 
-            var titleFont = fonts.FirstOrDefault(f => f.Name == "title");
+            FontAsset? titleFont = fonts.FirstOrDefault(f => f.Name == "title");
             Assert.NotNull(titleFont);
             Assert.True(titleFont.IsFromBaseUi);
             // the reference only fills characters when a font is converted
@@ -417,11 +419,11 @@ public sealed class ThemeAssetManagerTests
     [Fact]
     public void ReplaceFontTextureUpdatesEmbeddedPngAndDimensions()
     {
-        var tempBase = Directory.CreateTempSubdirectory().FullName;
-        var tempDraft = Directory.CreateTempSubdirectory().FullName;
-        var sourcePng = Path.GetTempFileName() + ".png";
+        string tempBase = Directory.CreateTempSubdirectory().FullName;
+        string tempDraft = Directory.CreateTempSubdirectory().FullName;
+        string sourcePng = Path.GetTempFileName() + ".png";
 
-        var baseFontsDir = Path.Combine(tempBase, "resources", "fonts");
+        string baseFontsDir = Path.Combine(tempBase, "resources", "fonts");
         Directory.CreateDirectory(baseFontsDir);
 
         var font = new MiniThemeStudio.Core.Fonts.MiniFont(
@@ -433,21 +435,21 @@ public sealed class ThemeAssetManagerTests
             kerningPairs: [],
             texturePngBytes: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
 
-        var baseFontFile = Path.Combine(baseFontsDir, "l.font");
+        string baseFontFile = Path.Combine(baseFontsDir, "l.font");
         MiniThemeStudio.Infrastructure.Fonts.MiniFontWriter.Write(font, baseFontFile);
         SaveSolidPng(sourcePng, 512, 512, SKColors.White);
 
         try
         {
             var manager = new ThemeAssetManager();
-            var fontAsset = manager.GetFonts(tempDraft, tempBase).First(f => f.Name == "l");
+            FontAsset fontAsset = manager.GetFonts(tempDraft, tempBase).First(f => f.Name == "l");
 
             manager.ReplaceFontTexture(tempDraft, fontAsset, sourcePng);
 
-            var draftFontFile = Path.Combine(tempDraft, "fonts", "large.font");
+            string draftFontFile = Path.Combine(tempDraft, "fonts", "large.font");
             Assert.True(File.Exists(draftFontFile));
 
-            var reloaded = manager.LoadFont(draftFontFile);
+            MiniFont reloaded = manager.LoadFont(draftFontFile);
             Assert.Equal(512, reloaded.Common.ScaleW);
             Assert.Equal(512, reloaded.Common.ScaleH);
         }
@@ -465,28 +467,28 @@ public sealed class ThemeAssetManagerTests
     [Fact]
     public void MuteBgmTrackCreatesSilentAudioAndCanBeReverted()
     {
-        var tempDraft = Directory.CreateTempSubdirectory().FullName;
-        var tempBase = Directory.CreateTempSubdirectory().FullName;
+        string tempDraft = Directory.CreateTempSubdirectory().FullName;
+        string tempBase = Directory.CreateTempSubdirectory().FullName;
 
         try
         {
             var manager = new ThemeAssetManager();
 
             // Initial state: not in draft
-            var tracksBefore = manager.GetBgmTracks(tempDraft, tempBase);
-            var bootTrack = tracksBefore.First(t => t.Name == "bgm_boot");
+            IReadOnlyList<BgmTrack> tracksBefore = manager.GetBgmTracks(tempDraft, tempBase);
+            BgmTrack bootTrack = tracksBefore.First(t => t.Name == "bgm_boot");
             Assert.True(bootTrack.CanMute);
             Assert.False(bootTrack.IsMuted);
             Assert.False(bootTrack.ExistsInDraft);
 
-            var homeTrack = tracksBefore.First(t => t.Name == "bgm_home");
+            BgmTrack homeTrack = tracksBefore.First(t => t.Name == "bgm_home");
             Assert.False(homeTrack.CanMute);
 
             // Mute bgm_boot
             manager.MuteBgmTrack(tempDraft, "bgm_boot", tempBase);
 
-            var tracksMuted = manager.GetBgmTracks(tempDraft, tempBase);
-            var mutedBoot = tracksMuted.First(t => t.Name == "bgm_boot");
+            IReadOnlyList<BgmTrack> tracksMuted = manager.GetBgmTracks(tempDraft, tempBase);
+            BgmTrack mutedBoot = tracksMuted.First(t => t.Name == "bgm_boot");
             Assert.True(mutedBoot.ExistsInDraft);
             Assert.True(mutedBoot.IsMuted);
             Assert.Contains("Muted", mutedBoot.StatusDescription);
@@ -494,8 +496,8 @@ public sealed class ThemeAssetManagerTests
             // Revert bgm_boot
             manager.RevertBgmTrack(tempDraft, "bgm_boot");
 
-            var tracksReverted = manager.GetBgmTracks(tempDraft, tempBase);
-            var revertedBoot = tracksReverted.First(t => t.Name == "bgm_boot");
+            IReadOnlyList<BgmTrack> tracksReverted = manager.GetBgmTracks(tempDraft, tempBase);
+            BgmTrack revertedBoot = tracksReverted.First(t => t.Name == "bgm_boot");
             Assert.False(revertedBoot.ExistsInDraft);
             Assert.False(revertedBoot.IsMuted);
         }

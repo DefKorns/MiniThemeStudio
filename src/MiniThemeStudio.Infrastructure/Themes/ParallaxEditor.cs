@@ -34,14 +34,14 @@ public sealed class ParallaxEditor(ISceneEditor sceneEditor) : IParallaxEditor
             .ToList();
 
         var backgrounds = new List<ParallaxBackground>();
-        foreach (var animationPath in manifest.OfType(DependencyManifest.SceneAnimation).Select(resource => resource.Path).OfType<string>().Distinct(StringComparer.Ordinal))
+        foreach (string? animationPath in manifest.OfType(DependencyManifest.SceneAnimation).Select(resource => resource.Path).OfType<string>().Distinct(StringComparer.Ordinal))
         {
             if (layer.Resolve(animationPath) is not { } animationFile)
             {
                 continue;
             }
 
-            var animation = ParseScene(animationFile);
+            JsonObject animation = ParseScene(animationFile);
             var tracks = OffsetTracks(animation).ToList();
             if (tracks.Count == 0)
             {
@@ -49,8 +49,8 @@ public sealed class ParallaxEditor(ISceneEditor sceneEditor) : IParallaxEditor
             }
 
             // the node that plays the animation holds every node its tracks name
-            var cycle = Double(animation["duration"]) ?? 0;
-            var match = scenes
+            double cycle = Double(animation["duration"]) ?? 0;
+            (string Path, JsonObject Root, (JsonObject Node, string Path) Animator) match = scenes
                 .SelectMany(scene => IndexedNodes(scene.Root!, "").Select(node => (scene.Path, Root: scene.Root!, Animator: node)))
                 .FirstOrDefault(candidate => tracks.All(track => Child(candidate.Animator.Node, TrackName(track)) is not null));
             if (match.Animator.Node is not { } animator)
@@ -79,22 +79,22 @@ public sealed class ParallaxEditor(ISceneEditor sceneEditor) : IParallaxEditor
             throw new ArgumentException("The scale must be between 1 and 8.", nameof(layer));
         }
 
-        var (themeLayer, scene, root) = OpenScene(themeDraftPath, baseUiPath, background.SceneResourcePath);
-        var animator = Animator(root, background);
-        var children = Children(animator);
-        var name = UniqueName(children, layer.Name.Trim());
-        var (animationFile, animation) = OpenAnimation(themeLayer, background);
+        (ThemeLayer? themeLayer, JsonObject? scene, JsonObject? root) = OpenScene(themeDraftPath, baseUiPath, background.SceneResourcePath);
+        JsonObject animator = Animator(root, background);
+        JsonArray children = Children(animator);
+        string name = UniqueName(children, layer.Name.Trim());
+        (string? animationFile, JsonObject? animation) = OpenAnimation(themeLayer, background);
 
         // the image is repeated in the PNG itself until it covers the screen, so the layer scrolls without a seam
         // and its texture offset counts whole layer widths, as with the console's own layers
         string textureId;
         int width, height;
         var manifest = DependencyManifest.Load(themeLayer);
-        var tiledImage = Path.Combine(Path.GetTempPath(), $"mts-layer-{Guid.NewGuid():N}.png");
+        string tiledImage = Path.Combine(Path.GetTempPath(), $"mts-layer-{Guid.NewGuid():N}.png");
         try
         {
             (width, height) = WriteTiledImage(layer.SourceImagePath, layer.Scale, tiledImage);
-            var resourcePath = ThemeTextures.FreeResourcePath(themeLayer, manifest, WallpaperFolder, SafeFileName(name));
+            string resourcePath = ThemeTextures.FreeResourcePath(themeLayer, manifest, WallpaperFolder, SafeFileName(name));
             textureId = ThemeTextures.Register(themeLayer, manifest, resourcePath, tiledImage);
         }
         finally
@@ -102,7 +102,7 @@ public sealed class ParallaxEditor(ISceneEditor sceneEditor) : IParallaxEditor
             File.Delete(tiledImage);
         }
 
-        var node = ImageNode(name, layer.ZIndex, textureId, width * layer.Scale, height * layer.Scale);
+        JsonObject node = ImageNode(name, layer.ZIndex, textureId, width * layer.Scale, height * layer.Scale);
         node["transform"] = new JsonArray(1, 0, 0, 0, 1, Number(layer.Y));
         children.Add(node);
         (animation["animations"] as JsonArray ?? throw new InvalidDataException($"{Path.GetFileName(animationFile)} has no animations list."))
@@ -126,11 +126,11 @@ public sealed class ParallaxEditor(ISceneEditor sceneEditor) : IParallaxEditor
     {
         ArgumentNullException.ThrowIfNull(background);
         var themeLayer = new ThemeLayer(themeDraftPath, baseUiPath);
-        var (_, animation) = OpenAnimation(themeLayer, background);
-        var track = OffsetTracks(animation).FirstOrDefault(candidate => TrackName(candidate) == layerName)
+        (string _, JsonObject? animation) = OpenAnimation(themeLayer, background);
+        JsonObject track = OffsetTracks(animation).FirstOrDefault(candidate => TrackName(candidate) == layerName)
             ?? throw new InvalidDataException($"{layerName} does not scroll in {Path.GetFileName(background.AnimationResourcePath)}.");
 
-        var start = (track["keyCurves"] as JsonArray)?.FirstOrDefault() is JsonObject first ? KeyStart(first) : 0;
+        double start = (track["keyCurves"] as JsonArray)?.FirstOrDefault() is JsonObject first ? KeyStart(first) : 0;
         track["keyCurves"] = Keys(start, loopsPerCycle, background.CycleSeconds);
         themeLayer.WriteThemeResource(background.AnimationResourcePath, EngineJson.ToCompactString(animation));
     }
@@ -138,18 +138,18 @@ public sealed class ParallaxEditor(ISceneEditor sceneEditor) : IParallaxEditor
     public void RemoveLayer(string themeDraftPath, string? baseUiPath, ParallaxBackground background, string layerName)
     {
         ArgumentNullException.ThrowIfNull(background);
-        var layer = background.Layers.FirstOrDefault(candidate => candidate.Name == layerName)
+        ParallaxLayer layer = background.Layers.FirstOrDefault(candidate => candidate.Name == layerName)
             ?? throw new InvalidDataException($"{layerName} is not a layer of {background.AnimatorName}.");
 
-        var textureId = sceneEditor.Load(themeDraftPath, baseUiPath, background.SceneResourcePath).Find(layer.NodePath)?.Visual?.TextureId;
+        string? textureId = sceneEditor.Load(themeDraftPath, baseUiPath, background.SceneResourcePath).Find(layer.NodePath)?.Visual?.TextureId;
 
         // the node goes first: it is kept when the scene still links to it, and then the track stays too
         sceneEditor.DeleteNode(themeDraftPath, baseUiPath, background.SceneResourcePath, layer.NodePath);
 
         var themeLayer = new ThemeLayer(themeDraftPath, baseUiPath);
-        var (_, animation) = OpenAnimation(themeLayer, background);
-        var tracks = animation["animations"] as JsonArray ?? [];
-        foreach (var track in OffsetTracks(animation).Where(candidate => TrackName(candidate) == layerName).ToList())
+        (string _, JsonObject? animation) = OpenAnimation(themeLayer, background);
+        JsonArray tracks = animation["animations"] as JsonArray ?? [];
+        foreach (JsonObject? track in OffsetTracks(animation).Where(candidate => TrackName(candidate) == layerName).ToList())
         {
             tracks.Remove(track);
         }
@@ -170,18 +170,18 @@ public sealed class ParallaxEditor(ISceneEditor sceneEditor) : IParallaxEditor
 
     private static ParallaxLayer? ReadLayer(JsonObject animator, string animatorPath, JsonObject track, double cycle)
     {
-        var name = TrackName(track);
+        string name = TrackName(track);
         if (Child(animator, name) is not ({ } node, var index))
         {
             return null;
         }
 
-        var component = Components(node).FirstOrDefault(candidate => String(candidate["type"]) == "TextureComponent");
-        var width = component?["size"] is JsonArray { Count: 2 } size ? Double(size[0]) ?? 0 : 0;
-        var repeat = component?["uvRepeat"] is JsonArray { Count: 2 } uvRepeat ? Double(uvRepeat[0]) ?? 1 : 1;
+        JsonObject? component = Components(node).FirstOrDefault(candidate => String(candidate["type"]) == "TextureComponent");
+        double width = component?["size"] is JsonArray { Count: 2 } size ? Double(size[0]) ?? 0 : 0;
+        double repeat = component?["uvRepeat"] is JsonArray { Count: 2 } uvRepeat ? Double(uvRepeat[0]) ?? 1 : 1;
         var keys = (track["keyCurves"] as JsonArray ?? []).OfType<JsonObject>().ToList();
-        var loops = keys.Count == 0 ? 0 : KeyEnd(keys[^1]) - KeyStart(keys[0]);
-        var y = node["transform"] is JsonArray { Count: 6 } transform ? Double(transform[5]) ?? 0 : 0;
+        double loops = keys.Count == 0 ? 0 : KeyEnd(keys[^1]) - KeyStart(keys[0]);
+        double y = node["transform"] is JsonArray { Count: 6 } transform ? Double(transform[5]) ?? 0 : 0;
         return new ParallaxLayer(
             name,
             ChildPath(animatorPath, index),
@@ -195,7 +195,7 @@ public sealed class ParallaxEditor(ISceneEditor sceneEditor) : IParallaxEditor
     // a straight slide over the cycle: hermite keys whose tangents are the slope of the line
     private static JsonArray Keys(double start, int loops, double cycle)
     {
-        var slope = cycle > 0 ? loops / cycle : 0;
+        double slope = cycle > 0 ? loops / cycle : 0;
         return new JsonArray(
             new JsonObject { ["time"] = 0, ["interp"] = "hermite", ["value"] = new JsonArray(Number(start), Number(start + loops), slope, slope) },
             new JsonObject { ["time"] = cycle, ["value"] = Number(start + loops) });
@@ -221,7 +221,7 @@ public sealed class ParallaxEditor(ISceneEditor sceneEditor) : IParallaxEditor
     private static (JsonObject Node, int Index)? Child(JsonObject parent, string name)
     {
         var children = (parent["children"] as JsonArray ?? []).ToList();
-        var index = children.FindIndex(child => child is JsonObject node && String(node["name"]) == name);
+        int index = children.FindIndex(child => child is JsonObject node && String(node["name"]) == name);
         return index < 0 ? null : ((JsonObject)children[index]!, index);
     }
 
@@ -229,11 +229,11 @@ public sealed class ParallaxEditor(ISceneEditor sceneEditor) : IParallaxEditor
     {
         yield return (node, path);
         var children = (node["children"] as JsonArray ?? []).ToList();
-        for (var index = 0; index < children.Count; index++)
+        for (int index = 0; index < children.Count; index++)
         {
             if (children[index] is JsonObject child)
             {
-                foreach (var descendant in IndexedNodes(child, ChildPath(path, index)))
+                foreach ((JsonObject Node, string Path) descendant in IndexedNodes(child, ChildPath(path, index)))
                 {
                     yield return descendant;
                 }
@@ -245,8 +245,8 @@ public sealed class ParallaxEditor(ISceneEditor sceneEditor) : IParallaxEditor
     private static string Label(JsonObject root, string path)
     {
         var names = new List<string>();
-        var node = root;
-        foreach (var part in path.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        JsonObject? node = root;
+        foreach (string part in path.Split('/', StringSplitOptions.RemoveEmptyEntries))
         {
             node = FindNode(node, part);
             names.Add(String(node?["name"]) ?? "?");
@@ -257,7 +257,7 @@ public sealed class ParallaxEditor(ISceneEditor sceneEditor) : IParallaxEditor
 
     private static JsonObject Animator(JsonObject root, ParallaxBackground background)
     {
-        var animator = FindNode(root, background.AnimatorPath);
+        JsonObject? animator = FindNode(root, background.AnimatorPath);
         return animator is not null && String(animator["name"]) == background.AnimatorName
             ? animator
             : throw new InvalidDataException($"{background.AnimatorName} is no longer in {Path.GetFileName(background.SceneResourcePath)}.");
@@ -265,7 +265,7 @@ public sealed class ParallaxEditor(ISceneEditor sceneEditor) : IParallaxEditor
 
     private static (string File, JsonObject Animation) OpenAnimation(ThemeLayer layer, ParallaxBackground background)
     {
-        var file = layer.Resolve(background.AnimationResourcePath)
+        string file = layer.Resolve(background.AnimationResourcePath)
             ?? throw new FileNotFoundException($"Animation not found: resources{background.AnimationResourcePath}");
         return (file, ParseScene(file));
     }
@@ -273,21 +273,21 @@ public sealed class ParallaxEditor(ISceneEditor sceneEditor) : IParallaxEditor
     // the image side by side as many times as the screen needs; returns the size of the written PNG
     private static (int Width, int Height) WriteTiledImage(string sourceImagePath, int scale, string targetPath)
     {
-        using var source = SKBitmap.Decode(sourceImagePath)
+        using SKBitmap source = SKBitmap.Decode(sourceImagePath)
             ?? throw new InvalidDataException($"{Path.GetFileName(sourceImagePath)} is not a valid PNG image.");
-        var copies = Math.Max(1, (int)Math.Ceiling(ScreenWidth / (source.Width * scale)));
+        int copies = Math.Max(1, (int)Math.Ceiling(ScreenWidth / (source.Width * scale)));
         using var tiled = new SKBitmap(new SKImageInfo(source.Width * copies, source.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
         using (var canvas = new SKCanvas(tiled))
         {
             canvas.Clear(SKColors.Transparent);
-            for (var copy = 0; copy < copies; copy++)
+            for (int copy = 0; copy < copies; copy++)
             {
                 canvas.DrawBitmap(source, copy * source.Width, 0);
             }
         }
 
-        using var png = tiled.Encode(SKEncodedImageFormat.Png, 100);
-        using (var file = File.Create(targetPath))
+        using SKData png = tiled.Encode(SKEncodedImageFormat.Png, 100);
+        using (FileStream file = File.Create(targetPath))
         {
             png.SaveTo(file);
         }

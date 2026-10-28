@@ -8,13 +8,13 @@ public sealed class ThemeDraftServiceTests
     [Fact]
     public void OpenExistingDoesNotChangeSourceUntilSave()
     {
-        var rootPath = Directory.CreateTempSubdirectory().FullName;
-        var themePath = Path.Combine(rootPath, "theme");
+        string rootPath = Directory.CreateTempSubdirectory().FullName;
+        string themePath = Path.Combine(rootPath, "theme");
         Directory.CreateDirectory(themePath);
-        var sourceFilePath = Path.Combine(themePath, "asset.txt");
+        string sourceFilePath = Path.Combine(themePath, "asset.txt");
         File.WriteAllText(sourceFilePath, "original");
-        var service = CreateService();
-        var draft = service.OpenExisting(themePath);
+        ThemeDraftService service = CreateService();
+        ThemeDraft draft = service.OpenExisting(themePath);
 
         try
         {
@@ -36,16 +36,16 @@ public sealed class ThemeDraftServiceTests
     [Fact]
     public void CreateNewLeavesDestinationEmptyUntilSave()
     {
-        var rootPath = Directory.CreateTempSubdirectory().FullName;
-        var basePath = Path.Combine(rootPath, "base");
-        var destinationPath = Path.Combine(rootPath, "new-theme");
+        string rootPath = Directory.CreateTempSubdirectory().FullName;
+        string basePath = Path.Combine(rootPath, "base");
+        string destinationPath = Path.Combine(rootPath, "new-theme");
         Directory.CreateDirectory(basePath);
         Directory.CreateDirectory(Path.Combine(basePath, "resources"));
         File.WriteAllText(Path.Combine(basePath, "dependencies.json"), "{}");
         File.WriteAllText(Path.Combine(basePath, "init.json"), "{}");
         File.WriteAllText(Path.Combine(basePath, "asset.txt"), "base");
-        var service = CreateService();
-        var draft = service.CreateNew(new NewThemeRequest(
+        ThemeDraftService service = CreateService();
+        ThemeDraft draft = service.CreateNew(new NewThemeRequest(
             basePath,
             destinationPath,
             "Draft Theme",
@@ -80,13 +80,13 @@ public sealed class ThemeDraftServiceTests
     [Fact]
     public void DiscardDeletesDraftWithoutChangingSource()
     {
-        var rootPath = Directory.CreateTempSubdirectory().FullName;
-        var themePath = Path.Combine(rootPath, "theme");
+        string rootPath = Directory.CreateTempSubdirectory().FullName;
+        string themePath = Path.Combine(rootPath, "theme");
         Directory.CreateDirectory(themePath);
-        var sourceFilePath = Path.Combine(themePath, "asset.txt");
+        string sourceFilePath = Path.Combine(themePath, "asset.txt");
         File.WriteAllText(sourceFilePath, "original");
-        var service = CreateService();
-        var draft = service.OpenExisting(themePath);
+        ThemeDraftService service = CreateService();
+        ThemeDraft draft = service.OpenExisting(themePath);
         File.WriteAllText(Path.Combine(draft.DraftPath, "asset.txt"), "edited");
 
         service.Discard(draft);
@@ -99,15 +99,15 @@ public sealed class ThemeDraftServiceTests
     [Fact]
     public void CreatesDraftUnderConfiguredRoot()
     {
-        var rootPath = Directory.CreateTempSubdirectory().FullName;
-        var themePath = Path.Combine(rootPath, "theme");
-        var draftsPath = Path.Combine(rootPath, "custom-drafts");
+        string rootPath = Directory.CreateTempSubdirectory().FullName;
+        string themePath = Path.Combine(rootPath, "theme");
+        string draftsPath = Path.Combine(rootPath, "custom-drafts");
         Directory.CreateDirectory(themePath);
         var service = new ThemeDraftService(
             new ThemeProjectCreator(),
             () => draftsPath,
             TestBackupsRootPath);
-        var draft = service.OpenExisting(themePath);
+        ThemeDraft draft = service.OpenExisting(themePath);
 
         try
         {
@@ -132,17 +132,17 @@ public sealed class ThemeDraftServiceTests
     [Fact]
     public void SaveKeepsLatestBackupsOfPreviousVersions()
     {
-        var rootPath = Directory.CreateTempSubdirectory().FullName;
-        var themePath = Path.Combine(rootPath, "theme");
-        var backupsPath = Path.Combine(rootPath, "backups");
+        string rootPath = Directory.CreateTempSubdirectory().FullName;
+        string themePath = Path.Combine(rootPath, "theme");
+        string backupsPath = Path.Combine(rootPath, "backups");
         Directory.CreateDirectory(themePath);
         File.WriteAllText(Path.Combine(themePath, "asset.txt"), "v0");
         var service = new ThemeDraftService(new ThemeProjectCreator(), backupsRootPath: backupsPath, backupsToKeep: 2);
-        var draft = service.OpenExisting(themePath);
+        ThemeDraft draft = service.OpenExisting(themePath);
 
         try
         {
-            for (var version = 1; version <= 3; version++)
+            for (int version = 1; version <= 3; version++)
             {
                 File.WriteAllText(Path.Combine(draft.DraftPath, "asset.txt"), $"v{version}");
                 draft = service.Save(draft);

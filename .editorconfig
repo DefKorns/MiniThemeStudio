@@ -22,6 +22,8 @@ dotnet_diagnostic.IDE0005.severity = warning
 dotnet_diagnostic.IDE0002.severity = warning
 # null checks that ?? throw says in one expression
 dotnet_diagnostic.IDE0270.severity = warning
+# var only where the type is apparent (new, casts), as the Microsoft C# conventions say
+dotnet_diagnostic.IDE0008.severity = warning
 
 dotnet_naming_rule.constants_use_pascal_case.severity = suggestion
 dotnet_naming_rule.constants_use_pascal_case.symbols = constant_fields

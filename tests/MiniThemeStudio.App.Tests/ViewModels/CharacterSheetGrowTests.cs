@@ -1,6 +1,7 @@
 using MiniThemeStudio.App.Dialogs;
 using MiniThemeStudio.App.Models;
 using MiniThemeStudio.App.Tests.TestDoubles;
+using MiniThemeStudio.App.ViewModels;
 using MiniThemeStudio.Core.Themes;
 using MiniThemeStudio.Infrastructure.Tests.Themes;
 using SkiaSharp;
@@ -15,14 +16,14 @@ public sealed class CharacterSheetGrowTests : IDisposable
 
     public CharacterSheetGrowTests()
     {
-        var basePath = _app.CreateBase();
+        string basePath = _app.CreateBase();
         SavePng(Path.Combine(basePath, "resources", "sprites", "characters_sbm.png"), 128, 64);
         TestApp.WriteFile(basePath, "resources/sprites/characters_sbm.json", """{"texture":{"id":"sbm","width":128,"height":64},"sprites":{}}""");
         TestApp.WriteBytes(basePath, "resources/scripts/sys_wallpaper_fg0.lua", CharacterPatternFixtures.SampleBytes);
         _app.Window.OpenTheme(_app.CreateTheme(), basePath);
-        for (var index = 0; index < 2; index++)
+        for (int index = 0; index < 2; index++)
         {
-            var path = Path.Combine(_app.Root, $"big{index}.png");
+            string path = Path.Combine(_app.Root, $"big{index}.png");
             SavePng(path, 27, 36);
             _pictures.Add(path);
         }
@@ -37,7 +38,7 @@ public sealed class CharacterSheetGrowTests : IDisposable
     [Fact]
     public async Task MarioGrowsToFitThePicturesWhenAsked()
     {
-        var characters = _app.Window.CharactersTab;
+        CharactersViewModel characters = _app.Window.CharactersTab;
         Assert.Equal(["Mario", "Block"], characters.SheetGroups.Select(group => group.Label));
         _app.Dialogs.ChoiceAnswer = DialogResult.Accepted;
 
@@ -55,7 +56,7 @@ public sealed class CharacterSheetGrowTests : IDisposable
     [Fact]
     public async Task ThePicturesAreMadeSmallerOtherwise()
     {
-        var characters = _app.Window.CharactersTab;
+        CharactersViewModel characters = _app.Window.CharactersTab;
         _app.Dialogs.ChoiceAnswer = DialogResult.Alternate;
 
         await characters.ImportRowCommand.ExecuteAsync(characters.SheetGroups[0].Row);
@@ -70,8 +71,8 @@ public sealed class CharacterSheetGrowTests : IDisposable
         using var bitmap = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
         bitmap.Erase(SKColors.Green);
         bitmap.SetPixel(1, 1, SKColors.White);
-        using var png = bitmap.Encode(SKEncodedImageFormat.Png, 100);
-        using var file = File.Create(path);
+        using SKData png = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+        using FileStream file = File.Create(path);
         png.SaveTo(file);
     }
 }

@@ -14,7 +14,7 @@ public sealed class SavedDraftStoreTests : IDisposable
     {
         _storePath = Path.Combine(_rootPath, "store");
         _workingRootPath = Path.Combine(_rootPath, "working");
-        var draftPath = Path.Combine(_rootPath, "draft");
+        string draftPath = Path.Combine(_rootPath, "draft");
         Directory.CreateDirectory(Path.Combine(draftPath, "resources"));
         File.WriteAllText(Path.Combine(draftPath, "resources", "asset.txt"), "v1");
         _draft = new ThemeDraft(draftPath, Path.Combine(_rootPath, "themes", "samus"), true);
@@ -30,9 +30,9 @@ public sealed class SavedDraftStoreTests : IDisposable
     {
         var store = new SavedDraftStore(_storePath, () => _workingRootPath);
 
-        var saved = store.Save(_draft, "Samus", "C:/bases/snes");
-        var listed = Assert.Single(store.List());
-        var restored = store.Restore(listed);
+        SavedDraft saved = store.Save(_draft, "Samus", "C:/bases/snes");
+        SavedDraft listed = Assert.Single(store.List());
+        ThemeDraft restored = store.Restore(listed);
         File.WriteAllText(Path.Combine(restored.DraftPath, "resources", "asset.txt"), "edited");
 
         Assert.Equal(saved with { SavedAt = listed.SavedAt }, listed);
@@ -48,10 +48,10 @@ public sealed class SavedDraftStoreTests : IDisposable
     public void SavingAgainReplacesTheSameSnapshot()
     {
         var store = new SavedDraftStore(_storePath, () => _workingRootPath);
-        var first = store.Save(_draft, "Samus", null);
+        SavedDraft first = store.Save(_draft, "Samus", null);
         File.WriteAllText(Path.Combine(_draft.DraftPath, "resources", "asset.txt"), "v2");
 
-        var second = store.Save(_draft with { SavedDraftId = first.Id }, "Samus v2", null);
+        SavedDraft second = store.Save(_draft with { SavedDraftId = first.Id }, "Samus v2", null);
 
         Assert.Equal(first.Id, second.Id);
         Assert.Equal("Samus v2", Assert.Single(store.List()).Name);
@@ -63,7 +63,7 @@ public sealed class SavedDraftStoreTests : IDisposable
     public void DeletesSnapshotsAndRejectsUnsafeIds()
     {
         var store = new SavedDraftStore(_storePath, () => _workingRootPath);
-        var saved = store.Save(_draft, "Samus", null);
+        SavedDraft saved = store.Save(_draft, "Samus", null);
 
         store.Delete(saved.Id);
 

@@ -69,7 +69,7 @@ public sealed class FileImage : Image, IDisposable
         try
         {
             // read through a stream so the file is not kept open
-            using var stream = File.OpenRead(path);
+            using FileStream stream = File.OpenRead(path);
             _bitmap = new Bitmap(stream);
             Source = _bitmap;
         }

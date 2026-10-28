@@ -1,5 +1,6 @@
 using Avalonia.Media;
 using MiniThemeStudio.App.Tests.TestDoubles;
+using MiniThemeStudio.App.ViewModels;
 using MiniThemeStudio.Infrastructure.Tests.Themes;
 
 namespace MiniThemeStudio.App.Tests.ViewModels;
@@ -13,7 +14,7 @@ public sealed class ColorsViewModelTests : IDisposable
 
     public ColorsViewModelTests()
     {
-        var basePath = _app.CreateBase();
+        string basePath = _app.CreateBase();
         TestApp.WriteBytes(basePath, Usa, PaletteFixtures.SampleBytes);
         TestApp.WriteBytes(basePath, Jpn, PaletteFixtures.SampleBytes);
 
@@ -33,10 +34,10 @@ public sealed class ColorsViewModelTests : IDisposable
     [Fact]
     public void ShowsOnlyTheColoursTheScenesUseUnlessAsked()
     {
-        var colors = _app.Window.ColorsTab;
+        ColorsViewModel colors = _app.Window.ColorsTab;
 
         Assert.Equal(["jpn", "usa"], colors.Palettes.Select(palette => palette.Region));
-        var hud = Assert.Single(colors.PaletteColors);
+        PaletteColorRow hud = Assert.Single(colors.PaletteColors);
         Assert.Equal("font_home_hud", hud.Name);
         Assert.Equal("#FFFFFF", hud.Hex);
         Assert.Equal("Used by 1 scene components:", colors.ColorUsageSummary);
@@ -50,7 +51,7 @@ public sealed class ColorsViewModelTests : IDisposable
     [Fact]
     public async Task ApplyingWritesTheColourToEveryRegion()
     {
-        var colors = _app.Window.ColorsTab;
+        ColorsViewModel colors = _app.Window.ColorsTab;
         colors.EditColor = Color.FromArgb(255, 190, 0, 26);
 
         await colors.ApplyColorCommand.ExecuteAsync(null);
@@ -66,7 +67,7 @@ public sealed class ColorsViewModelTests : IDisposable
     [Fact]
     public async Task ApplyingToOneRegionLeavesTheOthersOnTheBase()
     {
-        var colors = _app.Window.ColorsTab;
+        ColorsViewModel colors = _app.Window.ColorsTab;
         colors.ApplyColorToAllRegions = false;
         colors.EditColor = Color.FromArgb(255, 190, 0, 26);
 

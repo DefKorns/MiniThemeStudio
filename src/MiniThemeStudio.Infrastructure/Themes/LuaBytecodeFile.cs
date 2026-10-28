@@ -31,23 +31,23 @@ internal sealed class LuaBytecodeFile
         }
 
         reader.Position = 4;
-        var flags = reader.ReadUleb();
+        uint flags = reader.ReadUleb();
         if ((flags & FlagStrip) == 0 || (flags & FlagBigEndian) != 0)
         {
             throw new InvalidDataException("Only stripped little-endian LuaJIT bytecode is supported.");
         }
 
-        var header = bytes[..reader.Position];
+        byte[] header = bytes[..reader.Position];
         var prototypes = new List<LuaPrototype>();
         while (true)
         {
-            var length = (int)reader.ReadUleb();
+            int length = (int)reader.ReadUleb();
             if (length == 0)
             {
                 break;
             }
 
-            var end = reader.Position + length;
+            int end = reader.Position + length;
             prototypes.Add(LuaPrototype.Read(reader));
             if (reader.Position != end)
             {
@@ -67,7 +67,7 @@ internal sealed class LuaBytecodeFile
     {
         var output = new LuaByteWriter();
         output.WriteBytes(_header);
-        foreach (var prototype in Prototypes)
+        foreach (LuaPrototype prototype in Prototypes)
         {
             var body = new LuaByteWriter();
             prototype.Write(body);
@@ -111,9 +111,9 @@ internal sealed class LuaPrototype
             _frameSize = reader.ReadByte(),
             _upvalueCount = reader.ReadByte(),
         };
-        var constantCount = (int)reader.ReadUleb();
+        int constantCount = (int)reader.ReadUleb();
         prototype._numberCount = (int)reader.ReadUleb();
-        var instructionCount = (int)reader.ReadUleb();
+        int instructionCount = (int)reader.ReadUleb();
 
         prototype._bytecode = reader.ReadBytes(instructionCount * 4);
         prototype.Instructions = Enumerable.Range(0, instructionCount)
@@ -121,13 +121,13 @@ internal sealed class LuaPrototype
             .ToArray();
         prototype._upvalues = reader.ReadBytes(prototype._upvalueCount * 2);
 
-        for (var i = 0; i < constantCount; i++)
+        for (int i = 0; i < constantCount; i++)
         {
             prototype._constants.Add(LuaConstant.Read(reader));
         }
 
-        var numbersStart = reader.Position;
-        for (var i = 0; i < prototype._numberCount; i++)
+        int numbersStart = reader.Position;
+        for (int i = 0; i < prototype._numberCount; i++)
         {
             if (reader.ReadUleb33IsNumber())
             {
@@ -150,7 +150,7 @@ internal sealed class LuaPrototype
         writer.WriteUleb((uint)Instructions.Length);
         writer.WriteBytes(_bytecode);
         writer.WriteBytes(_upvalues);
-        foreach (var constant in _constants)
+        foreach (LuaConstant constant in _constants)
         {
             constant.Write(writer);
         }
@@ -167,7 +167,7 @@ internal abstract class LuaConstant
 
     public static LuaConstant Read(LuaByteReader reader)
     {
-        var type = reader.ReadUleb();
+        uint type = reader.ReadUleb();
         if (type >= KgcString)
         {
             return new LuaStringConstant(reader.ReadBytes((int)(type - KgcString)));
@@ -221,14 +221,14 @@ internal sealed class LuaTemplateTable : LuaConstant
     public static LuaTemplateTable ReadBody(LuaByteReader reader)
     {
         var table = new LuaTemplateTable();
-        var arrayCount = (int)reader.ReadUleb();
-        var hashCount = (int)reader.ReadUleb();
-        for (var i = 0; i < arrayCount; i++)
+        int arrayCount = (int)reader.ReadUleb();
+        int hashCount = (int)reader.ReadUleb();
+        for (int i = 0; i < arrayCount; i++)
         {
             table.Array.Add(LuaTableValue.Read(reader));
         }
 
-        for (var i = 0; i < hashCount; i++)
+        for (int i = 0; i < hashCount; i++)
         {
             table.Hash.Add((LuaTableValue.Read(reader), LuaTableValue.Read(reader)));
         }
@@ -241,12 +241,12 @@ internal sealed class LuaTemplateTable : LuaConstant
         writer.WriteUleb(1);
         writer.WriteUleb((uint)Array.Count);
         writer.WriteUleb((uint)Hash.Count);
-        foreach (var value in Array)
+        foreach (LuaTableValue value in Array)
         {
             value.Write(writer);
         }
 
-        foreach (var (key, value) in Hash)
+        foreach ((LuaTableValue key, LuaTableValue value) in Hash)
         {
             key.Write(writer);
             value.Write(writer);
@@ -271,7 +271,7 @@ internal readonly record struct LuaTableValue(LuaTableValueKind Kind, uint Integ
     // LuaJIT narrows every number that fits an int32 to an integer constant
     public static LuaTableValue FromNumber(double value)
     {
-        var narrowed = (int)value;
+        int narrowed = (int)value;
         return value == narrowed && value is >= int.MinValue and <= int.MaxValue
             ? new LuaTableValue(LuaTableValueKind.Integer, (uint)narrowed, 0, null)
             : new LuaTableValue(LuaTableValueKind.Number, 0, BitConverter.DoubleToUInt64Bits(value), null);
@@ -279,7 +279,7 @@ internal readonly record struct LuaTableValue(LuaTableValueKind Kind, uint Integ
 
     public static LuaTableValue Read(LuaByteReader reader)
     {
-        var type = reader.ReadUleb();
+        uint type = reader.ReadUleb();
         switch (type)
         {
             case 0: return new LuaTableValue(LuaTableValueKind.Nil, 0, 0, null);
@@ -287,8 +287,8 @@ internal readonly record struct LuaTableValue(LuaTableValueKind Kind, uint Integ
             case 2: return new LuaTableValue(LuaTableValueKind.True, 0, 0, null);
             case 3: return new LuaTableValue(LuaTableValueKind.Integer, reader.ReadUleb(), 0, null);
             case 4:
-                var low = (ulong)reader.ReadUleb();
-                var high = (ulong)reader.ReadUleb();
+                ulong low = (ulong)reader.ReadUleb();
+                ulong high = (ulong)reader.ReadUleb();
                 return new LuaTableValue(LuaTableValueKind.Number, 0, low | (high << 32), null);
             default:
                 return new LuaTableValue(LuaTableValueKind.String, 0, 0, reader.ReadBytes((int)(type - 5)));
@@ -342,7 +342,7 @@ internal sealed class LuaByteReader(byte[] bytes)
             throw new InvalidDataException("Unexpected end of LuaJIT bytecode.");
         }
 
-        var result = Bytes[Position..(Position + count)];
+        byte[] result = Bytes[Position..(Position + count)];
         Position += count;
         return result;
     }
@@ -350,7 +350,7 @@ internal sealed class LuaByteReader(byte[] bytes)
     public uint ReadUleb()
     {
         uint value = 0;
-        var shift = 0;
+        int shift = 0;
         byte current;
         do
         {
@@ -366,8 +366,8 @@ internal sealed class LuaByteReader(byte[] bytes)
     // the 33-bit form of number constants: bit 0 of the first byte tells a double from an integer
     public bool ReadUleb33IsNumber()
     {
-        var first = ReadByte();
-        var current = first;
+        byte first = ReadByte();
+        byte current = first;
         while (current >= 0x80)
         {
             current = ReadByte();
@@ -391,7 +391,7 @@ internal sealed class LuaByteWriter
     {
         do
         {
-            var current = (byte)(value & 0x7f);
+            byte current = (byte)(value & 0x7f);
             value >>= 7;
             if (value != 0)
             {

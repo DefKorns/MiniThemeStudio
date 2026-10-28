@@ -21,7 +21,7 @@ public sealed class ParallaxViewModelTests : IDisposable
     {
         _app.Window.OpenTheme(_app.CreateTheme(), _basePath);
 
-        var parallax = _app.Window.WallpapersTab.Parallax;
+        ParallaxViewModel parallax = _app.Window.WallpapersTab.Parallax;
 
         Assert.False(parallax.HasBackgrounds);
         Assert.False(parallax.AddLayerCommand.CanExecute(null));
@@ -30,7 +30,7 @@ public sealed class ParallaxViewModelTests : IDisposable
     [Fact]
     public void ShowsTheLayersOfTheScrollingBackground()
     {
-        var parallax = OpenScrollingTheme();
+        ParallaxViewModel parallax = OpenScrollingTheme();
 
         Assert.Equal("demo_bg/RootPane (lyt_wallpaper)", parallax.SelectedBackground?.DisplayName);
         Assert.Equal(["wall_far"], parallax.Layers.Select(row => row.Name));
@@ -43,7 +43,7 @@ public sealed class ParallaxViewModelTests : IDisposable
     public async Task ANewLayerIsAddedFromAPngAndSelected()
     {
         _app.Window.Mode.IsAdvanced = true;
-        var parallax = OpenScrollingTheme();
+        ParallaxViewModel parallax = OpenScrollingTheme();
         TestApp.WriteBytes(_app.Root, "hills.png", TestApp.Png);
         _app.Files.Paths.Enqueue(Path.Combine(_app.Root, "hills.png"));
         parallax.NewLayerName = "hills";
@@ -65,7 +65,7 @@ public sealed class ParallaxViewModelTests : IDisposable
     [Fact]
     public async Task TheSpeedOfTheSelectedLayerCanChange()
     {
-        var parallax = OpenScrollingTheme();
+        ParallaxViewModel parallax = OpenScrollingTheme();
         parallax.LayerLoops = 2;
 
         await parallax.ApplySpeedCommand.ExecuteAsync(null);
@@ -78,7 +78,7 @@ public sealed class ParallaxViewModelTests : IDisposable
     [Fact]
     public async Task RemovingALayerAsksFirst()
     {
-        var parallax = OpenScrollingTheme();
+        ParallaxViewModel parallax = OpenScrollingTheme();
         _app.Dialogs.ConfirmationAnswer = false;
 
         await parallax.RemoveLayerCommand.ExecuteAsync(null);
@@ -95,7 +95,7 @@ public sealed class ParallaxViewModelTests : IDisposable
     [Fact]
     public void ThePreviewPlaysTheBackgroundAndFramesTheSelectedLayer()
     {
-        var parallax = OpenScrollingTheme();
+        ParallaxViewModel parallax = OpenScrollingTheme();
 
         Assert.Equal("0", parallax.PreviewBranchPath);
         Assert.Equal("0/0/0", parallax.PreviewSelectedPath);
@@ -111,7 +111,7 @@ public sealed class ParallaxViewModelTests : IDisposable
     [Fact]
     public void ANewSpeedShowsInThePreviewBeforeItIsApplied()
     {
-        var parallax = OpenScrollingTheme();
+        ParallaxViewModel parallax = OpenScrollingTheme();
         parallax.Clock.TogglePlayCommand.Execute(null);
         parallax.Clock.Time = 8.533333333333333 / 4;
 
@@ -125,8 +125,8 @@ public sealed class ParallaxViewModelTests : IDisposable
     [Fact]
     public void AWallpaperAndTheLayerDrawingItSelectEachOther()
     {
-        var parallax = OpenScrollingTheme();
-        var wallpapers = _app.Window.WallpapersTab;
+        ParallaxViewModel parallax = OpenScrollingTheme();
+        WallpapersViewModel wallpapers = _app.Window.WallpapersTab;
         parallax.SelectedLayer = null;
 
         wallpapers.SelectedWallpaper = wallpapers.Wallpapers.Single(wallpaper => wallpaper.Name == "wall_far");

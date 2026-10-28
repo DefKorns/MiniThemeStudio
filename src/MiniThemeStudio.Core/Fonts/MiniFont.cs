@@ -22,7 +22,7 @@ public sealed class MiniFont
         TexturePngBytes = texturePngBytes;
 
         _glyphMap = new Dictionary<uint, FontGlyph>(glyphs.Count);
-        foreach (var glyph in glyphs)
+        foreach (FontGlyph glyph in glyphs)
         {
             _glyphMap[glyph.Id] = glyph;
         }
@@ -39,7 +39,7 @@ public sealed class MiniFont
     public FontGlyph? GetGlyph(char character) => GetGlyph((uint)character);
 
     public FontGlyph? GetGlyph(uint characterId) =>
-        _glyphMap.TryGetValue(characterId, out var glyph) ? glyph : null;
+        _glyphMap.TryGetValue(characterId, out FontGlyph? glyph) ? glyph : null;
 
     public bool HasGlyph(char character) => HasGlyph((uint)character);
 

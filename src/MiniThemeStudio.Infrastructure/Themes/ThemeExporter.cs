@@ -32,26 +32,26 @@ public sealed partial class ThemeExporter(IFFmpegAudioConverter? ffmpegAudioConv
 
         Directory.CreateDirectory(outputDirectory);
 
-        var packagePath = Path.Combine(outputDirectory, $"{system.ToUpperInvariant()}.{name}.tar.gz");
-        var temporaryPath = $"{packagePath}.{Guid.NewGuid():N}.tmp";
-        var includesPreview = previewPath is not null && File.Exists(previewPath);
-        var (files, sources, skipped) = SelectFiles(themePath, baseUiPath, options);
-        var needsOverlay = baseUiPath is not null
+        string packagePath = Path.Combine(outputDirectory, $"{system.ToUpperInvariant()}.{name}.tar.gz");
+        string temporaryPath = $"{packagePath}.{Guid.NewGuid():N}.tmp";
+        bool includesPreview = previewPath is not null && File.Exists(previewPath);
+        (List<string>? files, Dictionary<string, string>? sources, int skipped) = SelectFiles(themePath, baseUiPath, options);
+        bool needsOverlay = baseUiPath is not null
             && !files.Contains("needs_overlay")
             && files.Any(relativePath => !File.Exists(Path.Combine(baseUiPath, relativePath)) && relativePath.StartsWith("resources/", StringComparison.Ordinal));
         try
         {
-            using (var output = File.Create(temporaryPath))
+            using (FileStream output = File.Create(temporaryPath))
             using (var gzip = new GZipStream(output, CompressionLevel.Optimal))
             using (var writer = new TarWriter(gzip, TarEntryFormat.Gnu))
             {
                 writer.WriteEntry(new GnuTarEntry(TarEntryType.Directory, $"{name}/") { Mode = DirectoryMode });
-                foreach (var directory in ParentDirectories(files))
+                foreach (string directory in ParentDirectories(files))
                 {
                     writer.WriteEntry(new GnuTarEntry(TarEntryType.Directory, $"{name}/{directory}/") { Mode = DirectoryMode });
                 }
 
-                foreach (var relativePath in files)
+                foreach (string relativePath in files)
                 {
                     WriteFile(writer, Path.Combine(themePath, sources.GetValueOrDefault(relativePath, relativePath)), $"{name}/{relativePath}");
                 }
@@ -84,17 +84,17 @@ public sealed partial class ThemeExporter(IFFmpegAudioConverter? ffmpegAudioConv
     {
         var files = new List<string>();
         var sources = new Dictionary<string, string>(StringComparer.Ordinal);
-        var skipped = 0;
-        foreach (var filePath in Directory.EnumerateFiles(themePath, "*", SearchOption.AllDirectories))
+        int skipped = 0;
+        foreach (string filePath in Directory.EnumerateFiles(themePath, "*", SearchOption.AllDirectories))
         {
-            var relativePath = ToArchivePath(themePath, filePath);
+            string relativePath = ToArchivePath(themePath, filePath);
             if (UiTreeHash.IsIgnored(relativePath)
                 || PackagingOnlyFiles.Contains(relativePath, StringComparer.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            var isBgm = relativePath.StartsWith("resources/sounds/", StringComparison.OrdinalIgnoreCase)
+            bool isBgm = relativePath.StartsWith("resources/sounds/", StringComparison.OrdinalIgnoreCase)
                 && Path.GetFileName(relativePath).StartsWith("bgm_", StringComparison.OrdinalIgnoreCase);
 
             if (!options.IncludeBgm && isBgm)
@@ -105,7 +105,7 @@ public sealed partial class ThemeExporter(IFFmpegAudioConverter? ffmpegAudioConv
 
             if (options.ConvertBgmAudio && relativePath.StartsWith("resources/sounds/", StringComparison.OrdinalIgnoreCase))
             {
-                var ext = Path.GetExtension(filePath);
+                string ext = Path.GetExtension(filePath);
                 if (!ext.Equals(".wav", StringComparison.OrdinalIgnoreCase) && File.Exists(Path.ChangeExtension(filePath, ".wav")))
                 {
                     continue;
@@ -122,7 +122,7 @@ public sealed partial class ThemeExporter(IFFmpegAudioConverter? ffmpegAudioConv
             // (where older drafts kept them) moves there, unless the theme already has it in fonts/
             if (relativePath.StartsWith("resources/fonts/", StringComparison.OrdinalIgnoreCase) && ThemeFonts.IsFontFile(relativePath))
             {
-                var fontPath = ThemeFonts.RelativePath(Path.GetFileNameWithoutExtension(relativePath), Path.GetExtension(relativePath));
+                string fontPath = ThemeFonts.RelativePath(Path.GetFileNameWithoutExtension(relativePath), Path.GetExtension(relativePath));
                 if (File.Exists(Path.Combine(themePath, fontPath)) || sources.ContainsKey(fontPath))
                 {
                     continue;
@@ -156,7 +156,7 @@ public sealed partial class ThemeExporter(IFFmpegAudioConverter? ffmpegAudioConv
             return;
         }
 
-        var soundsDir = Path.Combine(themePath, "resources", "sounds");
+        string soundsDir = Path.Combine(themePath, "resources", "sounds");
         if (!Directory.Exists(soundsDir))
         {
             return;
@@ -176,31 +176,31 @@ public sealed partial class ThemeExporter(IFFmpegAudioConverter? ffmpegAudioConv
             throw new FileNotFoundException("Convert BGM audio is enabled, but the FFmpeg executable path is not configured or does not exist.", options.FFmpegPath);
         }
 
-        foreach (var audioFile in audioFiles)
+        foreach (string? audioFile in audioFiles)
         {
             if (baseUiPath is not null)
             {
-                var relativePath = ToArchivePath(themePath, audioFile);
-                var baseFile = Path.Combine(baseUiPath, relativePath);
+                string relativePath = ToArchivePath(themePath, audioFile);
+                string baseFile = Path.Combine(baseUiPath, relativePath);
                 if (IsUnchanged(audioFile, baseFile))
                 {
                     // Untouched base file: do not convert so delta export can omit it
                     continue;
                 }
             }
-            var ext = Path.GetExtension(audioFile);
-            var isWav = ext.Equals(".wav", StringComparison.OrdinalIgnoreCase);
-            var targetWavPath = isWav ? audioFile : Path.ChangeExtension(audioFile, ".wav");
+            string ext = Path.GetExtension(audioFile);
+            bool isWav = ext.Equals(".wav", StringComparison.OrdinalIgnoreCase);
+            string targetWavPath = isWav ? audioFile : Path.ChangeExtension(audioFile, ".wav");
 
-            var needsConversion = false;
+            bool needsConversion = false;
             if (!isWav)
             {
                 needsConversion = true;
             }
             else
             {
-                var info = WavAudioReader.Read(audioFile);
-                var expectedChannels = options.BgmChannels == Core.Audio.BgmAudioChannels.Mono ? 1 : 2;
+                WavAudioInfo info = WavAudioReader.Read(audioFile);
+                int expectedChannels = options.BgmChannels == Core.Audio.BgmAudioChannels.Mono ? 1 : 2;
                 if (!info.IsValidWav || !info.IsConsoleStandard || info.Channels != expectedChannels)
                 {
                     needsConversion = true;
@@ -209,7 +209,7 @@ public sealed partial class ThemeExporter(IFFmpegAudioConverter? ffmpegAudioConv
 
             if (needsConversion)
             {
-                var result = _ffmpegAudioConverter.ConvertToConsoleWavAsync(
+                AudioConversionResult result = _ffmpegAudioConverter.ConvertToConsoleWavAsync(
                     options.FFmpegPath,
                     audioFile,
                     targetWavPath,
@@ -226,9 +226,9 @@ public sealed partial class ThemeExporter(IFFmpegAudioConverter? ffmpegAudioConv
     private static SortedSet<string> ParentDirectories(IEnumerable<string> files)
     {
         var directories = new SortedSet<string>(StringComparer.Ordinal);
-        foreach (var file in files)
+        foreach (string file in files)
         {
-            var separator = file.LastIndexOf('/');
+            int separator = file.LastIndexOf('/');
             while (separator > 0)
             {
                 directories.Add(file[..separator]);
@@ -241,7 +241,7 @@ public sealed partial class ThemeExporter(IFFmpegAudioConverter? ffmpegAudioConv
 
     private static void WriteFile(TarWriter writer, string filePath, string entryName)
     {
-        using var content = File.OpenRead(filePath);
+        using FileStream content = File.OpenRead(filePath);
         writer.WriteEntry(new GnuTarEntry(TarEntryType.RegularFile, entryName)
         {
             Mode = FileMode,

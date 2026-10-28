@@ -7,7 +7,7 @@ public sealed class SceneAnimationEvaluatorTests
     [Fact]
     public void HeldKeysKeepTheirValueUntilTheNextKey()
     {
-        var track = Track("Alpha", new CurveKey(0, CurveInterpolation.Constant, 1), new CurveKey(2, CurveInterpolation.Constant, 0));
+        SceneAnimationTrack track = Track("Alpha", new CurveKey(0, CurveInterpolation.Constant, 1), new CurveKey(2, CurveInterpolation.Constant, 0));
 
         Assert.Equal(1, SceneAnimationEvaluator.Number(track, -1));
         Assert.Equal(1, SceneAnimationEvaluator.Number(track, 1.99));
@@ -19,7 +19,7 @@ public sealed class SceneAnimationEvaluatorTests
     public void LinearKeysSlideToTheirEndByTheNextKey()
     {
         // lyt_blind: the width closes from 160 to 0 in 0.1 s
-        var track = Track("Width", new CurveKey(0, CurveInterpolation.Linear, 160, 0), new CurveKey(0.1, CurveInterpolation.Constant, 0));
+        SceneAnimationTrack track = Track("Width", new CurveKey(0, CurveInterpolation.Linear, 160, 0), new CurveKey(0.1, CurveInterpolation.Constant, 0));
 
         Assert.Equal(80, SceneAnimationEvaluator.Number(track, 0.05)!.Value, 6);
         Assert.Equal(0, SceneAnimationEvaluator.Number(track, 0.2));
@@ -29,7 +29,7 @@ public sealed class SceneAnimationEvaluatorTests
     public void HermiteKeysWithTheLinesSlopeMoveStraight()
     {
         // lyt_wallpaper: the texture slides one width in 8.53 s, tangents 1 / 8.53 per second
-        var track = Track("TextureOffsetX", new CurveKey(0, CurveInterpolation.Hermite, 0, 1, 0.1171875, 0.1171875), new CurveKey(8.533333333333333, CurveInterpolation.Constant, 1));
+        SceneAnimationTrack track = Track("TextureOffsetX", new CurveKey(0, CurveInterpolation.Hermite, 0, 1, 0.1171875, 0.1171875), new CurveKey(8.533333333333333, CurveInterpolation.Constant, 1));
 
         Assert.Equal(0.25, SceneAnimationEvaluator.Number(track, 8.533333333333333 / 4)!.Value, 6);
         Assert.Equal(0.5, SceneAnimationEvaluator.Number(track, 8.533333333333333 / 2)!.Value, 6);
@@ -39,9 +39,9 @@ public sealed class SceneAnimationEvaluatorTests
     public void HermiteTangentsShapeTheCurve()
     {
         // lyt_hit: leaves at 780 px/s and lands softly
-        var track = Track("LocalPositionY", new CurveKey(0, CurveInterpolation.Hermite, 0, 65, 780, 0), new CurveKey(0.2, CurveInterpolation.Constant, 65));
+        SceneAnimationTrack track = Track("LocalPositionY", new CurveKey(0, CurveInterpolation.Hermite, 0, 65, 780, 0), new CurveKey(0.2, CurveInterpolation.Constant, 65));
 
-        var early = SceneAnimationEvaluator.Number(track, 0.02)!.Value;
+        double early = SceneAnimationEvaluator.Number(track, 0.02)!.Value;
         Assert.InRange(early, 65 * 0.1, 65);
         Assert.Equal(65, SceneAnimationEvaluator.Number(track, 0.2));
     }
@@ -49,9 +49,9 @@ public sealed class SceneAnimationEvaluatorTests
     [Fact]
     public void ApplyMovesTurnsAndFadesTheNamedNodes()
     {
-        var hero = Node("1/0", "Sprite_Hero_0", visual: Visual("t1"));
-        var pane = Node("1", "N", children: [hero]);
-        var root = Node("", "demo", components: ["AnimatorComponent"], children: [Node("0", "other"), pane]);
+        SceneNode hero = Node("1/0", "Sprite_Hero_0", visual: Visual("t1"));
+        SceneNode pane = Node("1", "N", children: [hero]);
+        SceneNode root = Node("", "demo", components: ["AnimatorComponent"], children: [Node("0", "other"), pane]);
         var clip = new SceneAnimationClip("/layout/lyt_hero@run.sceneanimation", 1,
         [
             Track(["N", "Sprite_Hero_0"], "LocalPositionX", new CurveKey(0, CurveInterpolation.Linear, 0, 100), new CurveKey(1, CurveInterpolation.Constant, 100)),
@@ -62,13 +62,13 @@ public sealed class SceneAnimationEvaluatorTests
             Track(["gone"], "LocalPositionY", new CurveKey(0, CurveInterpolation.Constant, 5)),
         ]);
 
-        var animated = SceneAnimationEvaluator.Apply(root, new SceneAnimationBinding(clip, "", "demo"), 0.75);
+        SceneNode animated = SceneAnimationEvaluator.Apply(root, new SceneAnimationBinding(clip, "", "demo"), 0.75);
 
-        var animatedHero = animated.SelfAndDescendants().Single(node => node.Path == "1/0");
+        SceneNode animatedHero = animated.SelfAndDescendants().Single(node => node.Path == "1/0");
         Assert.Equal(75, animatedHero.Transform.X, 6);
         Assert.Equal((0d, -1d, 1d, 0d), (Math.Round(animatedHero.Transform.A, 6), Math.Round(animatedHero.Transform.B, 6), Math.Round(animatedHero.Transform.C, 6), Math.Round(animatedHero.Transform.D, 6)));
         Assert.Equal("t2", animatedHero.Visual!.TextureId);
-        var animatedPane = animated.Children[1];
+        SceneNode animatedPane = animated.Children[1];
         Assert.Equal(0.5, animatedPane.Alpha);
         Assert.False(animatedPane.Visible);
 
@@ -81,11 +81,11 @@ public sealed class SceneAnimationEvaluatorTests
     public void ScaleOnlyKeepsTheFlipOfTheNode()
     {
         // characters face left with a negative X scale
-        var flipped = Node("0", "hero") with { Transform = new SceneTransform(-2, 0, 0, 0, 2, 0) };
-        var root = Node("", "demo", children: [flipped]);
+        SceneNode flipped = Node("0", "hero") with { Transform = new SceneTransform(-2, 0, 0, 0, 2, 0) };
+        SceneNode root = Node("", "demo", children: [flipped]);
         var clip = new SceneAnimationClip("/a.sceneanimation", 1, [Track(["hero"], "LocalScaleY", new CurveKey(0, CurveInterpolation.Constant, 3))]);
 
-        var animated = SceneAnimationEvaluator.Apply(root, new SceneAnimationBinding(clip, "", "demo"), 0).Children[0];
+        SceneNode animated = SceneAnimationEvaluator.Apply(root, new SceneAnimationBinding(clip, "", "demo"), 0).Children[0];
 
         Assert.Equal(3, Math.Abs(animated.Transform.D), 6);
         Assert.Equal(2, Math.Abs(animated.Transform.A), 6);

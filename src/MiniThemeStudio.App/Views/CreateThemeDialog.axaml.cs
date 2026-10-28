@@ -45,13 +45,13 @@ public sealed partial class CreateThemeDialog : Window
 
     private async void BrowseAtlas_Click(object? sender, RoutedEventArgs e)
     {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        IReadOnlyList<IStorageFile> files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Select an existing packed.png to build the theme around",
             AllowMultiple = false,
             FileTypeFilter = [new FilePickerFileType("PNG image") { Patterns = ["*.png"] }],
         });
-        var imagePath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
+        string? imagePath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
         if (imagePath is null || _atlasLayoutMatcher is null)
         {
             return;
@@ -59,7 +59,7 @@ public sealed partial class CreateThemeDialog : Window
 
         try
         {
-            var matches = _atlasLayoutMatcher.Rank(imagePath, _installedBases);
+            IReadOnlyList<AtlasLayoutMatch> matches = _atlasLayoutMatcher.Rank(imagePath, _installedBases);
             if (matches.Count == 0)
             {
                 ValidationText.Text = "No installed Base has an atlas with the same size as this PNG.";
@@ -97,8 +97,8 @@ public sealed partial class CreateThemeDialog : Window
 
     private void Continue_Click(object? sender, RoutedEventArgs e)
     {
-        var name = ThemeNameTextBox.Text?.Trim();
-        var author = AuthorTextBox.Text?.Trim();
+        string? name = ThemeNameTextBox.Text?.Trim();
+        string? author = AuthorTextBox.Text?.Trim();
 
         if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(author))
         {

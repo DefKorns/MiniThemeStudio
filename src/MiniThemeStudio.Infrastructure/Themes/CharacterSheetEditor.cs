@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json.Nodes;
 using MiniThemeStudio.Core.Themes;
 using SkiaSharp;
 
@@ -30,9 +31,9 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
     {
         var layer = new ThemeLayer(themePath, baseUiPath);
         var sheets = new List<CharacterSheet>();
-        foreach (var name in SheetNames)
+        foreach (string name in SheetNames)
         {
-            var resource = Resource(name);
+            string resource = Resource(name);
             if (layer.Resolve(resource) is not { } imagePath)
             {
                 continue;
@@ -40,8 +41,8 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
 
             // the script tells where it cuts its characters; without it, the places come from the Base sheet, as a new
             // picture with transparent edges must not move them
-            var characters = name == ScriptSheet ? ScriptCharacters(layer) : null;
-            using var layout = Decode(characters is null ? layer.ResolveInBase(resource) ?? imagePath : imagePath, "The character sheet");
+            List<LuaCharacter>? characters = name == ScriptSheet ? ScriptCharacters(layer) : null;
+            using SKBitmap layout = Decode(characters is null ? layer.ResolveInBase(resource) ?? imagePath : imagePath, "The character sheet");
             sheets.Add(new CharacterSheet(
                 name,
                 imagePath,
@@ -61,20 +62,20 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
     {
         ArgumentNullException.ThrowIfNull(sheet);
         ArgumentNullException.ThrowIfNull(frame);
-        var resource = Resource(sheet.Name);
-        using var file = Decode(pictureImagePath, Path.GetFileName(pictureImagePath));
-        var ink = Ink(file) ?? throw new InvalidDataException($"{Path.GetFileName(pictureImagePath)} is empty.");
+        string resource = Resource(sheet.Name);
+        using SKBitmap file = Decode(pictureImagePath, Path.GetFileName(pictureImagePath));
+        SKRectI ink = Ink(file) ?? throw new InvalidDataException($"{Path.GetFileName(pictureImagePath)} is empty.");
         using var inked = new SKBitmap();
         file.ExtractSubset(inked, ink);
-        var (picture, scale) = Fit(inked, frame.SlotWidth, frame.SlotHeight);
-        using var placed = picture;
+        (SKBitmap? picture, double scale) = Fit(inked, frame.SlotWidth, frame.SlotHeight);
+        using SKBitmap placed = picture;
 
         // centred where the Base picture was and standing where it stood, inside the slot
-        var x = Math.Clamp(frame.X + ((frame.Width - placed.Width) / 2), frame.SlotX, frame.SlotX + frame.SlotWidth - placed.Width);
-        var y = Math.Clamp(frame.Y + frame.Height - placed.Height, frame.SlotY, frame.SlotY + frame.SlotHeight - placed.Height);
+        int x = Math.Clamp(frame.X + ((frame.Width - placed.Width) / 2), frame.SlotX, frame.SlotX + frame.SlotWidth - placed.Width);
+        int y = Math.Clamp(frame.Y + frame.Height - placed.Height, frame.SlotY, frame.SlotY + frame.SlotHeight - placed.Height);
 
-        var (layer, target) = DraftSheet(themeDraftPath, baseUiPath, resource);
-        using var pixels = Decode(target, "The character sheet");
+        (ThemeLayer? layer, string? target) = DraftSheet(themeDraftPath, baseUiPath, resource);
+        using SKBitmap pixels = Decode(target, "The character sheet");
         using (var canvas = new SKCanvas(pixels))
         {
             // the old picture goes with its whole slot
@@ -91,25 +92,25 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
     public void ReplaceSheet(string themeDraftPath, string? baseUiPath, CharacterSheet sheet, string sheetImagePath)
     {
         ArgumentNullException.ThrowIfNull(sheet);
-        var resource = Resource(sheet.Name);
+        string resource = Resource(sheet.Name);
         var layer = new ThemeLayer(themeDraftPath, baseUiPath);
-        var current = layer.Resolve(resource) ?? throw new FileNotFoundException($"This UI has no resources{resource}.");
-        using var replacement = Decode(sheetImagePath, Path.GetFileName(sheetImagePath));
-        using var original = Decode(current, "The character sheet");
+        string current = layer.Resolve(resource) ?? throw new FileNotFoundException($"This UI has no resources{resource}.");
+        using SKBitmap replacement = Decode(sheetImagePath, Path.GetFileName(sheetImagePath));
+        using SKBitmap original = Decode(current, "The character sheet");
         if (replacement.Width != original.Width || replacement.Height != original.Height)
         {
             throw new InvalidDataException(string.Create(CultureInfo.InvariantCulture,
                 $"The sheet must be {original.Width} × {original.Height} pixels, like the one it replaces; {Path.GetFileName(sheetImagePath)} is {replacement.Width} × {replacement.Height}."));
         }
 
-        var target = layer.ThemeResourceFile(resource);
+        string target = layer.ThemeResourceFile(resource);
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
         File.Copy(sheetImagePath, target, true);
     }
 
     public (int Width, int Height) MeasurePicture(string pictureImagePath)
     {
-        using var picture = Decode(pictureImagePath, Path.GetFileName(pictureImagePath));
+        using SKBitmap picture = Decode(pictureImagePath, Path.GetFileName(pictureImagePath));
         return Ink(picture) is { } ink ? (ink.Width, ink.Height) : (0, 0);
     }
 
@@ -134,17 +135,17 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
             ? (Width: Math.Max(width, character.Width), Height: Math.Max(height, character.Height))
             : (character.Width, character.Height)).ToList();
         var places = new List<List<(int X, int Y)>>();
-        var top = TopMargin;
-        var right = 0;
-        for (var index = 0; index < characters.Count; index++)
+        int top = TopMargin;
+        int right = 0;
+        for (int index = 0; index < characters.Count; index++)
         {
-            var (cellWidth, cellHeight) = sizes[index];
+            (int cellWidth, int cellHeight) = sizes[index];
             places.Add(Enumerable.Range(0, characters[index].Frames.Count).Select(frame => (frame * (cellWidth + ColumnGap), top)).ToList());
             right = Math.Max(right, (characters[index].Frames.Count * (cellWidth + ColumnGap)) - ColumnGap);
             top += cellHeight + RowGap;
         }
 
-        using var current = Decode(layer.Resolve(Resource(ScriptSheet))!, "The character sheet");
+        using SKBitmap current = Decode(layer.Resolve(Resource(ScriptSheet))!, "The character sheet");
 
         // textures keep a power of two side, as the console's own
         using var resized = new SKBitmap(new SKImageInfo(
@@ -156,33 +157,33 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
         using (var canvas = new SKCanvas(resized))
         {
             using var copy = new SKPaint { BlendMode = SKBlendMode.Src };
-            for (var index = 0; index < characters.Count; index++)
+            for (int index = 0; index < characters.Count; index++)
             {
-                var character = characters[index];
-                var (cellWidth, cellHeight) = sizes[index];
-                for (var frame = 0; frame < character.Frames.Count; frame++)
+                LuaCharacter character = characters[index];
+                (int cellWidth, int cellHeight) = sizes[index];
+                for (int frame = 0; frame < character.Frames.Count; frame++)
                 {
                     // each picture keeps its pixels, centred at the bottom of its larger cell
-                    var (x, y) = character.Frames[frame];
-                    var (newX, newY) = places[index][frame];
-                    var left = newX + ((cellWidth - character.Width) / 2);
-                    var bottom = newY + cellHeight - character.Height;
+                    (int x, int y) = character.Frames[frame];
+                    (int newX, int newY) = places[index][frame];
+                    int left = newX + ((cellWidth - character.Width) / 2);
+                    int bottom = newY + cellHeight - character.Height;
                     canvas.DrawBitmap(current, new SKRect(x, y, x + character.Width, y + character.Height), new SKRect(left, bottom, left + character.Width, bottom + character.Height), copy);
                 }
             }
         }
 
-        var target = layer.ThemeResourceFile(Resource(ScriptSheet));
+        string target = layer.ThemeResourceFile(Resource(ScriptSheet));
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
         Save(resized, target);
         WriteTextureSize(layer, resized.Width, resized.Height);
 
-        for (var index = 0; index < characters.Count; index++)
+        for (int index = 0; index < characters.Count; index++)
         {
             patterns.Set(characters[index].Name, sizes[index].Width, sizes[index].Height, places[index]);
         }
 
-        var scriptTarget = layer.ThemeResourceFile(ScriptResource);
+        string scriptTarget = layer.ThemeResourceFile(ScriptResource);
         Directory.CreateDirectory(Path.GetDirectoryName(scriptTarget)!);
         File.WriteAllBytes(scriptTarget, patterns.ToBytes());
     }
@@ -190,13 +191,13 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
     // the characters_sbm.json of the theme tells the new size of the texture
     private static void WriteTextureSize(ThemeLayer layer, int width, int height)
     {
-        var definition = Path.ChangeExtension(Resource(ScriptSheet), ".json");
+        string definition = Path.ChangeExtension(Resource(ScriptSheet), ".json");
         if (layer.Resolve(definition) is not { } source)
         {
             return;
         }
 
-        var json = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(source)) as System.Text.Json.Nodes.JsonObject
+        JsonObject json = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(source)) as System.Text.Json.Nodes.JsonObject
             ?? throw new InvalidDataException("characters_sbm.json is not a JSON object.");
         if (json["texture"] is System.Text.Json.Nodes.JsonObject texture)
         {
@@ -209,7 +210,7 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
 
     private static int PowerOfTwo(int value)
     {
-        var power = 1;
+        int power = 1;
         while (power < value)
         {
             power <<= 1;
@@ -246,7 +247,7 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
     // smb_mario is Mario
     private static string Title(string name)
     {
-        var word = name.StartsWith("smb_", StringComparison.Ordinal) ? name[4..] : name;
+        string word = name.StartsWith("smb_", StringComparison.Ordinal) ? name[4..] : name;
         return word.Length == 0 ? name : char.ToUpperInvariant(word[0]) + word[1..];
     }
 
@@ -257,17 +258,17 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
     {
         var frames = new List<CharacterSheetFrame>();
         var bands = Runs(sheet.Height, y => Enumerable.Range(0, sheet.Width).Any(x => sheet.GetPixel(x, y).Alpha > VisibleAlpha)).ToList();
-        for (var row = 0; row < bands.Count; row++)
+        for (int row = 0; row < bands.Count; row++)
         {
-            var (top, bottom) = bands[row];
+            (int top, int bottom) = bands[row];
             var boxes = Runs(sheet.Width, x => Enumerable.Range(top, bottom - top).Any(y => sheet.GetPixel(x, y).Alpha > VisibleAlpha)).ToList();
 
             // the slot reaches as far as the rows above and the pictures beside allow
-            var (slotY, slotHeight) = Slot(top, bottom - top, row == 0 ? 0 : bands[row - 1].End, sheet.Height, alignEnd: true);
-            for (var index = 0; index < boxes.Count; index++)
+            (int slotY, int slotHeight) = Slot(top, bottom - top, row == 0 ? 0 : bands[row - 1].End, sheet.Height, alignEnd: true);
+            for (int index = 0; index < boxes.Count; index++)
             {
-                var (left, right) = boxes[index];
-                var (slotX, slotWidth) = Slot(left, right - left, index == 0 ? 0 : boxes[index - 1].End, index + 1 < boxes.Count ? boxes[index + 1].Start : sheet.Width, alignEnd: false);
+                (int left, int right) = boxes[index];
+                (int slotX, int slotWidth) = Slot(left, right - left, index == 0 ? 0 : boxes[index - 1].End, index + 1 < boxes.Count ? boxes[index + 1].Start : sheet.Width, alignEnd: false);
                 frames.Add(new CharacterSheetFrame(row, index, left, top, right - left, bottom - top, slotX, slotY, slotWidth, slotHeight));
             }
         }
@@ -278,13 +279,13 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
     // a span of whole sprites around the picture (centred, or ending with it), between the free limits
     private static (int Start, int Length) Slot(int start, int length, int lowest, int highest, bool alignEnd)
     {
-        var size = Math.Max(SpriteSide, (length + SpriteSide - 1) / SpriteSide * SpriteSide);
+        int size = Math.Max(SpriteSide, (length + SpriteSide - 1) / SpriteSide * SpriteSide);
         if (size > highest - lowest)
         {
             return (start, length);
         }
 
-        var wanted = alignEnd ? start + length - size : start - ((size - length) / 2);
+        int wanted = alignEnd ? start + length - size : start - ((size - length) / 2);
         return (Math.Clamp(wanted, lowest, highest - size), size);
     }
 
@@ -297,8 +298,8 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
             return (picture.Copy(), 1);
         }
 
-        var block = PixelBlock(picture);
-        var scale = 1.0 / block;
+        int block = PixelBlock(picture);
+        double scale = 1.0 / block;
         if (picture.Width / block > width || picture.Height / block > height)
         {
             scale = Math.Min((double)width / picture.Width, (double)height / picture.Height);
@@ -316,14 +317,14 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
     // multiple of
     private static int PixelBlock(SKBitmap picture)
     {
-        var block = 0;
+        int block = 0;
         void Add(int run) => block = block == 0 ? run : Gcd(block, run);
         void Runs(int lines, int length, Func<int, int, SKColor> pixel)
         {
-            for (var line = 0; line < lines && block != 1; line++)
+            for (int line = 0; line < lines && block != 1; line++)
             {
-                var run = 1;
-                for (var position = 1; position < length; position++)
+                int run = 1;
+                for (int position = 1; position < length; position++)
                 {
                     if (pixel(line, position) == pixel(line, position - 1))
                     {
@@ -357,10 +358,10 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
 
     private static IEnumerable<(int Start, int End)> Runs(int length, Func<int, bool> isInked)
     {
-        var start = -1;
-        for (var position = 0; position <= length; position++)
+        int start = -1;
+        for (int position = 0; position <= length; position++)
         {
-            var inked = position < length && isInked(position);
+            bool inked = position < length && isInked(position);
             if (inked && start < 0)
             {
                 start = position;
@@ -377,10 +378,10 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
     private static (ThemeLayer Layer, string Path) DraftSheet(string themeDraftPath, string? baseUiPath, string resource)
     {
         var layer = new ThemeLayer(themeDraftPath, baseUiPath);
-        var target = layer.ThemeResourceFile(resource);
+        string target = layer.ThemeResourceFile(resource);
         if (!File.Exists(target))
         {
-            var source = layer.Resolve(resource) ?? throw new FileNotFoundException($"This UI has no resources{resource}.");
+            string source = layer.Resolve(resource) ?? throw new FileNotFoundException($"This UI has no resources{resource}.");
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             File.Copy(source, target);
         }
@@ -390,7 +391,7 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
 
     private static SKBitmap Decode(string path, string description)
     {
-        using var codec = SKCodec.Create(path) ?? throw new InvalidDataException($"{description} is not a valid PNG image.");
+        using SKCodec codec = SKCodec.Create(path) ?? throw new InvalidDataException($"{description} is not a valid PNG image.");
         var bitmap = new SKBitmap(new SKImageInfo(codec.Info.Width, codec.Info.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
         if (codec.GetPixels(bitmap.Info, bitmap.GetPixels()) != SKCodecResult.Success)
         {
@@ -403,9 +404,9 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
 
     private static void Save(SKBitmap sheet, string path)
     {
-        using var png = sheet.Encode(SKEncodedImageFormat.Png, 100);
-        var temporary = path + ".tmp";
-        using (var file = File.Create(temporary))
+        using SKData png = sheet.Encode(SKEncodedImageFormat.Png, 100);
+        string temporary = path + ".tmp";
+        using (FileStream file = File.Create(temporary))
         {
             png.SaveTo(file);
         }

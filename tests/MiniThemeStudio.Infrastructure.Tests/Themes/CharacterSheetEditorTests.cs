@@ -1,3 +1,4 @@
+using MiniThemeStudio.Core.Themes;
 using MiniThemeStudio.Infrastructure.Themes;
 using SkiaSharp;
 
@@ -24,7 +25,7 @@ public sealed class CharacterSheetEditorTests : IDisposable
     [Fact]
     public void FindsThePicturesBetweenTransparentLines()
     {
-        var sheet = Assert.Single(_editor.GetSheets(_themePath, _basePath));
+        CharacterSheet sheet = Assert.Single(_editor.GetSheets(_themePath, _basePath));
 
         Assert.Equal("characters_sbm", sheet.Name);
         Assert.True(sheet.IsFromBaseUi);
@@ -39,7 +40,7 @@ public sealed class CharacterSheetEditorTests : IDisposable
     {
         SavePng(Path.Combine(_basePath, "resources", "sprites", "wallpaper-hvc.png"), 64, 16, (2, 0, 12, 16), (32, 0, 32, 16));
 
-        var sheets = _editor.GetSheets(_themePath, _basePath);
+        IReadOnlyList<CharacterSheet> sheets = _editor.GetSheets(_themePath, _basePath);
 
         Assert.Equal(["characters_sbm", "wallpaper-hvc"], sheets.Select(sheet => sheet.Name));
         Assert.Equal([new(0, 0, 2, 0, 12, 16, 0, 0, 16, 16), new(0, 1, 32, 0, 32, 16, 32, 0, 32, 16)], sheets[1].Frames);
@@ -56,15 +57,15 @@ public sealed class CharacterSheetEditorTests : IDisposable
     [Fact]
     public void APictureStandsWhereTheOldOneStoodAndTheFramesStayPut()
     {
-        var sheet = _editor.GetSheets(_themePath, _basePath)[0];
-        var frame = sheet.Frames[1];
-        var picture = Path.Combine(_themePath, "luigi.png");
+        CharacterSheet sheet = _editor.GetSheets(_themePath, _basePath)[0];
+        CharacterSheetFrame frame = sheet.Frames[1];
+        string picture = Path.Combine(_themePath, "luigi.png");
 
         // a 4 x 4 picture with transparent edges: centred on the old 15 x 16 one and standing on its bottom line
         SavePng(picture, 15, 16, (4, 4, 4, 4));
         _editor.ReplaceFrame(_themePath, _basePath, sheet, frame, picture);
 
-        var draftSheet = Path.Combine(_themePath, "resources", "sprites", "characters_sbm.png");
+        string draftSheet = Path.Combine(_themePath, "resources", "sprites", "characters_sbm.png");
         using (var pixels = SKBitmap.Decode(draftSheet))
         {
             Assert.Equal(0, pixels.GetPixel(18, 1).Alpha);
@@ -74,7 +75,7 @@ public sealed class CharacterSheetEditorTests : IDisposable
             Assert.Equal(255, pixels.GetPixel(2, 1).Alpha);
         }
 
-        var again = _editor.GetSheets(_themePath, _basePath)[0];
+        CharacterSheet again = _editor.GetSheets(_themePath, _basePath)[0];
         Assert.False(again.IsFromBaseUi);
         Assert.Equal(frame, again.Frames[1]);
     }
@@ -82,14 +83,14 @@ public sealed class CharacterSheetEditorTests : IDisposable
     [Fact]
     public void PicturesAndSheetsKeepTheirSize()
     {
-        var sheet = _editor.GetSheets(_themePath, _basePath)[0];
-        var frame = sheet.Frames[0];
-        var wrong = Path.Combine(_themePath, "wrong.png");
+        CharacterSheet sheet = _editor.GetSheets(_themePath, _basePath)[0];
+        CharacterSheetFrame frame = sheet.Frames[0];
+        string wrong = Path.Combine(_themePath, "wrong.png");
         SavePng(wrong, 17, 16);
 
         Assert.Throws<InvalidDataException>(() => _editor.ReplaceSheet(_themePath, _basePath, sheet, wrong));
 
-        var whole = Path.Combine(_themePath, "sheet.png");
+        string whole = Path.Combine(_themePath, "sheet.png");
         SavePng(whole, 128, 64, (0, 0, 8, 8));
         _editor.ReplaceSheet(_themePath, _basePath, sheet, whole);
         Assert.True(File.Exists(Path.Combine(_themePath, "resources", "sprites", "characters_sbm.png")));
@@ -98,22 +99,22 @@ public sealed class CharacterSheetEditorTests : IDisposable
     [Fact]
     public void EnlargedPixelArtIsDrawnAtItsOwnPixelSize()
     {
-        var sheet = _editor.GetSheets(_themePath, _basePath)[0];
+        CharacterSheet sheet = _editor.GetSheets(_themePath, _basePath)[0];
 
         // a 16 x 16 sprite drawn three times larger, with a 3 x 3 dot in one corner
-        var big = Path.Combine(_themePath, "big.png");
+        string big = Path.Combine(_themePath, "big.png");
         SavePng(big, 48, 48, (0, 0, 48, 48));
-        using (var bitmap = SKBitmap.Decode(big).Copy(SKColorType.Rgba8888))
+        using (SKBitmap bitmap = SKBitmap.Decode(big).Copy(SKColorType.Rgba8888))
         {
-            for (var y = 0; y < 3; y++)
+            for (int y = 0; y < 3; y++)
             {
-                for (var x = 0; x < 3; x++)
+                for (int x = 0; x < 3; x++)
                 {
                     bitmap.SetPixel(x, y, SKColors.Blue);
                 }
             }
 
-            using var png = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+            using SKData png = bitmap.Encode(SKEncodedImageFormat.Png, 100);
             File.WriteAllBytes(big, png.ToArray());
         }
 
@@ -127,18 +128,18 @@ public sealed class CharacterSheetEditorTests : IDisposable
     [Fact]
     public void ALargePictureIsMadeSmallerToFit()
     {
-        var sheet = _editor.GetSheets(_themePath, _basePath)[0];
+        CharacterSheet sheet = _editor.GetSheets(_themePath, _basePath)[0];
         // a sprite drawn at its own pixel size, with one pixel of another colour
-        var large = Path.Combine(_themePath, "large.png");
+        string large = Path.Combine(_themePath, "large.png");
         SavePng(large, 27, 36);
-        using (var bitmap = SKBitmap.Decode(large).Copy(SKColorType.Rgba8888))
+        using (SKBitmap bitmap = SKBitmap.Decode(large).Copy(SKColorType.Rgba8888))
         {
             bitmap.SetPixel(1, 1, SKColors.Blue);
-            using var png = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+            using SKData png = bitmap.Encode(SKEncodedImageFormat.Png, 100);
             File.WriteAllBytes(large, png.ToArray());
         }
 
-        var scale = _editor.ReplaceFrame(_themePath, _basePath, sheet, sheet.Frames[0], large);
+        double scale = _editor.ReplaceFrame(_themePath, _basePath, sheet, sheet.Frames[0], large);
 
         Assert.Equal(16 / 36.0, scale, 6);
         using var pixels = SKBitmap.Decode(Path.Combine(_themePath, "resources", "sprites", "characters_sbm.png"));
@@ -154,19 +155,19 @@ public sealed class CharacterSheetEditorTests : IDisposable
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         using var bitmap = new SKBitmap(new SKImageInfo(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul));
         bitmap.Erase(SKColors.Transparent);
-        foreach (var (x, y, w, h) in inked.Length == 0 ? [(0, 0, width, height)] : inked)
+        foreach ((int x, int y, int w, int h) in inked.Length == 0 ? [(0, 0, width, height)] : inked)
         {
-            for (var row = y; row < y + h; row++)
+            for (int row = y; row < y + h; row++)
             {
-                for (var column = x; column < x + w; column++)
+                for (int column = x; column < x + w; column++)
                 {
                     bitmap.SetPixel(column, row, SKColors.Red);
                 }
             }
         }
 
-        using var png = bitmap.Encode(SKEncodedImageFormat.Png, 100);
-        using var file = File.Create(path);
+        using SKData png = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+        using FileStream file = File.Create(path);
         png.SaveTo(file);
     }
 }

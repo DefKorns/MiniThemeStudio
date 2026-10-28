@@ -16,7 +16,7 @@ internal static class ThemeFonts
 
     // the name a font of the UI has in a theme: l is large
     public static string ThemeName(string uiName) =>
-        ThemeNames.TryGetValue(uiName, out var themeName) ? themeName : uiName.ToLowerInvariant();
+        ThemeNames.TryGetValue(uiName, out string? themeName) ? themeName : uiName.ToLowerInvariant();
 
     // the name of the UI's font a theme font replaces: large is l
     public static string UiName(string themeName) =>
@@ -27,7 +27,7 @@ internal static class ThemeFonts
 
     public static bool IsFontFile(string path)
     {
-        var extension = Path.GetExtension(path);
+        string extension = Path.GetExtension(path);
         return extension.Equals(".fnt", StringComparison.OrdinalIgnoreCase) || extension.Equals(".font", StringComparison.OrdinalIgnoreCase);
     }
 }

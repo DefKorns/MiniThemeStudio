@@ -38,7 +38,7 @@ public sealed class SceneImageLibrary : IDisposable
 
     private void Reload()
     {
-        var previous = Images;
+        SceneImageSource previous = Images;
         if (_session.Draft is not { } draft)
         {
             TextureChoices = [];
@@ -50,9 +50,9 @@ public sealed class SceneImageLibrary : IDisposable
 
         var imagePaths = new Dictionary<string, string>(StringComparer.Ordinal);
         var choices = new List<SceneTextureChoice>();
-        foreach (var (relativePath, textureId) in _session.Report.TextureIdsByImagePath)
+        foreach ((string? relativePath, string? textureId) in _session.Report.TextureIdsByImagePath)
         {
-            var imagePath = new[] { draft.DraftPath, _session.BaseUiPath }
+            string? imagePath = new[] { draft.DraftPath, _session.BaseUiPath }
                 .Where(root => root is not null)
                 .Select(root => Path.Combine(root!, "resources", relativePath))
                 .FirstOrDefault(File.Exists);

@@ -140,7 +140,7 @@ public sealed partial class ParallaxViewModel : ViewModelBase
             return;
         }
 
-        var name = string.IsNullOrWhiteSpace(NewLayerName) ? Path.GetFileNameWithoutExtension(imagePath) : NewLayerName.Trim();
+        string name = string.IsNullOrWhiteSpace(NewLayerName) ? Path.GetFileNameWithoutExtension(imagePath) : NewLayerName.Trim();
         var layer = new NewParallaxLayer(name, imagePath, (double)(NewLayerY ?? 0), (int)(NewLayerZIndex ?? 0), (int)(NewLayerScale ?? 3), (int)(NewLayerLoops ?? 1));
         string? nodePath = null;
         if (await _errorHandler.TryRunAsync($"Cannot add the layer {name}", () =>
@@ -163,7 +163,7 @@ public sealed partial class ParallaxViewModel : ViewModelBase
             return;
         }
 
-        var name = row.Name;
+        string name = row.Name;
         if (await _errorHandler.TryRunAsync($"Cannot change the speed of {name}", () =>
         {
             _parallaxEditor.SetSpeed(draft.DraftPath, _session.BaseUiPath, background, name, (int)loops);
@@ -273,8 +273,8 @@ public sealed partial class ParallaxViewModel : ViewModelBase
         // the speed being tried replaces the saved one of the selected layer, as Apply would write it
         if (SelectedLayer is { } row && LayerLoops is { } loops && (double)loops != row.Layer.LoopsPerCycle)
         {
-            var cycle = animation.Clip.Duration;
-            var slope = cycle > 0 ? (double)loops / cycle : 0;
+            double cycle = animation.Clip.Duration;
+            double slope = cycle > 0 ? (double)loops / cycle : 0;
             var tried = new CurveKey[]
             {
                 new(0, CurveInterpolation.Hermite, 0, (double)loops, slope, slope),
@@ -292,8 +292,8 @@ public sealed partial class ParallaxViewModel : ViewModelBase
     private void Reload()
     {
         Images = _images.Images;
-        var previous = SelectedBackground?.AnimationResourcePath;
-        var previousLayer = SelectedLayer?.Name;
+        string? previous = SelectedBackground?.AnimationResourcePath;
+        string? previousLayer = SelectedLayer?.Name;
         Backgrounds = _session.Draft is { } draft ? _parallaxEditor.GetBackgrounds(draft.DraftPath, _session.BaseUiPath) : [];
 
         // the console's demo background, with the most layers, comes first

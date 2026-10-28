@@ -52,32 +52,32 @@ public sealed class SceneEditorTests : IDisposable
     [Fact]
     public void LoadsTheNodeTreeWithTransformsAndVisuals()
     {
-        var scene = new SceneEditor().Load(_themePath, _basePath, "/prefab/bg.scn");
+        SceneDocument scene = new SceneEditor().Load(_themePath, _basePath, "/prefab/bg.scn");
 
         Assert.False(scene.IsInTheme);
         Assert.Equal("BG", scene.Root.Name);
         Assert.Equal(-1, scene.Root.ZIndex);
 
-        var wall = scene.Find("0")!;
+        SceneNode wall = scene.Find("0")!;
         Assert.Equal(new SceneTransform(1, 0, 0, 0, 1, -3), wall.Transform);
         Assert.Equal(SceneVisualKind.Texture, wall.Visual!.Kind);
         Assert.Equal(WallId, wall.Visual.TextureId);
         Assert.Equal((1536d, 552d, 2d, 0.5), (wall.Visual.Width, wall.Visual.Height, wall.Visual.RepeatX, wall.Visual.Opacity));
 
-        var pane = scene.Find("1")!;
+        SceneNode pane = scene.Find("1")!;
         Assert.False(pane.Visible);
         Assert.Equal(768, pane.Transform.X);
         Assert.Equal(-131.5, pane.Transform.Y);
         Assert.Null(pane.Visual);
         Assert.Equal(["AnimatorComponent"], pane.ComponentTypes);
 
-        var cursor = scene.Find("1/0")!;
+        SceneNode cursor = scene.Find("1/0")!;
         Assert.Equal(SceneVisualKind.Sprite, cursor.Visual!.Kind);
         Assert.Equal($"{PackedId}.cursor_7.png", cursor.Visual.SpriteId);
         Assert.True(cursor.Visual.HorizontalFlip);
         Assert.True(double.IsNaN(cursor.Visual.PivotX));
 
-        var title = scene.Find("1/1")!;
+        SceneNode title = scene.Find("1/1")!;
         Assert.Equal("Hello", title.Visual!.Text);
         Assert.Equal(SceneTransform.Identity, title.Transform);
     }
@@ -89,21 +89,21 @@ public sealed class SceneEditorTests : IDisposable
 
         editor.EditNode(_themePath, _basePath, "/prefab/bg.scn", "0", new SceneNodeEdit(Name: "wall_far", X: 12, Y: 40.5, ZIndex: -2, Visible: false, Width: 1600));
 
-        var draftScene = Path.Combine(_themePath, "resources", "prefab", "bg.scn");
+        string draftScene = Path.Combine(_themePath, "resources", "prefab", "bg.scn");
         Assert.True(File.Exists(draftScene));
         Assert.DoesNotContain("wall_far", File.ReadAllText(Path.Combine(_basePath, "resources", "prefab", "bg.scn")));
 
-        var wall = JsonNode.Parse(File.ReadAllText(draftScene))!["rootWorldNode"]!["children"]![0]!;
+        JsonNode wall = JsonNode.Parse(File.ReadAllText(draftScene))!["rootWorldNode"]!["children"]![0]!;
         Assert.Equal("wall_far", wall["name"]!.GetValue<string>());
         Assert.Equal("[1,0,12,0,1,40.5]", wall["transform"]!.ToJsonString());
         Assert.Equal(-2, wall["zIndex"]!.GetValue<int>());
         Assert.False(wall["visible"]!.GetValue<bool>());
         Assert.Equal("""{"keep":[1,2.50]}""", wall["unknownField"]!.ToJsonString());
-        var component = wall["components"]![0]!;
+        JsonNode component = wall["components"]![0]!;
         Assert.Equal("[1600,552]", component["size"]!.ToJsonString());
         Assert.Equal("[2,1]", component["uvRepeat"]!.ToJsonString());
 
-        var reloaded = editor.Load(_themePath, _basePath, "/prefab/bg.scn");
+        SceneDocument reloaded = editor.Load(_themePath, _basePath, "/prefab/bg.scn");
         Assert.True(reloaded.IsInTheme);
         Assert.Equal("wall_far", reloaded.Find("0")!.Name);
         Assert.False(File.Exists(Path.Combine(_themePath, "dependencies.json")));
@@ -114,7 +114,7 @@ public sealed class SceneEditorTests : IDisposable
     {
         new SceneEditor().EditNode(_themePath, _basePath, "/prefab/bg.scn", "1/1", new SceneNodeEdit(Y: 10));
 
-        var scene = new SceneEditor().Load(_themePath, _basePath, "/prefab/bg.scn");
+        SceneDocument scene = new SceneEditor().Load(_themePath, _basePath, "/prefab/bg.scn");
         Assert.Equal(new SceneTransform(1, 0, 0, 0, 1, 10), scene.Find("1/1")!.Transform);
     }
 
@@ -123,8 +123,8 @@ public sealed class SceneEditorTests : IDisposable
     {
         new SceneEditor().EditNode(_themePath, _basePath, "/prefab/bg.scn", "0", new SceneNodeEdit(TextureId: NearId));
 
-        var dependencies = JsonNode.Parse(File.ReadAllText(Path.Combine(_themePath, "dependencies.json")))!;
-        var scene = dependencies["resources"]!.AsArray().First(resource => resource!["path"]?.GetValue<string>() == "/prefab/bg.scn")!;
+        JsonNode dependencies = JsonNode.Parse(File.ReadAllText(Path.Combine(_themePath, "dependencies.json")))!;
+        JsonNode scene = dependencies["resources"]!.AsArray().First(resource => resource!["path"]?.GetValue<string>() == "/prefab/bg.scn")!;
         Assert.Equal(
             $$$"""[{"id":"{{{WallId}}}","refCount":1},{"id":"other","refCount":1},{"id":"{{{NearId}}}","refCount":1}]""",
             scene["dependencies"]!.ToJsonString());
@@ -148,10 +148,10 @@ public sealed class SceneEditorTests : IDisposable
     {
         var editor = new SceneEditor();
 
-        var path = editor.AddImageNode(_themePath, _basePath, "/prefab/bg.scn", "", WallId, "wall");
+        string path = editor.AddImageNode(_themePath, _basePath, "/prefab/bg.scn", "", WallId, "wall");
 
         Assert.Equal("2", path);
-        var node = editor.Load(_themePath, _basePath, "/prefab/bg.scn").Find(path)!;
+        SceneNode node = editor.Load(_themePath, _basePath, "/prefab/bg.scn").Find(path)!;
         Assert.Equal("wall 2", node.Name);
         Assert.Equal(2, node.ZIndex);
         Assert.Equal(SceneTransform.Identity, node.Transform);
@@ -162,23 +162,23 @@ public sealed class SceneEditorTests : IDisposable
     [Fact]
     public void ImportsAPngAsANewTextureOfTheTheme()
     {
-        var source = Path.Combine(_themePath, "My Logo!.png");
+        string source = Path.Combine(_themePath, "My Logo!.png");
         using (var bitmap = new SKBitmap(24, 12))
-        using (var png = SKImage.FromBitmap(bitmap).Encode(SKEncodedImageFormat.Png, 100))
-        using (var file = File.Create(source))
+        using (SKData png = SKImage.FromBitmap(bitmap).Encode(SKEncodedImageFormat.Png, 100))
+        using (FileStream file = File.Create(source))
         {
             png.SaveTo(file);
         }
 
         var editor = new SceneEditor();
-        var first = editor.ImportTexture(_themePath, _basePath, source);
-        var second = editor.ImportTexture(_themePath, _basePath, source);
+        string first = editor.ImportTexture(_themePath, _basePath, source);
+        string second = editor.ImportTexture(_themePath, _basePath, source);
 
         Assert.NotEqual(first, second);
         Assert.True(File.Exists(Path.Combine(_themePath, "resources", "layout", "asset", "sprite", "scene", "my_logo.png")));
         Assert.True(File.Exists(Path.Combine(_themePath, "resources", "layout", "asset", "sprite", "scene", "my_logo_2.png")));
-        var path = editor.AddImageNode(_themePath, _basePath, "/prefab/bg.scn", "1", second, "logo");
-        var node = editor.Load(_themePath, _basePath, "/prefab/bg.scn").Find(path)!;
+        string path = editor.AddImageNode(_themePath, _basePath, "/prefab/bg.scn", "1", second, "logo");
+        SceneNode node = editor.Load(_themePath, _basePath, "/prefab/bg.scn").Find(path)!;
         Assert.Equal("1/2", path);
         Assert.Equal((24d, 12d), (node.Visual!.Width, node.Visual.Height));
         Assert.Equal(1, SceneReferences()[second]);
@@ -189,14 +189,14 @@ public sealed class SceneEditorTests : IDisposable
     {
         var editor = new SceneEditor();
 
-        var path = editor.DuplicateNode(_themePath, _basePath, "/prefab/bg.scn", "1");
+        string path = editor.DuplicateNode(_themePath, _basePath, "/prefab/bg.scn", "1");
 
         Assert.Equal("2", path);
-        var children = SceneRoot()["children"]!.AsArray();
-        var copy = children[2]!;
+        JsonArray children = SceneRoot()["children"]!.AsArray();
+        JsonNode copy = children[2]!;
         Assert.Equal("Pane copy", copy["name"]!.GetValue<string>());
         Assert.Equal("[1,0,784,0,1,-147.5]", copy["transform"]!.ToJsonString());
-        var cursorId = copy["children"]![0]!["id"]!.GetValue<string>();
+        string cursorId = copy["children"]![0]!["id"]!.GetValue<string>();
         Assert.NotEqual("c", cursorId);
         Assert.NotEqual("anim", copy["components"]![0]!["id"]!.GetValue<string>());
         Assert.Equal(cursorId, copy["properties"]!["cursor"]!["linkId"]!.GetValue<string>());
@@ -204,7 +204,7 @@ public sealed class SceneEditorTests : IDisposable
         Assert.Equal("c", children[1]!["properties"]!["cursor"]!["linkId"]!.GetValue<string>());
         Assert.Equal(1, SceneReferences()[PackedId]);
 
-        var second = editor.DuplicateNode(_themePath, _basePath, "/prefab/bg.scn", "1");
+        string second = editor.DuplicateNode(_themePath, _basePath, "/prefab/bg.scn", "1");
         Assert.Equal("Pane copy 2", editor.Load(_themePath, _basePath, "/prefab/bg.scn").Find(second)!.Name);
     }
 
@@ -217,7 +217,7 @@ public sealed class SceneEditorTests : IDisposable
 
         editor.DeleteNode(_themePath, _basePath, "/prefab/bg.scn", "2");
 
-        var scene = editor.Load(_themePath, _basePath, "/prefab/bg.scn");
+        SceneDocument scene = editor.Load(_themePath, _basePath, "/prefab/bg.scn");
         Assert.Equal(["wall", "wall copy"], scene.Root.Children.Select(child => child.Name));
         editor.DeleteNode(_themePath, _basePath, "/prefab/bg.scn", "1");
         Assert.Equal(2, SceneReferences()[WallId]);
@@ -228,7 +228,7 @@ public sealed class SceneEditorTests : IDisposable
     {
         var editor = new SceneEditor();
 
-        var linked = Assert.Throws<InvalidDataException>(() => editor.DeleteNode(_themePath, _basePath, "/prefab/bg.scn", "0"));
+        InvalidDataException linked = Assert.Throws<InvalidDataException>(() => editor.DeleteNode(_themePath, _basePath, "/prefab/bg.scn", "0"));
         Assert.Contains("BG links to it", linked.Message, StringComparison.Ordinal);
         Assert.Throws<InvalidDataException>(() => editor.DeleteNode(_themePath, _basePath, "/prefab/bg.scn", "1/0"));
         Assert.Throws<ArgumentException>(() => editor.DeleteNode(_themePath, _basePath, "/prefab/bg.scn", ""));
@@ -241,7 +241,7 @@ public sealed class SceneEditorTests : IDisposable
     [Fact]
     public void FindsTheAnimationsTheSceneCanPlay()
     {
-        var dependencies = File.ReadAllText(Path.Combine(_basePath, "dependencies.json"));
+        string dependencies = File.ReadAllText(Path.Combine(_basePath, "dependencies.json"));
         WriteFile(_basePath, "dependencies.json", dependencies.Replace(
             """{"id":"missing",""",
             """{"id":"blink","type":"SceneAnimation","path":"/layout/lyt_blink.sceneanimation","groupId":"7"},{"id":"other","type":"SceneAnimation","path":"/layout/lyt_other.sceneanimation","groupId":"8"},{"id":"missing",""",
@@ -259,7 +259,7 @@ public sealed class SceneEditorTests : IDisposable
             """);
         var editor = new SceneEditor();
 
-        var binding = Assert.Single(editor.GetAnimations(_themePath, _basePath, editor.Load(_themePath, _basePath, "/prefab/bg.scn")));
+        SceneAnimationBinding binding = Assert.Single(editor.GetAnimations(_themePath, _basePath, editor.Load(_themePath, _basePath, "/prefab/bg.scn")));
 
         Assert.Equal(("lyt_blink", "1", "Pane"), (binding.Clip.Name, binding.AnimatorPath, binding.AnimatorName));
         Assert.Equal(0.5, binding.Clip.Duration);
@@ -277,7 +277,7 @@ public sealed class SceneEditorTests : IDisposable
 
     private Dictionary<string, int> SceneReferences()
     {
-        var dependencies = JsonNode.Parse(File.ReadAllText(Path.Combine(_themePath, "dependencies.json")))!;
+        JsonNode dependencies = JsonNode.Parse(File.ReadAllText(Path.Combine(_themePath, "dependencies.json")))!;
         return dependencies["resources"]!.AsArray()
             .First(resource => resource!["path"]?.GetValue<string>() == "/prefab/bg.scn")!["dependencies"]!.AsArray()
             .ToDictionary(reference => reference!["id"]!.GetValue<string>(), reference => reference!["refCount"]!.GetValue<int>());
@@ -285,7 +285,7 @@ public sealed class SceneEditorTests : IDisposable
 
     private static void WriteFile(string root, string relativePath, string content)
     {
-        var path = Path.Combine(root, relativePath);
+        string path = Path.Combine(root, relativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, content);
     }

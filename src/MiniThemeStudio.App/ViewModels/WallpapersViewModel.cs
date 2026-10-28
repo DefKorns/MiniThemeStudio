@@ -91,7 +91,7 @@ public sealed partial class WallpapersViewModel : ViewModelBase
             return;
         }
 
-        var message = wallpaper.OverridesBase
+        string message = wallpaper.OverridesBase
             ? $"Remove this theme's {wallpaper.Name}.png? The image of the Base shows again."
             : $"Delete {wallpaper.Name}.png? No scene draws it, so it is removed from the theme.";
         if (!await _dialogs.ShowConfirmationAsync(DeleteWallpaperText, message, acceptButtonText: wallpaper.OverridesBase ? "Use the Base image" : "Delete", isDestructive: true))
@@ -123,7 +123,7 @@ public sealed partial class WallpapersViewModel : ViewModelBase
 
         if (await _errorHandler.TryRunAsync($"Cannot replace {wallpaper.DisplayName}", () =>
         {
-            var target = Path.Combine(draft.DraftPath, "resources", "layout", "asset", "sprite", "wallpaper", $"{wallpaper.Name}.png");
+            string target = Path.Combine(draft.DraftPath, "resources", "layout", "asset", "sprite", "wallpaper", $"{wallpaper.Name}.png");
             _assetManager.ReplaceWallpaper(target, replacementPath, wallpaper.JsonPath);
             return Task.CompletedTask;
         }))
@@ -164,8 +164,8 @@ public sealed partial class WallpapersViewModel : ViewModelBase
     private void Reload()
     {
         OnPropertyChanged(nameof(HasWallpaperImages));
-        var selectedName = SelectedWallpaper?.Name;
-        var report = _session.Report;
+        string? selectedName = SelectedWallpaper?.Name;
+        ThemeResourceReport report = _session.Report;
         Wallpapers = _session.Draft is { } draft
             ? _assetManager.GetWallpapers(draft.DraftPath, _session.BaseUiPath)
                 .Select(wallpaper => wallpaper with

@@ -52,7 +52,7 @@ public sealed record SceneNode(
     public IEnumerable<SceneNode> SelfAndDescendants()
     {
         yield return this;
-        foreach (var descendant in Children.SelectMany(child => child.SelfAndDescendants()))
+        foreach (SceneNode? descendant in Children.SelectMany(child => child.SelfAndDescendants()))
         {
             yield return descendant;
         }

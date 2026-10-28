@@ -90,7 +90,7 @@ public sealed partial class MainWindow : Window, IDisposable
 
     private void UpdateThemeModeButton(ThemeVariant themeVariant)
     {
-        var isDarkMode = themeVariant == ThemeVariant.Dark;
+        bool isDarkMode = themeVariant == ThemeVariant.Dark;
         ThemeModeIcon.Kind = isDarkMode
             ? LucideIconKind.Sun
             : LucideIconKind.Moon;
@@ -107,7 +107,7 @@ public sealed partial class MainWindow : Window, IDisposable
 
         try
         {
-            using var stream = File.OpenRead(_atlasImagePath);
+            using FileStream stream = File.OpenRead(_atlasImagePath);
             _atlasBitmap = new Bitmap(stream);
             AtlasCanvas.Source = _atlasBitmap;
         }
@@ -184,8 +184,8 @@ public sealed partial class MainWindow : Window, IDisposable
             return;
         }
 
-        var frameTime = (double)viewModel.FrameTimeMilliseconds / 1000;
-        var frame = frameTime > 0
+        double frameTime = (double)viewModel.FrameTimeMilliseconds / 1000;
+        AnimationFrameView frame = frameTime > 0
             ? loop[(int)(_animationClock.Elapsed.TotalSeconds / frameTime) % loop.Count]
             : loop[0];
         if (!ReferenceEquals(AnimationPreviewImage.Source, frame.Thumbnail))
@@ -213,7 +213,7 @@ public sealed partial class MainWindow : Window, IDisposable
             return;
         }
 
-        var frame = sprite.Frame;
+        AtlasRectangle frame = sprite.Frame;
         try
         {
             _spritePreview = new CroppedBitmap(

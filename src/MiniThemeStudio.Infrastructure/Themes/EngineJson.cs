@@ -25,7 +25,7 @@ public static class EngineJson
 
     public static void WriteAtomically(string path, string content)
     {
-        var temporaryPath = $"{path}.{Guid.NewGuid():N}.tmp";
+        string temporaryPath = $"{path}.{Guid.NewGuid():N}.tmp";
         File.WriteAllText(temporaryPath, content);
         File.Move(temporaryPath, path, true);
     }

@@ -24,7 +24,7 @@ internal sealed class LuaCharacterPatterns
     public void Set(string name, int width, int height, IReadOnlyList<(int X, int Y)> frames)
     {
         ArgumentNullException.ThrowIfNull(frames);
-        var slot = _slots.FirstOrDefault(candidate => candidate.Name == name)
+        Slot slot = _slots.FirstOrDefault(candidate => candidate.Name == name)
             ?? throw new KeyNotFoundException($"The script has no character named '{name}'.");
         if (frames.Count != slot.Frames.Count)
         {
@@ -40,10 +40,10 @@ internal sealed class LuaCharacterPatterns
     private static IEnumerable<Slot> FindCharacters(LuaPrototype prototype)
     {
         Slot? current = null;
-        foreach (var instruction in prototype.Instructions)
+        foreach (uint instruction in prototype.Instructions)
         {
-            var op = (byte)instruction;
-            var a = (int)((instruction >> 8) & 0xff);
+            byte op = (byte)instruction;
+            int a = (int)((instruction >> 8) & 0xff);
             if (op == LuaPrototype.OpTdup && prototype.ConstantAt((int)(instruction >> 16)) is LuaTemplateTable table)
             {
                 if (Slot.IsCharacter(table))
@@ -92,7 +92,7 @@ internal sealed class LuaCharacterPatterns
         {
             Replace("sizew", width);
             Replace("sizeh", height);
-            for (var index = 0; index < frames.Count; index++)
+            for (int index = 0; index < frames.Count; index++)
             {
                 Frames[index].Array[1] = LuaTableValue.FromNumber(frames[index].X);
                 Frames[index].Array[2] = LuaTableValue.FromNumber(frames[index].Y);
@@ -101,7 +101,7 @@ internal sealed class LuaCharacterPatterns
 
         private void Replace(string key, int value)
         {
-            var index = table.Hash.FindIndex(entry => IsKey(entry.Key, key));
+            int index = table.Hash.FindIndex(entry => IsKey(entry.Key, key));
             table.Hash[index] = (table.Hash[index].Key, LuaTableValue.FromNumber(value));
         }
 

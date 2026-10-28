@@ -8,7 +8,7 @@ public readonly record struct PaletteColor(string Name, double Red, double Green
     /// <summary>The channel as the firmware's own palettes write it: x/255 with six significant digits.</summary>
     public static double ChannelFromByte(byte value)
     {
-        var text = (value / 255.0).ToString("G6", CultureInfo.InvariantCulture);
+        string text = (value / 255.0).ToString("G6", CultureInfo.InvariantCulture);
         return double.Parse(text, CultureInfo.InvariantCulture);
     }
 

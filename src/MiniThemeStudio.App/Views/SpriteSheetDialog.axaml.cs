@@ -49,13 +49,13 @@ public sealed partial class SpriteSheetDialog : Window
 
     private async void OpenSheet_Click(object? sender, RoutedEventArgs e)
     {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        IReadOnlyList<IStorageFile> files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Open sprite sheet",
             AllowMultiple = false,
             FileTypeFilter = [new FilePickerFileType("PNG image") { Patterns = ["*.png"] }],
         });
-        var path = files.Count > 0 ? files[0].TryGetLocalPath() : null;
+        string? path = files.Count > 0 ? files[0].TryGetLocalPath() : null;
         if (path is null)
         {
             return;
@@ -63,7 +63,7 @@ public sealed partial class SpriteSheetDialog : Window
 
         try
         {
-            using var stream = File.OpenRead(path);
+            using FileStream stream = File.OpenRead(path);
             var bitmap = new Bitmap(stream);
             _marked.Clear();
             RefreshPreview();
@@ -93,7 +93,7 @@ public sealed partial class SpriteSheetDialog : Window
             return;
         }
 
-        var colour = _importer.GetPixel(_sheetPath, point.X, point.Y);
+        uint colour = _importer.GetPixel(_sheetPath, point.X, point.Y);
         if (!_colours.Contains(colour))
         {
             _colours.Add(colour);
@@ -126,7 +126,7 @@ public sealed partial class SpriteSheetDialog : Window
             return;
         }
 
-        var frames = _importer.DetectFrames(_sheetPath, Keying());
+        IReadOnlyList<AtlasRectangle> frames = _importer.DetectFrames(_sheetPath, Keying());
         SheetCanvas.Sprites = frames
             .Select((frame, index) => new SpriteRegion($"#{index + 1}", frame, new AtlasPoint(0, 0), new AtlasSize(frame.Width, frame.Height), new AtlasPoint(0, 0)))
             .ToList();
@@ -140,7 +140,7 @@ public sealed partial class SpriteSheetDialog : Window
     private void RefreshColourChips()
     {
         ColourChips.Children.Clear();
-        foreach (var colour in _colours)
+        foreach (uint colour in _colours)
         {
             var chip = new Button
             {
@@ -195,7 +195,7 @@ public sealed partial class SpriteSheetDialog : Window
         }
 
         _previewIndex %= _previewFrames.Count;
-        var frame = _marked[_previewIndex].Frame;
+        AtlasRectangle frame = _marked[_previewIndex].Frame;
         ImportPreviewImage.Width = frame.Width;
         ImportPreviewImage.Height = frame.Height;
         ImportPreviewImage.VerticalAlignment = AnchorComboBox.SelectedIndex == 1 ? Avalonia.Layout.VerticalAlignment.Center : Avalonia.Layout.VerticalAlignment.Bottom;
@@ -208,7 +208,7 @@ public sealed partial class SpriteSheetDialog : Window
         SheetCanvas.MarkedSprites = _marked.ToList();
         RefreshPreview();
         UseFramesButton.IsEnabled = _marked.Count > 0;
-        var detected = SheetCanvas.Sprites?.Count ?? 0;
+        int detected = SheetCanvas.Sprites?.Count ?? 0;
         if (_marked.Count == 0)
         {
             SelectionText.Text = detected == 0
@@ -217,9 +217,9 @@ public sealed partial class SpriteSheetDialog : Window
             return;
         }
 
-        var width = _marked.Max(frame => frame.Frame.Width);
-        var height = _marked.Max(frame => frame.Frame.Height);
-        var current = _currentFrameSize is { } size && (size.Width != width || size.Height != height)
+        int width = _marked.Max(frame => frame.Frame.Width);
+        int height = _marked.Max(frame => frame.Frame.Height);
+        string current = _currentFrameSize is { } size && (size.Width != width || size.Height != height)
             ? $" The current frames are {size.Width} x {size.Height}."
             : "";
         SelectionText.Text = $"{_marked.Count} frames selected, exported as {width} x {height}.{current}";
@@ -258,10 +258,10 @@ public sealed partial class SpriteSheetDialog : Window
 
         try
         {
-            var outputDirectory = Path.Combine(Path.GetTempPath(), "MiniThemeStudio", "frames", Guid.NewGuid().ToString("N"));
-            var anchor = AnchorComboBox.SelectedIndex == 1 ? FrameAnchor.Center : FrameAnchor.BottomCenter;
+            string outputDirectory = Path.Combine(Path.GetTempPath(), "MiniThemeStudio", "frames", Guid.NewGuid().ToString("N"));
+            FrameAnchor anchor = AnchorComboBox.SelectedIndex == 1 ? FrameAnchor.Center : FrameAnchor.BottomCenter;
             var frames = _marked.Select(frame => frame.Frame).ToList();
-            var paths = _importer.ExportFrames(_sheetPath, frames, Keying(), anchor, null, outputDirectory, Mirror);
+            IReadOnlyList<string> paths = _importer.ExportFrames(_sheetPath, frames, Keying(), anchor, null, outputDirectory, Mirror);
             Close(new SpriteSheetResult(paths, new AtlasSize(frames.Max(frame => frame.Width), frames.Max(frame => frame.Height))));
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException or ArgumentException)

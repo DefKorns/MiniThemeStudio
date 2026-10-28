@@ -8,9 +8,9 @@ public sealed class ThemeProjectCreatorTests
     [Fact]
     public void CreateCopiesBaseAndWritesMetadata()
     {
-        var rootPath = Directory.CreateTempSubdirectory().FullName;
-        var basePath = Path.Combine(rootPath, "base");
-        var destinationPath = Path.Combine(rootPath, "theme");
+        string rootPath = Directory.CreateTempSubdirectory().FullName;
+        string basePath = Path.Combine(rootPath, "base");
+        string destinationPath = Path.Combine(rootPath, "theme");
         Directory.CreateDirectory(Path.Combine(basePath, "resources", "sprites"));
         Directory.CreateDirectory(destinationPath);
         File.WriteAllText(Path.Combine(basePath, "dependencies.json"), "{}");
@@ -45,10 +45,10 @@ public sealed class ThemeProjectCreatorTests
     [InlineData(8, 4, false)]
     public void CreateUsesAtlasSourceOnlyWhenSizeMatches(int width, int height, bool accepted)
     {
-        var rootPath = Directory.CreateTempSubdirectory().FullName;
-        var basePath = Path.Combine(rootPath, "base");
-        var destinationPath = Path.Combine(rootPath, "theme");
-        var spritesPath = Path.Combine(basePath, "resources", "sprites");
+        string rootPath = Directory.CreateTempSubdirectory().FullName;
+        string basePath = Path.Combine(rootPath, "base");
+        string destinationPath = Path.Combine(rootPath, "theme");
+        string spritesPath = Path.Combine(basePath, "resources", "sprites");
         Directory.CreateDirectory(spritesPath);
         Directory.CreateDirectory(destinationPath);
         File.WriteAllText(Path.Combine(basePath, "dependencies.json"), "{}");
@@ -58,7 +58,7 @@ public sealed class ThemeProjectCreatorTests
             Path.Combine(spritesPath, "packed.json"),
             """{"texture":{"id":"t","width":4,"height":4},"sprites":{"s":{"textureFrame":[0,0,2,2]}}}""");
         File.WriteAllBytes(Path.Combine(spritesPath, "packed.png"), [0]);
-        var sourcePath = Path.Combine(rootPath, "old_packed.png");
+        string sourcePath = Path.Combine(rootPath, "old_packed.png");
         using (var bitmap = new SkiaSharp.SKBitmap(width, height))
         {
             AtlasLayoutMatcherTests.SavePng(bitmap, sourcePath);
@@ -92,9 +92,9 @@ public sealed class ThemeProjectCreatorTests
     [Fact]
     public void CreateRejectsNonEmptyDestination()
     {
-        var rootPath = Directory.CreateTempSubdirectory().FullName;
-        var basePath = Path.Combine(rootPath, "base");
-        var destinationPath = Path.Combine(rootPath, "theme");
+        string rootPath = Directory.CreateTempSubdirectory().FullName;
+        string basePath = Path.Combine(rootPath, "base");
+        string destinationPath = Path.Combine(rootPath, "theme");
         Directory.CreateDirectory(basePath);
         Directory.CreateDirectory(Path.Combine(basePath, "resources"));
         Directory.CreateDirectory(destinationPath);
@@ -104,13 +104,13 @@ public sealed class ThemeProjectCreatorTests
 
         try
         {
-            var action = () => new ThemeProjectCreator().Create(new NewThemeRequest(
+            Action action = () => new ThemeProjectCreator().Create(new NewThemeRequest(
                 basePath,
                 destinationPath,
                 "My Theme",
                 "Theme Author"));
 
-            var exception = Assert.Throws<IOException>(action);
+            IOException exception = Assert.Throws<IOException>(action);
             Assert.Equal("The destination directory must be empty.", exception.Message);
         }
         finally

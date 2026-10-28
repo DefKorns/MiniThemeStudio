@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MiniThemeStudio.App.Dialogs;
 using MiniThemeStudio.App.Errors;
+using MiniThemeStudio.App.Models;
 using MiniThemeStudio.App.Services;
 using MiniThemeStudio.Core.Themes;
 using SkiaSharp;
@@ -162,7 +163,7 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var sheet = await _appDialogs.ImportSpriteSheetAsync(
+        SpriteSheetResult? sheet = await _appDialogs.ImportSpriteSheetAsync(
             $"Frames for {character} {animation.Name}",
             CurrentCharacterFrameSize,
             AnimationFrames.FirstOrDefault(frame => frame.IsLoopFrame)?.Thumbnail);
@@ -171,7 +172,7 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var resizeCharacter = false;
+        bool resizeCharacter = false;
         if (CurrentCharacterFrameSize is { } current
             && (current.Width != sheet.FrameSize.Width || current.Height != sheet.FrameSize.Height))
         {
@@ -185,17 +186,17 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
                 false);
         }
 
-        var draftPath = _session.Draft.DraftPath;
-        var frameTime = (double)FrameTimeMilliseconds / 1000;
-        var frameCount = 0;
+        string draftPath = _session.Draft.DraftPath;
+        double frameTime = (double)FrameTimeMilliseconds / 1000;
+        int frameCount = 0;
         if (!await RunAsync("Cannot replace frames", () =>
         {
             // the loop frames are replaced in place, extra frames become new textures
             var loopIds = track.Keys.Where(key => key.Time < animation.Duration).Select(key => key.TextureId).Distinct().ToList();
             var frameIds = new List<string>();
-            for (var index = 0; index < sheet.FramePaths.Count; index++)
+            for (int index = 0; index < sheet.FramePaths.Count; index++)
             {
-                if (index < loopIds.Count && _characterTextures.TryGetValue(loopIds[index], out var existing))
+                if (index < loopIds.Count && _characterTextures.TryGetValue(loopIds[index], out CharacterTexture? existing))
                 {
                     _assetManager.ReplaceExtraAsset(
                         Path.Combine(draftPath, RelativeToRoot(existing.ImagePath)),
@@ -209,7 +210,7 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
                 }
             }
 
-            var duration = frameTime * frameIds.Count;
+            double duration = frameTime * frameIds.Count;
             var keys = frameIds.Select((id, index) => new AnimationKey(index * frameTime, id))
                 .Concat(track.Keys.Where(key => key.Time >= animation.Duration).Select(key => key with { Time = key.Time - animation.Duration + duration }))
                 .ToList();
@@ -225,7 +226,7 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var frameTimeMilliseconds = FrameTimeMilliseconds;
+        decimal frameTimeMilliseconds = FrameTimeMilliseconds;
         AfterChange(animation.Name);
         _session.Status = string.Create(CultureInfo.InvariantCulture, $"{character} {animation.Name}: {frameCount} frames at {frameTimeMilliseconds} ms. Other animations of {character} still use their own frames.");
     }
@@ -255,7 +256,7 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
         }
 
         var room = new AtlasSize(row.Frames.Max(frame => frame.Frame.SlotWidth), row.Frames.Max(frame => frame.Frame.SlotHeight));
-        var picked = await _appDialogs.ImportSpriteSheetAsync(
+        SpriteSheetResult? picked = await _appDialogs.ImportSpriteSheetAsync(
             string.Create(CultureInfo.InvariantCulture, $"Pick the {row.Frames.Count} pictures of {row.Label}, in order"),
             room,
             row.Frames[0].Thumbnail);
@@ -277,14 +278,14 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
     // cuts it can be rewritten and the user wants it, or are made smaller to fit.
     private async Task ReplaceRowAsync(ThemeDraft draft, SheetRowView row, List<(int Index, string Path)> pictures, string failure, Func<int, string> status)
     {
-        var sheet = row.Frames[0].Sheet;
-        var room = row.Frames[0].Frame;
-        var needed = (Width: 0, Height: 0);
+        CharacterSheet sheet = row.Frames[0].Sheet;
+        CharacterSheetFrame room = row.Frames[0].Frame;
+        (int Width, int Height) needed = (Width: 0, Height: 0);
         if (!await RunAsync(failure, () =>
         {
-            foreach (var (_, path) in pictures)
+            foreach ((int _, string? path) in pictures)
             {
-                var (width, height) = _sheetEditor.MeasurePicture(path);
+                (int width, int height) = _sheetEditor.MeasurePicture(path);
                 needed = (Math.Max(needed.Width, width), Math.Max(needed.Height, height));
             }
         }))
@@ -292,10 +293,10 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var grow = false;
+        bool grow = false;
         if ((needed.Width > room.SlotWidth || needed.Height > room.SlotHeight) && sheet.CanResize)
         {
-            var answer = await _dialogService.ShowChoiceAsync(
+            DialogResult answer = await _dialogService.ShowChoiceAsync(
                 "Larger pictures",
                 string.Create(CultureInfo.InvariantCulture,
                     $"The pictures are up to {needed.Width} × {needed.Height}, larger than the {room.SlotWidth} × {room.SlotHeight} frames of {row.Label}. ")
@@ -312,10 +313,10 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
             grow = answer == DialogResult.Accepted;
         }
 
-        var smallest = 1.0;
+        double smallest = 1.0;
         if (await RunAsync(failure, () =>
         {
-            var target = sheet;
+            CharacterSheet target = sheet;
             var frames = row.Frames.Select(frame => frame.Frame).ToList();
             if (grow)
             {
@@ -324,7 +325,7 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
                 frames = target.Frames.Where(frame => frame.Row == room.Row).OrderBy(frame => frame.Index).ToList();
             }
 
-            foreach (var (index, path) in pictures)
+            foreach ((int index, string? path) in pictures)
             {
                 smallest = Math.Min(smallest, _sheetEditor.ReplaceFrame(draft.DraftPath, _session.BaseUiPath, target, frames[index], path));
             }
@@ -382,11 +383,11 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var texture = frame.Texture;
+        CharacterTexture texture = frame.Texture;
         if (await RunAsync($"Cannot replace {frame.Label}", () =>
         {
             using var picture = new Bitmap(imagePath);
-            var (width, height) = (picture.PixelSize.Width, picture.PixelSize.Height);
+            (int width, int height) = (picture.PixelSize.Width, picture.PixelSize.Height);
             if (width != texture.Width || height != texture.Height)
             {
                 throw new OperationFailedException(string.Create(CultureInfo.InvariantCulture,
@@ -421,11 +422,11 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var draftPath = _session.Draft.DraftPath;
+        string draftPath = _session.Draft.DraftPath;
         var loopKeys = track.Keys.Where(key => key.Time < animation.Duration).OrderBy(key => key.Time).ToList();
-        var frameTimeMilliseconds = FrameTimeMilliseconds;
-        var frameTime = (double)frameTimeMilliseconds / 1000;
-        var duration = frameTime * loopKeys.Count;
+        decimal frameTimeMilliseconds = FrameTimeMilliseconds;
+        double frameTime = (double)frameTimeMilliseconds / 1000;
+        double duration = frameTime * loopKeys.Count;
         if (await RunAsync("Cannot change the frame time", () =>
         {
             var keys = loopKeys.Select((key, index) => key with { Time = index * frameTime })
@@ -452,7 +453,7 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var draftPath = _session.Draft.DraftPath;
+        string draftPath = _session.Draft.DraftPath;
         var distinct = textureIds.ToHashSet(StringComparer.Ordinal);
         if (!await RunAsync("Cannot flip frames", () => _characterEditor.MirrorTextures(draftPath, _session.BaseUiPath, distinct)))
         {
@@ -496,7 +497,7 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var previous = SelectedCharacter;
+        string? previous = SelectedCharacter;
         _characterTextures = _characterEditor.GetTextures(_session.Draft.DraftPath, _session.BaseUiPath);
         DisposeThumbnails();
         Characters = _characterEditor.GetCharacters(_session.Draft.DraftPath, _session.BaseUiPath);
@@ -562,15 +563,15 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
 
     private void LoadSheets()
     {
-        var previous = _sheetBitmaps;
-        var previousGroup = SelectedSheetGroup?.Label;
+        List<Bitmap> previous = _sheetBitmaps;
+        string? previousGroup = SelectedSheetGroup?.Label;
         _sheetBitmaps = [];
         Sheets = _session.Draft is { } draft
             ? _sheetEditor.GetSheets(draft.DraftPath, _session.BaseUiPath).Select(LoadSheet).ToList()
             : [];
         SheetGroups = Sheets.SelectMany(sheet => sheet.Rows.Select(row => new SheetGroupView(sheet, row))).ToList();
         SelectedSheetGroup = SheetGroups.FirstOrDefault(group => group.Label == previousGroup) ?? (SheetGroups.Count > 0 ? SheetGroups[0] : null);
-        foreach (var bitmap in previous)
+        foreach (Bitmap bitmap in previous)
         {
             bitmap.Dispose();
         }
@@ -581,12 +582,12 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
     private SheetView LoadSheet(CharacterSheet sheet)
     {
         using var pixels = SKBitmap.Decode(sheet.ImagePath);
-        var isBackground = sheet.Name == "wallpaper-hvc";
+        bool isBackground = sheet.Name == "wallpaper-hvc";
         var rows = sheet.Frames
             .GroupBy(frame => frame.Row)
             .Select(row =>
             {
-                var rowName = row.Key < sheet.RowNames.Count ? sheet.RowNames[row.Key]
+                string rowName = row.Key < sheet.RowNames.Count ? sheet.RowNames[row.Key]
                     : row.Key < SheetRowNames.Length ? SheetRowNames[row.Key] : $"Row {row.Key + 1}";
                 return new SheetRowView(isBackground ? "Small Mario and Luigi" : rowName, row
                     .Select(frame => new SheetFrameView(
@@ -619,7 +620,7 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
             return null;
         }
 
-        using var png = pixels.Encode(SKEncodedImageFormat.Png, 100);
+        using SKData png = pixels.Encode(SKEncodedImageFormat.Png, 100);
         using var stream = new MemoryStream(png.ToArray());
         var bitmap = new Bitmap(stream);
         _sheetBitmaps.Add(bitmap);
@@ -629,7 +630,7 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         DisposeThumbnails();
-        foreach (var bitmap in _sheetBitmaps)
+        foreach (Bitmap bitmap in _sheetBitmaps)
         {
             bitmap.Dispose();
         }
@@ -648,10 +649,10 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
     // mario_run01 is "Run 1", mario_look "Look up"
     private static string FrameLabel(string character, string name)
     {
-        var rest = name.StartsWith(character + "_", StringComparison.OrdinalIgnoreCase) ? name[(character.Length + 1)..] : name;
-        var word = rest.TrimEnd('0', '1', '2', '3', '4', '5', '6', '7', '8', '9');
-        var number = rest[word.Length..].TrimStart('0');
-        var label = FrameWords.TryGetValue(word, out var known) ? known : word.Length > 0 ? char.ToUpperInvariant(word[0]) + word[1..] : rest;
+        string rest = name.StartsWith(character + "_", StringComparison.OrdinalIgnoreCase) ? name[(character.Length + 1)..] : name;
+        string word = rest.TrimEnd('0', '1', '2', '3', '4', '5', '6', '7', '8', '9');
+        string number = rest[word.Length..].TrimStart('0');
+        string label = FrameWords.TryGetValue(word, out string? known) ? known : word.Length > 0 ? char.ToUpperInvariant(word[0]) + word[1..] : rest;
         return number.Length > 0 ? $"{label} {number}" : label;
     }
 
@@ -662,13 +663,13 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
 
     private string NextFrameRelativePath(IReadOnlyList<string> loopIds)
     {
-        var template = loopIds.Select(id => _characterTextures.GetValueOrDefault(id)).FirstOrDefault(texture => texture is not null)
+        CharacterTexture template = loopIds.Select(id => _characterTextures.GetValueOrDefault(id)).FirstOrDefault(texture => texture is not null)
             ?? throw new InvalidDataException("The animation has no frame to use as a naming template.");
-        var directory = Path.GetDirectoryName(RelativeToRoot(template.ImagePath))!;
-        var prefix = template.Name.TrimEnd('0', '1', '2', '3', '4', '5', '6', '7', '8', '9');
-        for (var number = 1; ; number++)
+        string directory = Path.GetDirectoryName(RelativeToRoot(template.ImagePath))!;
+        string prefix = template.Name.TrimEnd('0', '1', '2', '3', '4', '5', '6', '7', '8', '9');
+        for (int number = 1; ; number++)
         {
-            var candidate = Path.Combine(directory, $"{prefix}{number:00}.png");
+            string candidate = Path.Combine(directory, $"{prefix}{number:00}.png");
             if (!File.Exists(Path.Combine(_session.Draft!.DraftPath, candidate))
                 && (_session.BaseUiPath is null || !File.Exists(Path.Combine(_session.BaseUiPath, candidate))))
             {
@@ -679,7 +680,7 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
 
     private string RelativeToRoot(string imagePath)
     {
-        var root = _session.BaseUiPath is not null && !Path.GetRelativePath(_session.BaseUiPath, imagePath).StartsWith("..", StringComparison.Ordinal)
+        string root = _session.BaseUiPath is not null && !Path.GetRelativePath(_session.BaseUiPath, imagePath).StartsWith("..", StringComparison.Ordinal)
             ? _session.BaseUiPath
             : _session.Draft!.DraftPath;
         return Path.GetRelativePath(root, imagePath);
@@ -687,7 +688,7 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
 
     private Bitmap? Thumbnail(CharacterTexture texture)
     {
-        if (_thumbnails.TryGetValue(texture.ImagePath, out var cached))
+        if (_thumbnails.TryGetValue(texture.ImagePath, out Bitmap? cached))
         {
             return cached;
         }
@@ -695,7 +696,7 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
         Bitmap? bitmap = null;
         try
         {
-            using var stream = File.OpenRead(texture.ImagePath);
+            using FileStream stream = File.OpenRead(texture.ImagePath);
             bitmap = new Bitmap(stream);
         }
         catch (Exception exception) when (exception is IOException or ArgumentException or InvalidOperationException)
@@ -711,7 +712,7 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
         var previous = _thumbnails.Values.ToList();
         _thumbnails.Clear();
         AnimationFrames = [];
-        foreach (var bitmap in previous)
+        foreach (Bitmap? bitmap in previous)
         {
             bitmap?.Dispose();
         }

@@ -19,7 +19,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
 
-        var targetPath = ThemeLayer.InsideRoot(themeDraftPath, relativePath);
+        string targetPath = ThemeLayer.InsideRoot(themeDraftPath, relativePath);
         if (File.Exists(targetPath))
         {
             return targetPath;
@@ -47,12 +47,12 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var list = new List<WallpaperAsset>();
-        foreach (var name in allNames.OrderBy(GetWallpaperSortKey))
+        foreach (string? name in allNames.OrderBy(GetWallpaperSortKey))
         {
-            var pngResource = $"/{WallpaperFolder}/{name}.png";
-            var pngPath = layer.Resolve(pngResource) ?? layer.ThemeResourceFile(pngResource);
-            var jsonPath = layer.Resolve($"/{WallpaperFolder}/{name}.json");
-            var isFromBase = layer.ResolveInTheme(pngResource) is null && layer.ResolveInBase(pngResource) is not null;
+            string pngResource = $"/{WallpaperFolder}/{name}.png";
+            string pngPath = layer.Resolve(pngResource) ?? layer.ThemeResourceFile(pngResource);
+            string? jsonPath = layer.Resolve($"/{WallpaperFolder}/{name}.json");
+            bool isFromBase = layer.ResolveInTheme(pngResource) is null && layer.ResolveInBase(pngResource) is not null;
 
             int width = 0;
             int height = 0;
@@ -67,7 +67,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
                 }
             }
 
-            var displayName = name switch
+            string displayName = name switch
             {
                 "wall" => "Main Wallpaper (wall)",
                 "wall_near" => "Foreground Parallax (wall_near)",
@@ -76,7 +76,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
                 _ => $"{char.ToUpperInvariant(name[0])}{name[1..]}"
             };
 
-            var overridesBase = !isFromBase && layer.ResolveInBase(pngResource) is not null;
+            bool overridesBase = !isFromBase && layer.ResolveInBase(pngResource) is not null;
             list.Add(new WallpaperAsset(name, displayName, pngPath, jsonPath, width, height, isFromBase, ReadTextureId(jsonPath))
             {
                 OverridesBase = overridesBase,
@@ -105,11 +105,11 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             throw new FileNotFoundException("Replacement image not found.", replacementImagePath);
         }
 
-        using var replacementBmp = SKBitmap.Decode(replacementImagePath)
+        using SKBitmap replacementBmp = SKBitmap.Decode(replacementImagePath)
             ?? throw new InvalidDataException("Replacement file is not a valid PNG image.");
 
-        var targetJsonPath = Path.ChangeExtension(targetImagePath, ".json");
-        var textureJson = LoadTextureJson(targetJsonPath, templateJsonPath);
+        string targetJsonPath = Path.ChangeExtension(targetImagePath, ".json");
+        JsonObject textureJson = LoadTextureJson(targetJsonPath, templateJsonPath);
         ResizeTextureJson(textureJson, replacementBmp.Width, replacementBmp.Height, Path.GetFileName(targetImagePath));
 
         Directory.CreateDirectory(Path.GetDirectoryName(targetImagePath)!);
@@ -135,14 +135,14 @@ public sealed class ThemeAssetManager : IThemeAssetManager
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
 
-        var draftResDir = Path.Combine(themeDraftPath, "resources");
-        var baseResDir = baseUiPath != null ? Path.Combine(baseUiPath, "resources") : null;
+        string draftResDir = Path.Combine(themeDraftPath, "resources");
+        string? baseResDir = baseUiPath != null ? Path.Combine(baseUiPath, "resources") : null;
         var layer = new ThemeLayer(themeDraftPath, baseUiPath);
 
         var result = new List<ExtraAsset>();
-        foreach (var image in layer.ListFiles("", "*.png"))
+        foreach (LayeredFile image in layer.ListFiles("", "*.png"))
         {
-            var relPath = image.ResourcePath.TrimStart('/');
+            string relPath = image.ResourcePath.TrimStart('/');
             if (relPath.StartsWith("layout/asset/sprite/wallpaper/", StringComparison.OrdinalIgnoreCase)
                 || IsAtlasImage(relPath, draftResDir, baseResDir))
             {
@@ -159,7 +159,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
                 }
             }
 
-            var jsonPath = layer.Resolve(Path.ChangeExtension(image.ResourcePath, ".json"));
+            string? jsonPath = layer.Resolve(Path.ChangeExtension(image.ResourcePath, ".json"));
             result.Add(new ExtraAsset(
                 relPath,
                 Path.GetFileNameWithoutExtension(relPath),
@@ -183,7 +183,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             return false;
         }
 
-        var jsonRelativePath = Path.ChangeExtension(relativePath, ".json");
+        string jsonRelativePath = Path.ChangeExtension(relativePath, ".json");
         return TextureAtlasReader.IsPrimaryAtlasName(Path.GetFileNameWithoutExtension(relativePath))
             || new[] { draftResourcesPath, baseResourcesPath }
                 .Where(root => root != null)
@@ -227,10 +227,10 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             throw new FileNotFoundException("Atlas PNG image not found.", atlasImagePath);
         }
 
-        using var atlas = SKBitmap.Decode(atlasImagePath)
+        using SKBitmap atlas = SKBitmap.Decode(atlasImagePath)
             ?? throw new InvalidDataException("Cannot decode atlas PNG.");
 
-        var frame = sprite.Frame;
+        AtlasRectangle frame = sprite.Frame;
         if (frame.X < 0 || frame.Y < 0 || frame.X + frame.Width > atlas.Width || frame.Y + frame.Height > atlas.Height)
         {
             throw new InvalidDataException("Sprite frame boundaries exceed atlas image dimensions.");
@@ -256,11 +256,11 @@ public sealed class ThemeAssetManager : IThemeAssetManager
 
     private static void SaveBitmapToPng(SKBitmap bitmap, string outputPath)
     {
-        var temp = $"{outputPath}.{Guid.NewGuid():N}.tmp";
+        string temp = $"{outputPath}.{Guid.NewGuid():N}.tmp";
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
         using (var image = SKImage.FromBitmap(bitmap))
-        using (var data = image.Encode(SKEncodedImageFormat.Png, 100))
-        using (var stream = File.Create(temp))
+        using (SKData data = image.Encode(SKEncodedImageFormat.Png, 100))
+        using (FileStream stream = File.Create(temp))
         {
             data.SaveTo(stream);
         }
@@ -273,16 +273,16 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
         ArgumentNullException.ThrowIfNull(texture);
 
-        using var bitmap = SKBitmap.Decode(sourceImagePath)
+        using SKBitmap bitmap = SKBitmap.Decode(sourceImagePath)
             ?? throw new InvalidDataException("Source file is not a valid PNG image.");
-        var imagePath = ThemeLayer.InsideRoot(themeDraftPath, texture.ImageRelativePath);
-        var definitionPath = ThemeLayer.InsideRoot(themeDraftPath, texture.DefinitionRelativePath);
+        string imagePath = ThemeLayer.InsideRoot(themeDraftPath, texture.ImageRelativePath);
+        string definitionPath = ThemeLayer.InsideRoot(themeDraftPath, texture.DefinitionRelativePath);
         if (File.Exists(imagePath))
         {
             throw new IOException($"The texture image already exists: {texture.ImageRelativePath}");
         }
 
-        var definition = File.Exists(definitionPath)
+        JsonObject definition = File.Exists(definitionPath)
             ? LoadTextureJson(definitionPath, null)
             : new JsonObject
             {
@@ -336,7 +336,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
 
     private static JsonObject LoadTextureJson(string targetJsonPath, string? templateJsonPath)
     {
-        var sourcePath = File.Exists(targetJsonPath)
+        string? sourcePath = File.Exists(targetJsonPath)
             ? targetJsonPath
             : templateJsonPath != null && File.Exists(templateJsonPath)
                 ? templateJsonPath
@@ -364,15 +364,15 @@ public sealed class ThemeAssetManager : IThemeAssetManager
 
     private static void ResizeTextureJson(JsonObject root, int width, int height, string imageName)
     {
-        var texture = root["texture"] as JsonObject ?? [];
+        JsonObject texture = root["texture"] as JsonObject ?? [];
         root["texture"] = texture;
         if (!texture.ContainsKey("id"))
         {
             texture["id"] = Guid.NewGuid().ToString();
         }
 
-        var oldWidth = texture["width"]?.GetValue<int>() ?? 0;
-        var oldHeight = texture["height"]?.GetValue<int>() ?? 0;
+        int oldWidth = texture["width"]?.GetValue<int>() ?? 0;
+        int oldHeight = texture["height"]?.GetValue<int>() ?? 0;
         texture["width"] = width;
         texture["height"] = height;
 
@@ -387,9 +387,9 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             return;
         }
 
-        foreach (var (_, node) in sprites)
+        foreach ((string _, JsonNode? node) in sprites)
         {
-            var frame = (node?["textureFrame"] as JsonArray)?.Select(value => value?.GetValue<int>() ?? -1).ToArray();
+            int[]? frame = (node?["textureFrame"] as JsonArray)?.Select(value => value?.GetValue<int>() ?? -1).ToArray();
             if (frame is not [0, 0, var frameWidth, var frameHeight] || frameWidth != oldWidth || frameHeight != oldHeight)
             {
                 throw new InvalidDataException(
@@ -398,7 +398,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             }
         }
 
-        foreach (var (_, node) in sprites)
+        foreach ((string _, JsonNode? node) in sprites)
         {
             var sprite = (JsonObject)node!;
             sprite["textureFrame"] = new JsonArray(0, 0, width, height);
@@ -414,13 +414,13 @@ public sealed class ThemeAssetManager : IThemeAssetManager
 
     private static JsonValue ScaleCoordinate(JsonNode? value, int newSize, int oldSize)
     {
-        var scaled = (value?.GetValue<double>() ?? 0) * newSize / oldSize;
+        double scaled = (value?.GetValue<double>() ?? 0) * newSize / oldSize;
         return scaled == Math.Floor(scaled) ? JsonValue.Create((int)scaled) : JsonValue.Create(scaled);
     }
 
     private static void WriteTextureJson(string jsonPath, JsonObject root)
     {
-        var tempJson = $"{jsonPath}.{Guid.NewGuid():N}.tmp";
+        string tempJson = $"{jsonPath}.{Guid.NewGuid():N}.tmp";
         File.WriteAllText(tempJson, EngineJson.ToCompactString(root));
         File.Move(tempJson, jsonPath, true);
     }
@@ -432,24 +432,24 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         // the UI's fonts are in resources/fonts, on the NES and Famicom in a folder of the console (fonts/nes, fonts/hvc);
         // older drafts kept the theme's copies there too
         var fontFiles = new Dictionary<string, (string Path, string Extension, bool FromBase)>(StringComparer.OrdinalIgnoreCase);
-        foreach (var file in new ThemeLayer(themeDraftPath, baseUiPath).ListFiles("fonts", "*.*", recursive: true))
+        foreach (LayeredFile file in new ThemeLayer(themeDraftPath, baseUiPath).ListFiles("fonts", "*.*", recursive: true))
         {
-            var name = Path.GetFileNameWithoutExtension(file.FilePath);
+            string name = Path.GetFileNameWithoutExtension(file.FilePath);
             if (ThemeFonts.IsFontFile(file.FilePath)
                 && !FirmwareFonts.IsFirmwareOnly(name)
-                && (!fontFiles.TryGetValue(name, out var existing) || existing.FromBase))
+                && (!fontFiles.TryGetValue(name, out (string Path, string Extension, bool FromBase) existing) || existing.FromBase))
             {
                 fontFiles[name] = (file.FilePath, Path.GetExtension(file.FilePath), file.IsFromBase);
             }
         }
 
         // the theme's fonts, beside resources and named as Font Remount reads them (large.fnt is l)
-        var themeFonts = Path.Combine(themeDraftPath, ThemeFonts.Folder);
+        string themeFonts = Path.Combine(themeDraftPath, ThemeFonts.Folder);
         if (Directory.Exists(themeFonts))
         {
-            foreach (var file in Directory.EnumerateFiles(themeFonts).Where(ThemeFonts.IsFontFile))
+            foreach (string? file in Directory.EnumerateFiles(themeFonts).Where(ThemeFonts.IsFontFile))
             {
-                var name = ThemeFonts.UiName(Path.GetFileNameWithoutExtension(file));
+                string name = ThemeFonts.UiName(Path.GetFileNameWithoutExtension(file));
                 if (!FirmwareFonts.IsFirmwareOnly(name))
                 {
                     fontFiles[name] = (file, Path.GetExtension(file), false);
@@ -458,14 +458,14 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         }
 
         var result = new List<FontAsset>();
-        foreach (var (name, (filePath, ext, fromBase)) in fontFiles.OrderBy(kvp => GetFontSortKey(kvp.Key)))
+        foreach ((string? name, (string? filePath, string? ext, bool fromBase)) in fontFiles.OrderBy(kvp => GetFontSortKey(kvp.Key)))
         {
             // changes are written to the theme's fonts folder
-            var relPath = ThemeFonts.RelativePath(name, ext);
+            string relPath = ThemeFonts.RelativePath(name, ext);
             try
             {
-                var font = MiniFontReader.Read(filePath);
-                var (displayName, roles) = GetFontMetadata(name);
+                MiniFont font = MiniFontReader.Read(filePath);
+                (string? displayName, string[]? roles) = GetFontMetadata(name);
 
                 result.Add(new FontAsset(
                     Name: name,
@@ -484,7 +484,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             catch
             {
                 // If corrupted or unreadable, still register with fallback metrics
-                var (displayName, roles) = GetFontMetadata(name);
+                (string? displayName, string[]? roles) = GetFontMetadata(name);
                 result.Add(new FontAsset(
                     Name: name,
                     DisplayName: displayName,
@@ -515,11 +515,11 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         ArgumentNullException.ThrowIfNull(font);
         ArgumentException.ThrowIfNullOrWhiteSpace(replacementPngPath);
 
-        var draftPath = EnsureDraftCopy(themeDraftPath, font.RelativePath, font.FilePath);
-        var miniFont = MiniFontReader.Read(draftPath);
+        string draftPath = EnsureDraftCopy(themeDraftPath, font.RelativePath, font.FilePath);
+        MiniFont miniFont = MiniFontReader.Read(draftPath);
 
-        var newPngBytes = File.ReadAllBytes(replacementPngPath);
-        using var bmp = SKBitmap.Decode(newPngBytes)
+        byte[] newPngBytes = File.ReadAllBytes(replacementPngPath);
+        using SKBitmap bmp = SKBitmap.Decode(newPngBytes)
             ?? throw new InvalidDataException("The replacement image is not a valid PNG.");
 
         miniFont.TexturePngBytes = newPngBytes;
@@ -539,7 +539,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         ArgumentNullException.ThrowIfNull(font);
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceFontPath);
 
-        var targetPath = ThemeLayer.InsideRoot(themeDraftPath, font.RelativePath);
+        string targetPath = ThemeLayer.InsideRoot(themeDraftPath, font.RelativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
 
         // Validate that source is a readable font before overwriting
@@ -551,8 +551,8 @@ public sealed class ThemeAssetManager : IThemeAssetManager
     // a theme font older drafts kept in resources/fonts goes once the theme's fonts folder has it
     private static void DropOlderCopy(string themeDraftPath, FontAsset font, string targetPath)
     {
-        var resources = Path.GetFullPath(Path.Combine(themeDraftPath, "resources")) + Path.DirectorySeparatorChar;
-        var source = Path.GetFullPath(font.FilePath);
+        string resources = Path.GetFullPath(Path.Combine(themeDraftPath, "resources")) + Path.DirectorySeparatorChar;
+        string source = Path.GetFullPath(font.FilePath);
         if (source.StartsWith(resources, StringComparison.OrdinalIgnoreCase)
             && !source.Equals(Path.GetFullPath(targetPath), StringComparison.OrdinalIgnoreCase)
             && File.Exists(source))
@@ -566,8 +566,8 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         ArgumentNullException.ThrowIfNull(font);
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationPngPath);
 
-        var miniFont = MiniFontReader.Read(font.FilePath);
-        var dir = Path.GetDirectoryName(destinationPngPath);
+        MiniFont miniFont = MiniFontReader.Read(font.FilePath);
+        string? dir = Path.GetDirectoryName(destinationPngPath);
         if (!string.IsNullOrEmpty(dir))
         {
             Directory.CreateDirectory(dir);
@@ -581,7 +581,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         ArgumentNullException.ThrowIfNull(font);
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationFontPath);
 
-        var dir = Path.GetDirectoryName(destinationFontPath);
+        string? dir = Path.GetDirectoryName(destinationFontPath);
         if (!string.IsNullOrEmpty(dir))
         {
             Directory.CreateDirectory(dir);
@@ -597,18 +597,18 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         ArgumentNullException.ThrowIfNull(targetFont);
         ArgumentException.ThrowIfNullOrWhiteSpace(ttfOrZipPath);
 
-        var size = fontSize.HasValue && fontSize.Value > 0
+        int size = fontSize.HasValue && fontSize.Value > 0
             ? fontSize.Value
             : (targetFont.LineHeight > 0 ? targetFont.LineHeight : 16);
 
         var rasterizer = new TrueTypeFontRasterizer();
-        var miniFont = rasterizer.Rasterize(ttfOrZipPath, new TrueTypeRasterOptions(
+        MiniFont miniFont = rasterizer.Rasterize(ttfOrZipPath, new TrueTypeRasterOptions(
             FontSize: size,
             AntiAlias: antiAlias,
             ExtraScripts: extraScripts,
             FillFontPath: fillFontPath));
 
-        var targetPath = ThemeLayer.InsideRoot(themeDraftPath, targetFont.RelativePath);
+        string targetPath = ThemeLayer.InsideRoot(themeDraftPath, targetFont.RelativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
 
         MiniFontWriter.Write(miniFont, targetPath);
@@ -620,10 +620,10 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
         ArgumentNullException.ThrowIfNull(font);
 
-        var completed = MiniFontCompleter.Complete(
+        MiniFont completed = MiniFontCompleter.Complete(
             MiniFontReader.Read(font.FilePath), extraScripts, fillFontPath);
 
-        var targetPath = ThemeLayer.InsideRoot(themeDraftPath, font.RelativePath);
+        string targetPath = ThemeLayer.InsideRoot(themeDraftPath, font.RelativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
         MiniFontWriter.Write(completed, targetPath);
         DropOlderCopy(themeDraftPath, font, targetPath);
@@ -656,8 +656,8 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
 
         var layer = new ThemeLayer(themeDraftPath, baseUiPath);
-        var soundSubdir = layer.FirstSubfolder("sounds") ?? "hvc";
-        var trackNames = new[]
+        string soundSubdir = layer.FirstSubfolder("sounds") ?? "hvc";
+        (string, string)[] trackNames = new[]
         {
             ("bgm_home", "Home Menu Music (bgm_home)"),
             ("bgm_boot", "Boot Music (bgm_boot)")
@@ -665,23 +665,23 @@ public sealed class ThemeAssetManager : IThemeAssetManager
 
         var tracks = new List<BgmTrack>();
 
-        foreach (var (name, displayName) in trackNames)
+        foreach ((string? name, string? displayName) in trackNames)
         {
-            var relativePath = $"resources/sounds/{soundSubdir}/{name}.wav";
-            var draftFile = layer.FindFiles($"sounds/{soundSubdir}", $"{name}.*", inBase: false)
+            string relativePath = $"resources/sounds/{soundSubdir}/{name}.wav";
+            string? draftFile = layer.FindFiles($"sounds/{soundSubdir}", $"{name}.*", inBase: false)
                 .FirstOrDefault(BgmAudioValidator.IsSupportedAudioFile);
-            var baseFile = layer.FindFiles($"sounds/{soundSubdir}", $"{name}.*", inBase: true)
+            string? baseFile = layer.FindFiles($"sounds/{soundSubdir}", $"{name}.*", inBase: true)
                 .FirstOrDefault(BgmAudioValidator.IsSupportedAudioFile);
 
             WavAudioInfo? audioInfo = null;
             string statusDesc;
 
-            var canMute = name.Equals("bgm_boot", StringComparison.OrdinalIgnoreCase);
-            var isMuted = false;
+            bool canMute = name.Equals("bgm_boot", StringComparison.OrdinalIgnoreCase);
+            bool isMuted = false;
 
             if (draftFile != null)
             {
-                var ext = Path.GetExtension(draftFile);
+                string ext = Path.GetExtension(draftFile);
                 if (ext.Equals(".wav", StringComparison.OrdinalIgnoreCase))
                 {
                     audioInfo = WavAudioReader.Read(draftFile);
@@ -697,7 +697,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             }
             else if (baseFile != null)
             {
-                var ext = Path.GetExtension(baseFile);
+                string ext = Path.GetExtension(baseFile);
                 if (ext.Equals(".wav", StringComparison.OrdinalIgnoreCase))
                 {
                     audioInfo = WavAudioReader.Read(baseFile);
@@ -741,14 +741,14 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             throw new FileNotFoundException("Source audio file not found.", sourceAudioFilePath);
         }
 
-        var soundSubdir = new ThemeLayer(themeDraftPath, baseUiPath).FirstSubfolder("sounds") ?? "hvc";
-        var draftDir = Path.Combine(themeDraftPath, "resources", "sounds", soundSubdir);
+        string soundSubdir = new ThemeLayer(themeDraftPath, baseUiPath).FirstSubfolder("sounds") ?? "hvc";
+        string draftDir = Path.Combine(themeDraftPath, "resources", "sounds", soundSubdir);
         Directory.CreateDirectory(draftDir);
 
-        var ext = Path.GetExtension(sourceAudioFilePath).ToLowerInvariant();
-        var targetPath = Path.Combine(draftDir, $"{trackName}{ext}");
+        string ext = Path.GetExtension(sourceAudioFilePath).ToLowerInvariant();
+        string targetPath = Path.Combine(draftDir, $"{trackName}{ext}");
 
-        foreach (var existing in Directory.EnumerateFiles(draftDir, $"{trackName}.*"))
+        foreach (string existing in Directory.EnumerateFiles(draftDir, $"{trackName}.*"))
         {
             if (!existing.Equals(targetPath, StringComparison.OrdinalIgnoreCase))
             {
@@ -764,17 +764,17 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(trackName);
 
-        var soundSubdir = new ThemeLayer(themeDraftPath, baseUiPath).FirstSubfolder("sounds") ?? "hvc";
-        var draftDir = Path.Combine(themeDraftPath, "resources", "sounds", soundSubdir);
+        string soundSubdir = new ThemeLayer(themeDraftPath, baseUiPath).FirstSubfolder("sounds") ?? "hvc";
+        string draftDir = Path.Combine(themeDraftPath, "resources", "sounds", soundSubdir);
         Directory.CreateDirectory(draftDir);
 
-        foreach (var existing in Directory.EnumerateFiles(draftDir, $"{trackName}.*"))
+        foreach (string existing in Directory.EnumerateFiles(draftDir, $"{trackName}.*"))
         {
             File.Delete(existing);
         }
 
-        var silentWav = WavAudioReader.CreateMinimalPcm16Wav(44100, 2, 4410);
-        var targetPath = Path.Combine(draftDir, $"{trackName}.wav");
+        byte[] silentWav = WavAudioReader.CreateMinimalPcm16Wav(44100, 2, 4410);
+        string targetPath = Path.Combine(draftDir, $"{trackName}.wav");
         File.WriteAllBytes(targetPath, silentWav);
     }
 
@@ -783,13 +783,13 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(trackName);
 
-        var soundsDir = Path.Combine(themeDraftPath, "resources", "sounds");
+        string soundsDir = Path.Combine(themeDraftPath, "resources", "sounds");
         if (!Directory.Exists(soundsDir))
         {
             return;
         }
 
-        foreach (var file in Directory.EnumerateFiles(soundsDir, $"{trackName}.*", SearchOption.AllDirectories))
+        foreach (string file in Directory.EnumerateFiles(soundsDir, $"{trackName}.*", SearchOption.AllDirectories))
         {
             File.Delete(file);
         }

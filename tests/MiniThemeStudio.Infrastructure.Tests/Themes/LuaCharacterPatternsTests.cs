@@ -10,7 +10,7 @@ public sealed class LuaCharacterPatternsTests
         var patterns = LuaCharacterPatterns.Read(CharacterPatternFixtures.SampleBytes);
 
         Assert.Equal(["smb_mario", "smb_block"], patterns.Characters.Select(character => character.Name));
-        var mario = patterns.Characters[0];
+        LuaCharacter mario = patterns.Characters[0];
         Assert.Equal(("smb_tex", 16, 16), (mario.Texture, mario.Width, mario.Height));
         Assert.Equal([(0, 1), (18, 1)], mario.Frames);
         Assert.Equal([(0, 35)], patterns.Characters[1].Frames);

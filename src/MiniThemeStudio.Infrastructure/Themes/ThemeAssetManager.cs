@@ -1,6 +1,10 @@
-using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json;
+using MiniThemeStudio.Core.Audio;
+using MiniThemeStudio.Core.Fonts;
 using MiniThemeStudio.Core.Themes;
+using MiniThemeStudio.Infrastructure.Audio;
+using MiniThemeStudio.Infrastructure.Fonts;
 using SkiaSharp;
 
 namespace MiniThemeStudio.Infrastructure.Themes;
@@ -421,7 +425,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         File.Move(tempJson, jsonPath, true);
     }
 
-    public IReadOnlyList<MiniThemeStudio.Core.Fonts.FontAsset> GetFonts(string themeDraftPath, string? baseUiPath = null)
+    public IReadOnlyList<FontAsset> GetFonts(string themeDraftPath, string? baseUiPath = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
 
@@ -431,8 +435,8 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         foreach (var file in new ThemeLayer(themeDraftPath, baseUiPath).ListFiles("fonts", "*.*", recursive: true))
         {
             var name = Path.GetFileNameWithoutExtension(file.FilePath);
-            if (MiniThemeStudio.Infrastructure.Fonts.ThemeFonts.IsFontFile(file.FilePath)
-                && !MiniThemeStudio.Infrastructure.Fonts.FirmwareFonts.IsFirmwareOnly(name)
+            if (ThemeFonts.IsFontFile(file.FilePath)
+                && !FirmwareFonts.IsFirmwareOnly(name)
                 && (!fontFiles.TryGetValue(name, out var existing) || existing.FromBase))
             {
                 fontFiles[name] = (file.FilePath, Path.GetExtension(file.FilePath), file.IsFromBase);
@@ -440,30 +444,30 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         }
 
         // the theme's fonts, beside resources and named as Font Remount reads them (large.fnt is l)
-        var themeFonts = Path.Combine(themeDraftPath, MiniThemeStudio.Infrastructure.Fonts.ThemeFonts.Folder);
+        var themeFonts = Path.Combine(themeDraftPath, ThemeFonts.Folder);
         if (Directory.Exists(themeFonts))
         {
-            foreach (var file in Directory.EnumerateFiles(themeFonts).Where(MiniThemeStudio.Infrastructure.Fonts.ThemeFonts.IsFontFile))
+            foreach (var file in Directory.EnumerateFiles(themeFonts).Where(ThemeFonts.IsFontFile))
             {
-                var name = MiniThemeStudio.Infrastructure.Fonts.ThemeFonts.UiName(Path.GetFileNameWithoutExtension(file));
-                if (!MiniThemeStudio.Infrastructure.Fonts.FirmwareFonts.IsFirmwareOnly(name))
+                var name = ThemeFonts.UiName(Path.GetFileNameWithoutExtension(file));
+                if (!FirmwareFonts.IsFirmwareOnly(name))
                 {
                     fontFiles[name] = (file, Path.GetExtension(file), false);
                 }
             }
         }
 
-        var result = new List<MiniThemeStudio.Core.Fonts.FontAsset>();
+        var result = new List<FontAsset>();
         foreach (var (name, (filePath, ext, fromBase)) in fontFiles.OrderBy(kvp => GetFontSortKey(kvp.Key)))
         {
             // changes are written to the theme's fonts folder
-            var relPath = MiniThemeStudio.Infrastructure.Fonts.ThemeFonts.RelativePath(name, ext);
+            var relPath = ThemeFonts.RelativePath(name, ext);
             try
             {
-                var font = MiniThemeStudio.Infrastructure.Fonts.MiniFontReader.Read(filePath);
+                var font = MiniFontReader.Read(filePath);
                 var (displayName, roles) = GetFontMetadata(name);
 
-                result.Add(new MiniThemeStudio.Core.Fonts.FontAsset(
+                result.Add(new FontAsset(
                     Name: name,
                     DisplayName: displayName,
                     FilePath: filePath,
@@ -481,7 +485,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             {
                 // If corrupted or unreadable, still register with fallback metrics
                 var (displayName, roles) = GetFontMetadata(name);
-                result.Add(new MiniThemeStudio.Core.Fonts.FontAsset(
+                result.Add(new FontAsset(
                     Name: name,
                     DisplayName: displayName,
                     FilePath: filePath,
@@ -500,19 +504,19 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         return result;
     }
 
-    public MiniThemeStudio.Core.Fonts.MiniFont LoadFont(string fontFilePath)
+    public MiniFont LoadFont(string fontFilePath)
     {
-        return MiniThemeStudio.Infrastructure.Fonts.MiniFontReader.Read(fontFilePath);
+        return MiniFontReader.Read(fontFilePath);
     }
 
-    public void ReplaceFontTexture(string themeDraftPath, MiniThemeStudio.Core.Fonts.FontAsset font, string replacementPngPath)
+    public void ReplaceFontTexture(string themeDraftPath, FontAsset font, string replacementPngPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
         ArgumentNullException.ThrowIfNull(font);
         ArgumentException.ThrowIfNullOrWhiteSpace(replacementPngPath);
 
         var draftPath = EnsureDraftCopy(themeDraftPath, font.RelativePath, font.FilePath);
-        var miniFont = MiniThemeStudio.Infrastructure.Fonts.MiniFontReader.Read(draftPath);
+        var miniFont = MiniFontReader.Read(draftPath);
 
         var newPngBytes = File.ReadAllBytes(replacementPngPath);
         using var bmp = SKBitmap.Decode(newPngBytes);
@@ -528,11 +532,11 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             ScaleH = bmp.Height
         };
 
-        MiniThemeStudio.Infrastructure.Fonts.MiniFontWriter.Write(miniFont, draftPath);
+        MiniFontWriter.Write(miniFont, draftPath);
         DropOlderCopy(themeDraftPath, font, draftPath);
     }
 
-    public void ReplaceFont(string themeDraftPath, MiniThemeStudio.Core.Fonts.FontAsset font, string sourceFontPath)
+    public void ReplaceFont(string themeDraftPath, FontAsset font, string sourceFontPath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
         ArgumentNullException.ThrowIfNull(font);
@@ -542,13 +546,13 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
 
         // Validate that source is a readable font before overwriting
-        _ = MiniThemeStudio.Infrastructure.Fonts.MiniFontReader.Read(sourceFontPath);
+        _ = MiniFontReader.Read(sourceFontPath);
         File.Copy(sourceFontPath, targetPath, overwrite: true);
         DropOlderCopy(themeDraftPath, font, targetPath);
     }
 
     // a theme font older drafts kept in resources/fonts goes once the theme's fonts folder has it
-    private static void DropOlderCopy(string themeDraftPath, MiniThemeStudio.Core.Fonts.FontAsset font, string targetPath)
+    private static void DropOlderCopy(string themeDraftPath, FontAsset font, string targetPath)
     {
         var resources = Path.GetFullPath(Path.Combine(themeDraftPath, "resources")) + Path.DirectorySeparatorChar;
         var source = Path.GetFullPath(font.FilePath);
@@ -560,12 +564,12 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         }
     }
 
-    public void ExportFontTexture(MiniThemeStudio.Core.Fonts.FontAsset font, string destinationPngPath)
+    public void ExportFontTexture(FontAsset font, string destinationPngPath)
     {
         ArgumentNullException.ThrowIfNull(font);
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationPngPath);
 
-        var miniFont = MiniThemeStudio.Infrastructure.Fonts.MiniFontReader.Read(font.FilePath);
+        var miniFont = MiniFontReader.Read(font.FilePath);
         var dir = Path.GetDirectoryName(destinationPngPath);
         if (!string.IsNullOrEmpty(dir))
         {
@@ -575,7 +579,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         File.WriteAllBytes(destinationPngPath, miniFont.TexturePngBytes);
     }
 
-    public void ExportFont(MiniThemeStudio.Core.Fonts.FontAsset font, string destinationFontPath)
+    public void ExportFont(FontAsset font, string destinationFontPath)
     {
         ArgumentNullException.ThrowIfNull(font);
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationFontPath);
@@ -589,8 +593,8 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         File.Copy(font.FilePath, destinationFontPath, overwrite: true);
     }
 
-    public void ImportTrueTypeFont(string themeDraftPath, MiniThemeStudio.Core.Fonts.FontAsset targetFont, string ttfOrZipPath, int? fontSize = null, bool antiAlias = false,
-        MiniThemeStudio.Core.Fonts.ExtraScripts extraScripts = MiniThemeStudio.Core.Fonts.ExtraScripts.None, string? fillFontPath = null)
+    public void ImportTrueTypeFont(string themeDraftPath, FontAsset targetFont, string ttfOrZipPath, int? fontSize = null, bool antiAlias = false,
+        ExtraScripts extraScripts = ExtraScripts.None, string? fillFontPath = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
         ArgumentNullException.ThrowIfNull(targetFont);
@@ -600,8 +604,8 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             ? fontSize.Value
             : (targetFont.LineHeight > 0 ? targetFont.LineHeight : 16);
 
-        var rasterizer = new MiniThemeStudio.Infrastructure.Fonts.TrueTypeFontRasterizer();
-        var miniFont = rasterizer.Rasterize(ttfOrZipPath, new MiniThemeStudio.Core.Fonts.TrueTypeRasterOptions(
+        var rasterizer = new TrueTypeFontRasterizer();
+        var miniFont = rasterizer.Rasterize(ttfOrZipPath, new TrueTypeRasterOptions(
             FontSize: size,
             AntiAlias: antiAlias,
             ExtraScripts: extraScripts,
@@ -610,21 +614,21 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         var targetPath = ThemeLayer.InsideRoot(themeDraftPath, targetFont.RelativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
 
-        MiniThemeStudio.Infrastructure.Fonts.MiniFontWriter.Write(miniFont, targetPath);
+        MiniFontWriter.Write(miniFont, targetPath);
         DropOlderCopy(themeDraftPath, targetFont, targetPath);
     }
 
-    public void CompleteFont(string themeDraftPath, MiniThemeStudio.Core.Fonts.FontAsset font, MiniThemeStudio.Core.Fonts.ExtraScripts extraScripts, string? fillFontPath = null)
+    public void CompleteFont(string themeDraftPath, FontAsset font, ExtraScripts extraScripts, string? fillFontPath = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
         ArgumentNullException.ThrowIfNull(font);
 
-        var completed = MiniThemeStudio.Infrastructure.Fonts.MiniFontCompleter.Complete(
-            MiniThemeStudio.Infrastructure.Fonts.MiniFontReader.Read(font.FilePath), extraScripts, fillFontPath);
+        var completed = MiniFontCompleter.Complete(
+            MiniFontReader.Read(font.FilePath), extraScripts, fillFontPath);
 
         var targetPath = ThemeLayer.InsideRoot(themeDraftPath, font.RelativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-        MiniThemeStudio.Infrastructure.Fonts.MiniFontWriter.Write(completed, targetPath);
+        MiniFontWriter.Write(completed, targetPath);
         DropOlderCopy(themeDraftPath, font, targetPath);
     }
 
@@ -650,7 +654,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             _ => 10
         };
 
-    public IReadOnlyList<MiniThemeStudio.Core.Audio.BgmTrack> GetBgmTracks(string themeDraftPath, string? baseUiPath = null)
+    public IReadOnlyList<BgmTrack> GetBgmTracks(string themeDraftPath, string? baseUiPath = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
 
@@ -662,17 +666,17 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             ("bgm_boot", "Boot Music (bgm_boot)")
         };
 
-        var tracks = new List<MiniThemeStudio.Core.Audio.BgmTrack>();
+        var tracks = new List<BgmTrack>();
 
         foreach (var (name, displayName) in trackNames)
         {
             var relativePath = $"resources/sounds/{soundSubdir}/{name}.wav";
             var draftFile = layer.FindFiles($"sounds/{soundSubdir}", $"{name}.*", inBase: false)
-                .FirstOrDefault(Audio.BgmAudioValidator.IsSupportedAudioFile);
+                .FirstOrDefault(BgmAudioValidator.IsSupportedAudioFile);
             var baseFile = layer.FindFiles($"sounds/{soundSubdir}", $"{name}.*", inBase: true)
-                .FirstOrDefault(Audio.BgmAudioValidator.IsSupportedAudioFile);
+                .FirstOrDefault(BgmAudioValidator.IsSupportedAudioFile);
 
-            MiniThemeStudio.Core.Audio.WavAudioInfo? audioInfo = null;
+            WavAudioInfo? audioInfo = null;
             string statusDesc;
 
             var canMute = name.Equals("bgm_boot", StringComparison.OrdinalIgnoreCase);
@@ -683,8 +687,8 @@ public sealed class ThemeAssetManager : IThemeAssetManager
                 var ext = Path.GetExtension(draftFile);
                 if (ext.Equals(".wav", StringComparison.OrdinalIgnoreCase))
                 {
-                    audioInfo = Audio.WavAudioReader.Read(draftFile);
-                    isMuted = Audio.BgmAudioValidator.IsSilentPcm(draftFile);
+                    audioInfo = WavAudioReader.Read(draftFile);
+                    isMuted = BgmAudioValidator.IsSilentPcm(draftFile);
                     statusDesc = isMuted
                         ? "Draft: Muted (Silence)"
                         : $"Draft: {audioInfo.FormatDescription}";
@@ -699,7 +703,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
                 var ext = Path.GetExtension(baseFile);
                 if (ext.Equals(".wav", StringComparison.OrdinalIgnoreCase))
                 {
-                    audioInfo = Audio.WavAudioReader.Read(baseFile);
+                    audioInfo = WavAudioReader.Read(baseFile);
                     statusDesc = $"Base: {audioInfo.FormatDescription}";
                 }
                 else
@@ -712,7 +716,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
                 statusDesc = "Not present in theme or base";
             }
 
-            tracks.Add(new MiniThemeStudio.Core.Audio.BgmTrack(
+            tracks.Add(new BgmTrack(
                 Name: name,
                 DisplayName: displayName,
                 RelativePath: relativePath,
@@ -772,7 +776,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             File.Delete(existing);
         }
 
-        var silentWav = Audio.WavAudioReader.CreateMinimalPcm16Wav(44100, 2, 4410);
+        var silentWav = WavAudioReader.CreateMinimalPcm16Wav(44100, 2, 4410);
         var targetPath = Path.Combine(draftDir, $"{trackName}.wav");
         File.WriteAllBytes(targetPath, silentWav);
     }

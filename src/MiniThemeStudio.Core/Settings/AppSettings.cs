@@ -1,3 +1,5 @@
+using MiniThemeStudio.Core.Audio;
+
 namespace MiniThemeStudio.Core.Settings;
 
 public sealed record AppSettings(
@@ -10,6 +12,6 @@ public sealed record AppSettings(
     string FillFontPath = "",
     string FFmpegPath = "",
     bool ConvertBgmAudio = false,
-    MiniThemeStudio.Core.Audio.BgmAudioChannels BgmChannels = MiniThemeStudio.Core.Audio.BgmAudioChannels.Stereo,
+    BgmAudioChannels BgmChannels = BgmAudioChannels.Stereo,
     bool IncludeBgm = true,
     bool AdvancedEditing = false);

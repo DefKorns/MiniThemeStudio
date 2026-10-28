@@ -1,10 +1,11 @@
-using System;
 using System.IO;
 using System.Net;
+using System;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using MiniThemeStudio.Core.Settings;
+using MiniThemeStudio.Infrastructure.Audio;
 
 namespace MiniThemeStudio.App.Views;
 
@@ -173,7 +174,7 @@ public sealed partial class SettingsDialog : Window
             return;
         }
 
-        var status = await new MiniThemeStudio.Infrastructure.Audio.FFmpegAudioConverter().GetStatusAsync(path);
+        var status = await new FFmpegAudioConverter().GetStatusAsync(path);
         if (status.IsAvailable)
         {
             FFmpegTextBox.Classes.Set("invalid-path", false);

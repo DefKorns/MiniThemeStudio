@@ -1,4 +1,7 @@
+using MiniThemeStudio.Core.Fonts;
 using MiniThemeStudio.Core.Themes;
+using MiniThemeStudio.Infrastructure.Audio;
+using MiniThemeStudio.Infrastructure.Fonts;
 using SkiaSharp;
 
 namespace MiniThemeStudio.Infrastructure.Themes;
@@ -61,7 +64,7 @@ public sealed class ThemeValidator(IThemeResourceIndexer? resourceIndexer = null
         }
 
         // Validate fonts if present
-        foreach (var fontsDir in new[] { Path.Combine(themeDraftPath, MiniThemeStudio.Infrastructure.Fonts.ThemeFonts.Folder), Path.Combine(themeDraftPath, "resources", "fonts") })
+        foreach (var fontsDir in new[] { Path.Combine(themeDraftPath, ThemeFonts.Folder), Path.Combine(themeDraftPath, "resources", "fonts") })
         {
             if (Directory.Exists(fontsDir))
             {
@@ -114,7 +117,7 @@ public sealed class ThemeValidator(IThemeResourceIndexer? resourceIndexer = null
             }
 
             var fontName = Path.GetFileNameWithoutExtension(file);
-            if (MiniThemeStudio.Infrastructure.Fonts.FirmwareFonts.IsFirmwareOnly(fontName))
+            if (FirmwareFonts.IsFirmwareOnly(fontName))
             {
                 continue;
             }
@@ -122,8 +125,8 @@ public sealed class ThemeValidator(IThemeResourceIndexer? resourceIndexer = null
             var fileName = Path.GetFileName(file);
             try
             {
-                var font = MiniThemeStudio.Infrastructure.Fonts.MiniFontReader.Read(file);
-                var validation = MiniThemeStudio.Core.Fonts.FontValidator.Validate(font);
+                var font = MiniFontReader.Read(file);
+                var validation = FontValidator.Validate(font);
 
                 if (!validation.HasBasicAscii)
                 {
@@ -204,12 +207,12 @@ public sealed class ThemeValidator(IThemeResourceIndexer? resourceIndexer = null
             var fileName = Path.GetFileName(file);
             var isBgm = true;
 
-            if (!Audio.BgmAudioValidator.IsSupportedAudioFile(file))
+            if (!BgmAudioValidator.IsSupportedAudioFile(file))
             {
                 continue;
             }
 
-            var validation = Audio.BgmAudioValidator.Validate(file, isBgm ? options.BgmChannels : null);
+            var validation = BgmAudioValidator.Validate(file, isBgm ? options.BgmChannels : null);
 
             if (validation.IsValid)
             {

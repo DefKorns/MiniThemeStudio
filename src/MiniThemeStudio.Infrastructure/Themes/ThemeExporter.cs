@@ -1,14 +1,17 @@
 using System.Formats.Tar;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
+using MiniThemeStudio.Core.Audio;
 using MiniThemeStudio.Core.Themes;
+using MiniThemeStudio.Infrastructure.Audio;
 using MiniThemeStudio.Infrastructure.Firmware;
+using MiniThemeStudio.Infrastructure.Fonts;
 
 namespace MiniThemeStudio.Infrastructure.Themes;
 
-public sealed partial class ThemeExporter(MiniThemeStudio.Core.Audio.IFFmpegAudioConverter? ffmpegAudioConverter = null) : IThemeExporter
+public sealed partial class ThemeExporter(IFFmpegAudioConverter? ffmpegAudioConverter = null) : IThemeExporter
 {
-    private readonly MiniThemeStudio.Core.Audio.IFFmpegAudioConverter _ffmpegAudioConverter = ffmpegAudioConverter ?? new MiniThemeStudio.Infrastructure.Audio.FFmpegAudioConverter();
+    private readonly IFFmpegAudioConverter _ffmpegAudioConverter = ffmpegAudioConverter ?? new FFmpegAudioConverter();
 
     private static readonly string[] PackagingOnlyFiles = ["info", "author.txt", "title.txt", "note.txt"];
 
@@ -117,9 +120,9 @@ public sealed partial class ThemeExporter(MiniThemeStudio.Core.Audio.IFFmpegAudi
 
             // theme fonts live in fonts/ beside resources, named as Font Remount reads them; one in resources/fonts
             // (where older drafts kept them) moves there, unless the theme already has it in fonts/
-            if (relativePath.StartsWith("resources/fonts/", StringComparison.OrdinalIgnoreCase) && MiniThemeStudio.Infrastructure.Fonts.ThemeFonts.IsFontFile(relativePath))
+            if (relativePath.StartsWith("resources/fonts/", StringComparison.OrdinalIgnoreCase) && ThemeFonts.IsFontFile(relativePath))
             {
-                var fontPath = MiniThemeStudio.Infrastructure.Fonts.ThemeFonts.RelativePath(Path.GetFileNameWithoutExtension(relativePath), Path.GetExtension(relativePath));
+                var fontPath = ThemeFonts.RelativePath(Path.GetFileNameWithoutExtension(relativePath), Path.GetExtension(relativePath));
                 if (File.Exists(Path.Combine(themePath, fontPath)) || sources.ContainsKey(fontPath))
                 {
                     continue;
@@ -196,7 +199,7 @@ public sealed partial class ThemeExporter(MiniThemeStudio.Core.Audio.IFFmpegAudi
             }
             else
             {
-                var info = Audio.WavAudioReader.Read(audioFile);
+                var info = WavAudioReader.Read(audioFile);
                 var expectedChannels = options.BgmChannels == Core.Audio.BgmAudioChannels.Mono ? 1 : 2;
                 if (!info.IsValidWav || !info.IsConsoleStandard || info.Channels != expectedChannels)
                 {

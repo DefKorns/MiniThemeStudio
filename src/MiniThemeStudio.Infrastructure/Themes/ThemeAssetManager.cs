@@ -19,7 +19,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
 
-        var targetPath = EnsureInsideDraft(themeDraftPath, relativePath);
+        var targetPath = ThemeLayer.InsideRoot(themeDraftPath, relativePath);
         if (File.Exists(targetPath))
         {
             return targetPath;
@@ -353,8 +353,8 @@ public sealed class ThemeAssetManager : IThemeAssetManager
 
         using var bitmap = SKBitmap.Decode(sourceImagePath)
             ?? throw new InvalidDataException("Source file is not a valid PNG image.");
-        var imagePath = EnsureInsideDraft(themeDraftPath, texture.ImageRelativePath);
-        var definitionPath = EnsureInsideDraft(themeDraftPath, texture.DefinitionRelativePath);
+        var imagePath = ThemeLayer.InsideRoot(themeDraftPath, texture.ImageRelativePath);
+        var definitionPath = ThemeLayer.InsideRoot(themeDraftPath, texture.DefinitionRelativePath);
         if (File.Exists(imagePath))
         {
             throw new IOException($"The texture image already exists: {texture.ImageRelativePath}");
@@ -393,18 +393,6 @@ public sealed class ThemeAssetManager : IThemeAssetManager
     private static JsonValue Half(int size)
     {
         return size % 2 == 0 ? JsonValue.Create(size / 2) : JsonValue.Create(size / 2.0);
-    }
-
-    private static string EnsureInsideDraft(string themeDraftPath, string relativePath)
-    {
-        var draftRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(themeDraftPath));
-        var targetPath = Path.GetFullPath(Path.Combine(draftRoot, relativePath));
-        if (!targetPath.StartsWith(draftRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new ArgumentException($"The path must stay inside the theme draft: {relativePath}", nameof(relativePath));
-        }
-
-        return targetPath;
     }
 
     private static string? ReadTextureId(string? jsonPath)
@@ -640,7 +628,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         ArgumentNullException.ThrowIfNull(font);
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceFontPath);
 
-        var targetPath = EnsureInsideDraft(themeDraftPath, font.RelativePath);
+        var targetPath = ThemeLayer.InsideRoot(themeDraftPath, font.RelativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
 
         // Validate that source is a readable font before overwriting
@@ -695,7 +683,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
             ExtraScripts: extraScripts,
             FillFontPath: fillFontPath));
 
-        var targetPath = EnsureInsideDraft(themeDraftPath, targetFont.RelativePath);
+        var targetPath = ThemeLayer.InsideRoot(themeDraftPath, targetFont.RelativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
 
         MiniThemeStudio.Infrastructure.Fonts.MiniFontWriter.Write(miniFont, targetPath);
@@ -709,7 +697,7 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         var completed = MiniThemeStudio.Infrastructure.Fonts.MiniFontCompleter.Complete(
             MiniThemeStudio.Infrastructure.Fonts.MiniFontReader.Read(font.FilePath), extraScripts, fillFontPath);
 
-        var targetPath = EnsureInsideDraft(themeDraftPath, font.RelativePath);
+        var targetPath = ThemeLayer.InsideRoot(themeDraftPath, font.RelativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
         MiniThemeStudio.Infrastructure.Fonts.MiniFontWriter.Write(completed, targetPath);
     }

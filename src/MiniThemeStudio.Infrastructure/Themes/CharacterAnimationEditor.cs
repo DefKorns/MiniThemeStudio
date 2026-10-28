@@ -13,7 +13,7 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
     public IReadOnlyList<string> GetCharacters(string themePath, string? baseUiPath)
     {
         return ReadDependencies(themePath, baseUiPath)
-            .Where(resource => resource.Type == "SceneAnimation" && resource.Path?.StartsWith(LayoutPrefix, StringComparison.Ordinal) == true)
+            .Where(resource => resource.Type == DependencyManifest.SceneAnimation && resource.Path?.StartsWith(LayoutPrefix, StringComparison.Ordinal) == true)
             .Select(resource => CharacterOf(resource.Path!))
             .Where(character => character.Length > 0 && GetNodes(themePath, baseUiPath, character).Count > 0)
             .Distinct(StringComparer.Ordinal)
@@ -23,12 +23,13 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
 
     public IReadOnlyList<CharacterAnimation> GetAnimations(string themePath, string? baseUiPath, string character)
     {
+        var layer = new ThemeLayer(themePath, baseUiPath);
         var animations = new List<CharacterAnimation>();
         foreach (var resource in ReadDependencies(themePath, baseUiPath)
-            .Where(resource => resource.Type == "SceneAnimation" && resource.Path is not null && CharacterOf(resource.Path) == character)
+            .Where(resource => resource.Type == DependencyManifest.SceneAnimation && resource.Path is not null && CharacterOf(resource.Path) == character)
             .OrderBy(resource => resource.Path, StringComparer.Ordinal))
         {
-            var path = Resolve(themePath, baseUiPath, resource.Path!);
+            var path = layer.Resolve(resource.Path!);
             if (path is null)
             {
                 continue;
@@ -57,10 +58,11 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
 
     public IReadOnlyList<CharacterNode> GetNodes(string themePath, string? baseUiPath, string character)
     {
+        var layer = new ThemeLayer(themePath, baseUiPath);
         var nodes = new List<CharacterNode>();
-        foreach (var scene in ReadDependencies(themePath, baseUiPath).Where(resource => resource.Type == "Scene" && resource.Path is not null))
+        foreach (var scene in ReadDependencies(themePath, baseUiPath).Where(resource => resource.Type == DependencyManifest.Scene && resource.Path is not null))
         {
-            var path = Resolve(themePath, baseUiPath, scene.Path!);
+            var path = layer.Resolve(scene.Path!);
             if (path is null)
             {
                 continue;
@@ -85,11 +87,12 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
 
     public IReadOnlyDictionary<string, CharacterTexture> GetTextures(string themePath, string? baseUiPath)
     {
+        var layer = new ThemeLayer(themePath, baseUiPath);
         var textures = new Dictionary<string, CharacterTexture>(StringComparer.Ordinal);
-        foreach (var resource in ReadDependencies(themePath, baseUiPath).Where(resource => resource.Type == "TextureResource" && resource.Path is not null))
+        foreach (var resource in ReadDependencies(themePath, baseUiPath).Where(resource => resource.Type == DependencyManifest.TextureResource && resource.Path is not null))
         {
-            var imagePath = Resolve(themePath, baseUiPath, resource.Path!);
-            var definitionPath = Resolve(themePath, baseUiPath, Path.ChangeExtension(resource.Path!, ".json"));
+            var imagePath = layer.Resolve(resource.Path!);
+            var definitionPath = layer.Resolve(Path.ChangeExtension(resource.Path!, ".json"));
             if (imagePath is null || definitionPath is null)
             {
                 continue;
@@ -120,57 +123,37 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
         }
 
         resourcePath = resourcePath["/resources".Length..];
-        var dependencies = LoadDraftDependencies(themeDraftPath, baseUiPath);
-        var resources = dependencies["resources"]!.AsArray();
-        if (resources.Any(resource => resource?["path"]?.GetValue<string>() == resourcePath))
-        {
-            throw new IOException($"A texture is already registered at resources{resourcePath}.");
-        }
-
-        var imagePath = DraftPath(themeDraftPath, resourcePath);
+        var layer = new ThemeLayer(themeDraftPath, baseUiPath);
+        var manifest = DependencyManifest.Load(layer);
         var definitionResourcePath = Path.ChangeExtension(resourcePath, ".json");
-        var textureId = Guid.NewGuid().ToString();
+        var textureId = manifest.AddTexture(resourcePath, definitionResourcePath);
+
+        var imagePath = layer.ThemeResourceFile(resourcePath);
         Directory.CreateDirectory(Path.GetDirectoryName(imagePath)!);
         File.Copy(sourceImagePath, imagePath, false);
-        File.WriteAllText(
-            DraftPath(themeDraftPath, definitionResourcePath),
+        layer.WriteThemeResource(
+            definitionResourcePath,
             EngineJson.ToCompactString(new JsonObject
             {
                 ["texture"] = new JsonObject { ["id"] = textureId, ["width"] = bitmap.Width, ["height"] = bitmap.Height },
                 ["sprites"] = new JsonObject(),
             }));
-
-        var nextGroup = resources.Max(resource => int.TryParse(resource?["groupId"]?.GetValue<string>(), out var group) ? group : 0) + 1;
-        resources.Add(new JsonObject
-        {
-            ["id"] = textureId,
-            ["type"] = "TextureResource",
-            ["path"] = resourcePath,
-            ["groupId"] = nextGroup.ToString(System.Globalization.CultureInfo.InvariantCulture),
-        });
-        resources.Add(new JsonObject
-        {
-            ["id"] = $"sheet_{textureId}",
-            ["type"] = "SpriteSheet",
-            ["dependencies"] = new JsonArray(new JsonObject { ["id"] = textureId, ["refCount"] = 1 }),
-            ["path"] = definitionResourcePath,
-            ["groupId"] = (nextGroup + 1).ToString(System.Globalization.CultureInfo.InvariantCulture),
-        });
-        SaveDependencies(themeDraftPath, dependencies);
+        manifest.Save(layer);
         return textureId;
     }
 
     public void MirrorTextures(string themeDraftPath, string? baseUiPath, IReadOnlyCollection<string> textureIds)
     {
         ArgumentNullException.ThrowIfNull(textureIds);
+        var layer = new ThemeLayer(themeDraftPath, baseUiPath);
         var paths = ReadDependencies(themeDraftPath, baseUiPath)
-            .Where(resource => resource.Type == "TextureResource" && resource.Path is not null)
+            .Where(resource => resource.Type == DependencyManifest.TextureResource && resource.Path is not null)
             .ToDictionary(resource => resource.Id, resource => resource.Path!, StringComparer.Ordinal);
         foreach (var textureId in textureIds.Distinct(StringComparer.Ordinal))
         {
             var resourcePath = paths.GetValueOrDefault(textureId)
                 ?? throw new InvalidDataException($"Texture {textureId} is not registered in dependencies.json.");
-            var sourcePath = Resolve(themeDraftPath, baseUiPath, resourcePath)
+            var sourcePath = layer.Resolve(resourcePath)
                 ?? throw new FileNotFoundException($"Texture not found: resources{resourcePath}");
 
             using var bitmap = DecodeUnpremultiplied(sourcePath)
@@ -184,7 +167,7 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
 
             Marshal.Copy(pixels, 0, bitmap.GetPixels(), pixels.Length);
 
-            var targetPath = DraftPath(themeDraftPath, resourcePath);
+            var targetPath = layer.ThemeResourceFile(resourcePath);
             Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
             var temporaryPath = targetPath + ".tmp";
             using (var image = SKImage.FromBitmap(bitmap))
@@ -206,11 +189,10 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
             throw new ArgumentException("An animation track needs at least one key.", nameof(keys));
         }
 
-        var dependencies = LoadDraftDependencies(themeDraftPath, baseUiPath);
-        var resources = dependencies["resources"]!.AsArray();
-        var textureIds = resources
-            .Where(resource => resource?["type"]?.GetValue<string>() == "TextureResource")
-            .Select(resource => resource!["id"]!.GetValue<string>())
+        var layer = new ThemeLayer(themeDraftPath, baseUiPath);
+        var manifest = DependencyManifest.Load(layer);
+        var textureIds = manifest.OfType(DependencyManifest.TextureResource)
+            .Select(resource => resource.Id)
             .ToHashSet(StringComparer.Ordinal);
         var unknown = keys.FirstOrDefault(key => !textureIds.Contains(key.TextureId));
         if (unknown is not null)
@@ -218,7 +200,7 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
             throw new InvalidDataException($"Texture {unknown.TextureId} is not registered in dependencies.json.");
         }
 
-        var sourcePath = Resolve(themeDraftPath, baseUiPath, animationResourcePath)
+        var sourcePath = layer.Resolve(animationResourcePath)
             ?? throw new FileNotFoundException($"Animation not found: resources{animationResourcePath}");
         var animation = JsonNode.Parse(File.ReadAllText(sourcePath))!.AsObject();
         var track = TextureTracks(animation).FirstOrDefault(candidate => NodeName(candidate) == nodeName)
@@ -230,25 +212,16 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
             .ToArray());
         animation["duration"] = Math.Round(duration, 6);
 
-        var animationResource = resources.FirstOrDefault(resource => resource?["path"]?.GetValue<string>() == animationResourcePath)
-            ?? throw new InvalidDataException($"{animationResourcePath} is not registered in dependencies.json.");
         var counts = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var textureId in TextureTracks(animation).SelectMany(candidate => candidate["keyCurves"]!.AsArray()).Select(key => key!["value"]!.GetValue<string>()))
         {
             counts[textureId] = counts.GetValueOrDefault(textureId) + 1;
         }
 
-        var preserved = (animationResource["dependencies"] as JsonArray ?? [])
-            .Where(dependency => !textureIds.Contains(dependency!["id"]!.GetValue<string>()))
-            .Select(dependency => dependency!.DeepClone());
-        animationResource["dependencies"] = new JsonArray(preserved
-            .Concat(counts.Select(entry => (JsonNode)new JsonObject { ["id"] = entry.Key, ["refCount"] = entry.Value }))
-            .ToArray());
-
-        var targetPath = DraftPath(themeDraftPath, animationResourcePath);
-        Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-        EngineJson.WriteAtomically(targetPath, EngineJson.ToIndentedString(animation));
-        SaveDependencies(themeDraftPath, dependencies);
+        // the animation's texture references are recounted; its other references stay as they are
+        manifest.ReplaceReferences(DependencyManifest.SceneAnimation, animationResourcePath, textureIds.Contains, counts);
+        layer.WriteThemeResource(animationResourcePath, EngineJson.ToIndentedString(animation));
+        manifest.Save(layer);
     }
 
     public void SetFrameSize(string themeDraftPath, string? baseUiPath, string character, AtlasSize frameSize)
@@ -259,12 +232,15 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
             throw new ArgumentException("The frame size must be positive.", nameof(frameSize));
         }
 
+        // sizes are scaled from the Base, so repeated resizes do not drift
+        var layer = new ThemeLayer(themeDraftPath, baseUiPath);
         var referenceRoot = baseUiPath ?? themeDraftPath;
+        var reference = new ThemeLayer(referenceRoot, null);
         var referenceTextures = GetTextures(referenceRoot, null);
         var changed = 0;
-        foreach (var scene in ReadDependencies(themeDraftPath, baseUiPath).Where(resource => resource.Type == "Scene" && resource.Path is not null))
+        foreach (var scene in ReadDependencies(themeDraftPath, baseUiPath).Where(resource => resource.Type == DependencyManifest.Scene && resource.Path is not null))
         {
-            var sourcePath = Resolve(themeDraftPath, baseUiPath, scene.Path!);
+            var sourcePath = layer.Resolve(scene.Path!);
             if (sourcePath is null)
             {
                 continue;
@@ -277,24 +253,22 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
                 continue;
             }
 
-            var referenceScene = ResolveIn(referenceRoot, scene.Path!) is { } referencePath ? JsonNode.Parse(File.ReadAllText(referencePath)) : null;
+            var referenceScene = reference.ResolveInTheme(scene.Path!) is { } referencePath ? JsonNode.Parse(File.ReadAllText(referencePath)) : null;
             foreach (var (nodeName, component) in components)
             {
-                var reference = (referenceScene is null ? null : CharacterComponents(referenceScene, character).FirstOrDefault(candidate => candidate.NodeName == nodeName).Component)
+                var referenceComponent = (referenceScene is null ? null : CharacterComponents(referenceScene, character).FirstOrDefault(candidate => candidate.NodeName == nodeName).Component)
                     ?? component;
-                var referenceHeight = reference["size"]!.AsArray()[1]!.GetValue<double>();
-                var referenceTexture = referenceTextures.GetValueOrDefault(reference["textureId"]?.GetValue<string>() ?? "");
+                var referenceHeight = referenceComponent["size"]!.AsArray()[1]!.GetValue<double>();
+                var referenceTexture = referenceTextures.GetValueOrDefault(referenceComponent["textureId"]?.GetValue<string>() ?? "");
                 var scale = referenceTexture is { Height: > 0 } ? referenceHeight / referenceTexture.Height : 1;
-                var feet = (1 - reference["pivot"]!.AsArray()[1]!.GetValue<double>()) * referenceHeight;
+                var feet = (1 - referenceComponent["pivot"]!.AsArray()[1]!.GetValue<double>()) * referenceHeight;
                 var height = frameSize.Height * scale;
                 component["size"] = new JsonArray(frameSize.Width * scale, height);
                 component["pivot"] = new JsonArray(component["pivot"]!.AsArray()[0]!.DeepClone(), 1 - (feet / height));
                 changed++;
             }
 
-            var targetPath = DraftPath(themeDraftPath, scene.Path!);
-            Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-            EngineJson.WriteAtomically(targetPath, EngineJson.ToCompactString(root));
+            layer.WriteThemeResource(scene.Path!, EngineJson.ToCompactString(root));
         }
 
         if (changed == 0)
@@ -393,63 +367,8 @@ public sealed class CharacterAnimationEditor : ICharacterAnimationEditor
         return at >= 0 ? name[..at] : name;
     }
 
-    private static JsonObject LoadDraftDependencies(string themeDraftPath, string? baseUiPath)
+    private static List<ManifestResource> ReadDependencies(string themePath, string? baseUiPath)
     {
-        var sourcePath = new[] { themeDraftPath, baseUiPath }
-            .Where(root => root != null)
-            .Select(root => Path.Combine(root!, "dependencies.json"))
-            .FirstOrDefault(File.Exists)
-            ?? throw new FileNotFoundException("dependencies.json not found in the theme or its Base.");
-        return JsonNode.Parse(File.ReadAllText(sourcePath))!.AsObject();
+        return DependencyManifest.TryLoad(new ThemeLayer(themePath, baseUiPath))?.Resources.ToList() ?? [];
     }
-
-    private static void SaveDependencies(string themeDraftPath, JsonObject dependencies)
-    {
-        EngineJson.WriteAtomically(Path.Combine(themeDraftPath, "dependencies.json"), EngineJson.ToCompactString(dependencies));
-    }
-
-    private static List<DependencyResource> ReadDependencies(string themePath, string? baseUiPath)
-    {
-        var path = new[] { themePath, baseUiPath }
-            .Where(root => root != null)
-            .Select(root => Path.Combine(root!, "dependencies.json"))
-            .FirstOrDefault(File.Exists);
-        if (path is null)
-        {
-            return [];
-        }
-
-        return JsonNode.Parse(File.ReadAllText(path))!["resources"]!.AsArray()
-            .OfType<JsonObject>()
-            .Select(resource => new DependencyResource(
-                resource["id"]?.GetValue<string>() ?? "",
-                resource["type"]?.GetValue<string>() ?? "",
-                resource["path"]?.GetValue<string>()))
-            .ToList();
-    }
-
-    private static string? Resolve(string themePath, string? baseUiPath, string resourcePath)
-    {
-        return ResolveIn(themePath, resourcePath) ?? (baseUiPath is null ? null : ResolveIn(baseUiPath, resourcePath));
-    }
-
-    private static string? ResolveIn(string root, string resourcePath)
-    {
-        var path = DraftPath(root, resourcePath);
-        return File.Exists(path) ? path : null;
-    }
-
-    private static string DraftPath(string root, string resourcePath)
-    {
-        var rootPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
-        var path = Path.GetFullPath(Path.Combine(rootPath, "resources", resourcePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar)));
-        if (!path.StartsWith(rootPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new ArgumentException($"Unsafe resource path: {resourcePath}");
-        }
-
-        return path;
-    }
-
-    private sealed record DependencyResource(string Id, string Type, string? Path);
 }

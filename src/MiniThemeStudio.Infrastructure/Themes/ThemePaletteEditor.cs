@@ -9,17 +9,18 @@ namespace MiniThemeStudio.Infrastructure.Themes;
 
 public sealed class ThemePaletteEditor : IThemePaletteEditor
 {
-    private const string ScriptsFolder = "resources/scripts";
+    private const string ScriptsFolder = "scripts";
     private const string ResourcesFolder = "resources";
 
     public IReadOnlyList<ThemePalette> GetPalettes(string themeDraftPath, string? baseUiPath = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
 
+        var layer = new ThemeLayer(themeDraftPath, baseUiPath);
         var palettes = new List<ThemePalette>();
-        foreach (var relativePath in RelativePaths(themeDraftPath, baseUiPath, ScriptsFolder, "colors_*.lua"))
+        foreach (var relativePath in RelativePaths(layer, ScriptsFolder, "colors_*.lua"))
         {
-            var (filePath, fromBase) = Resolve(themeDraftPath, baseUiPath, relativePath);
+            var (filePath, fromBase) = Resolve(layer, relativePath);
             var region = Path.GetFileNameWithoutExtension(relativePath)["colors_".Length..];
             palettes.Add(new ThemePalette(region, relativePath, filePath, fromBase, LuaColorPalette.Read(filePath).Colors));
         }
@@ -31,10 +32,11 @@ public sealed class ThemePaletteEditor : IThemePaletteEditor
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
 
+        var layer = new ThemeLayer(themeDraftPath, baseUiPath);
         var usages = new List<PaletteColorUsage>();
-        foreach (var scene in RelativePaths(themeDraftPath, baseUiPath, ResourcesFolder, "*.scn"))
+        foreach (var scene in RelativePaths(layer, "", "*.scn"))
         {
-            var (filePath, _) = Resolve(themeDraftPath, baseUiPath, scene);
+            var (filePath, _) = Resolve(layer, scene);
             if (JsonNode.Parse(File.ReadAllText(filePath))?["rootWorldNode"] is JsonObject root)
             {
                 CollectUsages(root, "", scene, usages);
@@ -43,10 +45,10 @@ public sealed class ThemePaletteEditor : IThemePaletteEditor
 
         // LuaJIT bytecode keeps the strings a script uses as plain text, so a colour named in a script shows up as bytes
         var names = GetPalettes(themeDraftPath, baseUiPath).SelectMany(p => p.Colors).Select(c => c.Name).Distinct().ToList();
-        foreach (var script in RelativePaths(themeDraftPath, baseUiPath, ScriptsFolder, "*.lua")
+        foreach (var script in RelativePaths(layer, ScriptsFolder, "*.lua")
             .Where(path => !Path.GetFileName(path).StartsWith("colors_", StringComparison.OrdinalIgnoreCase)))
         {
-            var (filePath, _) = Resolve(themeDraftPath, baseUiPath, script);
+            var (filePath, _) = Resolve(layer, script);
             var bytes = File.ReadAllBytes(filePath);
             foreach (var name in names.Where(name => bytes.AsSpan().IndexOf(System.Text.Encoding.UTF8.GetBytes(name)) >= 0))
             {
@@ -62,51 +64,42 @@ public sealed class ThemePaletteEditor : IThemePaletteEditor
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
         ArgumentNullException.ThrowIfNull(relativePaths);
 
+        var layer = new ThemeLayer(themeDraftPath, baseUiPath);
         foreach (var relativePath in relativePaths)
         {
-            var (sourcePath, _) = Resolve(themeDraftPath, baseUiPath, relativePath);
+            var (sourcePath, _) = Resolve(layer, relativePath);
             var palette = LuaColorPalette.Read(sourcePath);
             palette.SetColor(color);
 
-            var targetPath = Path.Combine(themeDraftPath, relativePath);
+            var targetPath = layer.ThemeResourceFile(ToResourcePath(relativePath));
             Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
             palette.Write(targetPath);
         }
     }
 
-    // the theme's files and the base's, by relative path; the theme's win in Resolve
-    private static IEnumerable<string> RelativePaths(string themeDraftPath, string? baseUiPath, string folder, string pattern) =>
-        RelativePaths(baseUiPath, folder, pattern)
-            .Concat(RelativePaths(themeDraftPath, folder, pattern))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase);
+    // palettes and usages name files relative to the theme root ("resources/scripts/colors_usa.lua")
+    private static IEnumerable<string> RelativePaths(ThemeLayer layer, string folder, string pattern) =>
+        layer.EnumerateResources(folder, pattern).Select(resourcePath => ResourcesFolder + resourcePath);
 
-    private static IEnumerable<string> RelativePaths(string? root, string folder, string pattern)
+    private static (string FilePath, bool FromBase) Resolve(ThemeLayer layer, string relativePath)
     {
-        if (root is null)
+        var resourcePath = ToResourcePath(relativePath);
+        if (layer.ResolveInTheme(resourcePath) is { } themeFile)
         {
-            return [];
+            return (themeFile, false);
         }
 
-        var directory = Path.Combine(root, folder);
-        return Directory.Exists(directory)
-            ? Directory.EnumerateFiles(directory, pattern, SearchOption.AllDirectories)
-                .Select(file => Path.GetRelativePath(root, file).Replace('\\', '/'))
-            : [];
-    }
-
-    private static (string FilePath, bool FromBase) Resolve(string themeDraftPath, string? baseUiPath, string relativePath)
-    {
-        var draftFile = Path.Combine(themeDraftPath, relativePath);
-        if (File.Exists(draftFile))
-        {
-            return (draftFile, false);
-        }
-
-        var baseFile = baseUiPath is null ? null : Path.Combine(baseUiPath, relativePath);
-        return baseFile is not null && File.Exists(baseFile)
+        return layer.ResolveInBase(resourcePath) is { } baseFile
             ? (baseFile, true)
             : throw new FileNotFoundException($"Neither the theme nor its base has {relativePath}.");
+    }
+
+    private static string ToResourcePath(string relativePath)
+    {
+        var path = relativePath.Replace('\\', '/');
+        return path.StartsWith(ResourcesFolder + "/", StringComparison.OrdinalIgnoreCase)
+            ? path[ResourcesFolder.Length..]
+            : throw new ArgumentException($"Expected a path inside {ResourcesFolder}/: {relativePath}", nameof(relativePath));
     }
 
     private static void CollectUsages(JsonObject node, string parentPath, string scene, List<PaletteColorUsage> usages)

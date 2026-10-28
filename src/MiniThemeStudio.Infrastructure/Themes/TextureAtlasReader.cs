@@ -93,30 +93,20 @@ public sealed class TextureAtlasReader : ITextureAtlasReader
         string? definitionRootPath)
     {
         var result = new Dictionary<string, Dictionary<string, (AtlasRectangle, AtlasPoint?)>>(StringComparer.Ordinal);
-        var dependenciesPath = new[] { themeRootPath, definitionRootPath }
-            .Where(root => root != null)
-            .Select(root => Path.Combine(root!, "dependencies.json"))
-            .FirstOrDefault(File.Exists);
-        if (dependenciesPath is null)
-        {
-            return result;
-        }
-
         try
         {
-            using var document = JsonDocument.Parse(File.ReadAllText(dependenciesPath));
-            foreach (var resource in document.RootElement.GetProperty("resources").EnumerateArray())
+            // SpriteResource entries carry their frame inline, as JSON text in "content"
+            var spriteResources = DependencyManifest.TryLoad(new ThemeLayer(themeRootPath, definitionRootPath))?.OfType("SpriteResource") ?? [];
+            foreach (var resource in spriteResources)
             {
-                if (resource.GetProperty("type").GetString() != "SpriteResource"
-                    || !resource.TryGetProperty("content", out var contentElement)
-                    || contentElement.GetString() is not { } contentText)
+                if (resource.Content is not { } contentText)
                 {
                     continue;
                 }
 
                 using var content = JsonDocument.Parse(contentText);
                 var textureId = content.RootElement.GetProperty("textureId").GetString() ?? "";
-                var id = resource.GetProperty("id").GetString() ?? "";
+                var id = resource.Id;
                 if (!id.StartsWith(textureId + ".", StringComparison.Ordinal))
                 {
                     continue;

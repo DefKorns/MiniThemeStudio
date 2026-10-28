@@ -10,18 +10,11 @@ public sealed class SceneEditor : ISceneEditor
 {
     public IReadOnlyList<string> GetScenes(string themePath, string? baseUiPath)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(themePath);
-        if (FindDependencies(themePath, baseUiPath) is not { } dependenciesPath)
-        {
-            return [];
-        }
-
-        return (JsonNode.Parse(File.ReadAllText(dependenciesPath))?["resources"] as JsonArray ?? [])
-            .OfType<JsonObject>()
-            .Where(resource => resource["type"]?.GetValue<string>() == "Scene")
-            .Select(resource => resource["path"]?.GetValue<string>())
+        var layer = new ThemeLayer(themePath, baseUiPath);
+        return (DependencyManifest.TryLoad(layer)?.OfType(DependencyManifest.Scene) ?? [])
+            .Select(resource => resource.Path)
             .OfType<string>()
-            .Where(path => Resolve(themePath, baseUiPath, path) is not null)
+            .Where(path => layer.Resolve(path) is not null)
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -29,21 +22,21 @@ public sealed class SceneEditor : ISceneEditor
 
     public SceneDocument Load(string themePath, string? baseUiPath, string sceneResourcePath)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(themePath);
-        var path = Resolve(themePath, baseUiPath, sceneResourcePath)
+        var layer = new ThemeLayer(themePath, baseUiPath);
+        var path = layer.Resolve(sceneResourcePath)
             ?? throw new FileNotFoundException($"Scene not found: resources{sceneResourcePath}");
         var root = ParseScene(path)["rootWorldNode"] as JsonObject
             ?? throw new InvalidDataException($"{Path.GetFileName(path)} has no rootWorldNode.");
-        return new SceneDocument(sceneResourcePath, ResolveIn(themePath, sceneResourcePath) is not null, ReadNode(root, ""));
+        return new SceneDocument(sceneResourcePath, layer.ResolveInTheme(sceneResourcePath) is not null, ReadNode(root, ""));
     }
 
     public void EditNode(string themeDraftPath, string? baseUiPath, string sceneResourcePath, string nodePath, SceneNodeEdit edit)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
         ArgumentNullException.ThrowIfNull(nodePath);
         ArgumentNullException.ThrowIfNull(edit);
 
-        var sourcePath = Resolve(themeDraftPath, baseUiPath, sceneResourcePath)
+        var layer = new ThemeLayer(themeDraftPath, baseUiPath);
+        var sourcePath = layer.Resolve(sceneResourcePath)
             ?? throw new FileNotFoundException($"Scene not found: resources{sceneResourcePath}");
         var scene = ParseScene(sourcePath);
         var node = FindNode(scene["rootWorldNode"] as JsonObject, nodePath)
@@ -127,14 +120,21 @@ public sealed class SceneEditor : ISceneEditor
             }
         }
 
+        // the Scene entry of dependencies.json counts the references of the scene to each texture
         if (replacedTextureId is not null)
         {
-            ReplaceSceneDependency(themeDraftPath, baseUiPath, sceneResourcePath, replacedTextureId, edit.TextureId!);
+            var manifest = DependencyManifest.Load(layer);
+            if (!manifest.IsTexture(edit.TextureId!))
+            {
+                throw new InvalidDataException($"Texture {edit.TextureId} is not registered in dependencies.json.");
+            }
+
+            manifest.ChangeReferenceCount(DependencyManifest.Scene, sceneResourcePath, replacedTextureId, -1);
+            manifest.ChangeReferenceCount(DependencyManifest.Scene, sceneResourcePath, edit.TextureId!, 1);
+            manifest.Save(layer);
         }
 
-        var targetPath = DraftPath(themeDraftPath, sceneResourcePath);
-        Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-        EngineJson.WriteAtomically(targetPath, EngineJson.ToCompactString(scene));
+        layer.WriteThemeResource(sceneResourcePath, EngineJson.ToCompactString(scene));
     }
 
     private static SceneNode ReadNode(JsonObject node, string path)
@@ -229,51 +229,6 @@ public sealed class SceneEditor : ISceneEditor
         return node;
     }
 
-    // the Scene entry of dependencies.json counts the references of the scene to each texture
-    private static void ReplaceSceneDependency(string themeDraftPath, string? baseUiPath, string sceneResourcePath, string oldTextureId, string newTextureId)
-    {
-        var dependenciesPath = FindDependencies(themeDraftPath, baseUiPath)
-            ?? throw new FileNotFoundException("dependencies.json not found in the theme or its Base.");
-        var dependencies = JsonNode.Parse(File.ReadAllText(dependenciesPath))!.AsObject();
-        var resources = dependencies["resources"]!.AsArray().OfType<JsonObject>().ToList();
-        if (!resources.Any(resource => String(resource["id"]) == newTextureId && String(resource["type"]) == "TextureResource"))
-        {
-            throw new InvalidDataException($"Texture {newTextureId} is not registered in dependencies.json.");
-        }
-
-        var sceneResource = resources.FirstOrDefault(resource => String(resource["type"]) == "Scene" && String(resource["path"]) == sceneResourcePath)
-            ?? throw new InvalidDataException($"{sceneResourcePath} is not registered in dependencies.json.");
-        if (sceneResource["dependencies"] is not JsonArray references)
-        {
-            references = [];
-            sceneResource["dependencies"] = references;
-        }
-
-        if (references.OfType<JsonObject>().FirstOrDefault(reference => String(reference["id"]) == oldTextureId) is { } old)
-        {
-            var count = (int)(Double(old["refCount"]) ?? 1) - 1;
-            if (count <= 0)
-            {
-                references.Remove(old);
-            }
-            else
-            {
-                old["refCount"] = count;
-            }
-        }
-
-        if (references.OfType<JsonObject>().FirstOrDefault(reference => String(reference["id"]) == newTextureId) is { } added)
-        {
-            added["refCount"] = (int)(Double(added["refCount"]) ?? 0) + 1;
-        }
-        else
-        {
-            references.Add(new JsonObject { ["id"] = newTextureId, ["refCount"] = 1 });
-        }
-
-        EngineJson.WriteAtomically(Path.Combine(themeDraftPath, "dependencies.json"), EngineJson.ToCompactString(dependencies));
-    }
-
     private static JsonObject ParseScene(string path)
     {
         try
@@ -310,36 +265,5 @@ public sealed class SceneEditor : ISceneEditor
     private static string? String(JsonNode? value)
     {
         return value is JsonValue json && json.TryGetValue<string>(out var text) ? text : null;
-    }
-
-    private static string? FindDependencies(string themePath, string? baseUiPath)
-    {
-        return new[] { themePath, baseUiPath }
-            .Where(root => root != null)
-            .Select(root => Path.Combine(root!, "dependencies.json"))
-            .FirstOrDefault(File.Exists);
-    }
-
-    private static string? Resolve(string themePath, string? baseUiPath, string resourcePath)
-    {
-        return ResolveIn(themePath, resourcePath) ?? (baseUiPath is null ? null : ResolveIn(baseUiPath, resourcePath));
-    }
-
-    private static string? ResolveIn(string root, string resourcePath)
-    {
-        var path = DraftPath(root, resourcePath);
-        return File.Exists(path) ? path : null;
-    }
-
-    private static string DraftPath(string root, string resourcePath)
-    {
-        var rootPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
-        var path = Path.GetFullPath(Path.Combine(rootPath, "resources", resourcePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar)));
-        if (!path.StartsWith(rootPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new ArgumentException($"Unsafe resource path: {resourcePath}");
-        }
-
-        return path;
     }
 }

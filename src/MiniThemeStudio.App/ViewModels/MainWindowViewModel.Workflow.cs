@@ -17,7 +17,6 @@ public partial class MainWindowViewModel
     // first run: settings, a Base, then the offer to resume the last draft; false when the user leaves the setup
     public async Task<bool> StartAsync()
     {
-        FillFontPath = _settingsStore.Current.FillFontPath;
         if (!_settingsStore.Current.InitialSetupCompleted && !await EditSettingsAsync(true))
         {
             return false;
@@ -180,7 +179,6 @@ public partial class MainWindowViewModel
         return await RunAsync("Cannot save settings", () =>
         {
             _settingsStore.Save(settings);
-            FillFontPath = settings.FillFontPath;
             _appearance.Apply(settings.Theme);
         });
     }

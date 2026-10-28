@@ -2,15 +2,47 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using MiniThemeStudio.App.Errors;
+using MiniThemeStudio.App.Services;
 using MiniThemeStudio.Core.Fonts;
+using MiniThemeStudio.Core.Settings;
+using MiniThemeStudio.Core.Themes;
 using SkiaSharp;
 
 namespace MiniThemeStudio.App.ViewModels;
 
-public partial class MainWindowViewModel
+// The Fonts tab: the console fonts of the theme, their glyphs, a rendered sample, and tools to replace,
+// convert from TTF/OTF or fill the characters a font lacks.
+public sealed partial class FontsViewModel : ViewModelBase
 {
+    private static readonly FileType Png = new("PNG image", "*.png");
+    private static readonly FileType ConsoleFont = new("Console font file", "*.fnt", "*.font");
+
+    private readonly ThemeSession _session;
+    private readonly IThemeAssetManager _assetManager;
+    private readonly IAppSettingsStore _settingsStore;
+    private readonly IFileDialogService _fileDialogs;
+    private readonly IErrorHandler _errorHandler;
+
+    public FontsViewModel(
+        ThemeSession session,
+        IThemeAssetManager assetManager,
+        IAppSettingsStore settingsStore,
+        IFileDialogService fileDialogs,
+        IErrorHandler errorHandler)
+    {
+        _session = session;
+        _assetManager = assetManager;
+        _settingsStore = settingsStore;
+        _fileDialogs = fileDialogs;
+        _errorHandler = errorHandler;
+        _session.Reloaded += (_, _) => Reload();
+    }
+
     [ObservableProperty]
     private IReadOnlyList<FontAsset> fonts = [];
 
@@ -39,13 +71,14 @@ public partial class MainWindowViewModel
             return;
         }
 
+        // the font is generated again with the scripts now ticked
         if (lastConvertedFontPath is not null)
         {
-            ImportSelectedTrueTypeFont(lastConvertedFontPath);
+            _ = ImportTrueTypeFontAsync(lastConvertedFontPath);
         }
         else if (CanCompleteSelectedFont)
         {
-            CompleteSelectedFont();
+            _ = CompleteFontAsync();
         }
         else
         {
@@ -105,6 +138,7 @@ public partial class MainWindowViewModel
     {
         OnPropertyChanged(nameof(CanReplaceFont));
         OnPropertyChanged(nameof(CanCompleteSelectedFont));
+        NotifyFontCommands();
         lastConvertedFontPath = null;
         LoadSelectedFont(value);
     }
@@ -119,7 +153,7 @@ public partial class MainWindowViewModel
         RenderFontSamplePreview();
     }
 
-    private void ReloadFonts()
+    private void Reload()
     {
         if (_session.Draft is null)
         {
@@ -128,10 +162,16 @@ public partial class MainWindowViewModel
             return;
         }
 
-        var prevSelectedName = SelectedFont?.Name;
+        var previous = SelectedFont;
         Fonts = _assetManager.GetFonts(_session.Draft.DraftPath, _session.BaseUiPath);
-        SelectedFont = Fonts.FirstOrDefault(f => f.Name.Equals(prevSelectedName, StringComparison.OrdinalIgnoreCase))
+        SelectedFont = Fonts.FirstOrDefault(f => f.Name.Equals(previous?.Name, StringComparison.OrdinalIgnoreCase))
             ?? (Fonts.Count > 0 ? Fonts[0] : null);
+
+        // an equal record raises no change, but the file under it may have been rewritten
+        if (Equals(previous, SelectedFont))
+        {
+            LoadSelectedFont(SelectedFont);
+        }
     }
 
     private void LoadSelectedFont(FontAsset? font)
@@ -169,7 +209,7 @@ public partial class MainWindowViewModel
         }
         catch (Exception ex)
         {
-            Status = $"Cannot load font {font.DisplayName}: {ex.Message}";
+            _session.Status = $"Cannot load font {font.DisplayName}: {ex.Message}";
             CurrentLoadedFont = null;
             FontTexturePreview = null;
             FontSamplePreview = null;
@@ -322,121 +362,8 @@ public partial class MainWindowViewModel
         }
     }
 
-    public bool ReplaceSelectedFontTexture(string sourcePngPath)
-    {
-        if (SelectedFont is null || _session.Draft is null)
-        {
-            Status = "Select a font first.";
-            return false;
-        }
-
-        try
-        {
-            _assetManager.ReplaceFontTexture(_session.Draft.DraftPath, SelectedFont, sourcePngPath);
-            ReloadAssets();
-            RunValidation();
-            MarkChanged();
-            Status = $"Replaced texture for {SelectedFont.DisplayName}.";
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Status = ex.Message;
-            return false;
-        }
-    }
-
-    public bool ReplaceSelectedFontFile(string sourceFontPath)
-    {
-        if (SelectedFont is null || _session.Draft is null)
-        {
-            Status = "Select a font first.";
-            return false;
-        }
-
-        try
-        {
-            _assetManager.ReplaceFont(_session.Draft.DraftPath, SelectedFont, sourceFontPath);
-            ReloadAssets();
-            RunValidation();
-            MarkChanged();
-            Status = $"Replaced font file for {SelectedFont.DisplayName}.";
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Status = ex.Message;
-            return false;
-        }
-    }
-
-    public bool ExportSelectedFontTexture(string destinationPath)
-    {
-        if (SelectedFont is null)
-        {
-            return false;
-        }
-
-        try
-        {
-            _assetManager.ExportFontTexture(SelectedFont, destinationPath);
-            Status = $"Exported font texture for {SelectedFont.DisplayName}.";
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Status = ex.Message;
-            return false;
-        }
-    }
-
-    public bool ExportSelectedFontFile(string destinationPath)
-    {
-        if (SelectedFont is null)
-        {
-            return false;
-        }
-
-        try
-        {
-            _assetManager.ExportFont(SelectedFont, destinationPath);
-            Status = $"Exported font {SelectedFont.DisplayName}.";
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Status = ex.Message;
-            return false;
-        }
-    }
-
-    public bool ImportSelectedTrueTypeFont(string fontOrZipPath, int? fontSize = null, bool antiAlias = false)
-    {
-        if (SelectedFont is null || _session.Draft is null)
-        {
-            Status = "Select a font first.";
-            return false;
-        }
-
-        try
-        {
-            _assetManager.ImportTrueTypeFont(_session.Draft.DraftPath, SelectedFont, fontOrZipPath, fontSize, antiAlias, SelectedScripts, FillFontPath);
-            ReloadFonts();
-            RunValidation();
-            MarkChanged();
-            lastConvertedFontPath = fontOrZipPath;
-            Status = $"Generated console font from {Path.GetFileName(fontOrZipPath)} for {SelectedFont.DisplayName}.";
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Status = ex.Message;
-            return false;
-        }
-    }
-
     // the user's own font for the characters a font lacks (Settings); empty uses the system's or the built-in one
-    public string? FillFontPath { get; set; }
+    private string? FillFontPath => _settingsStore.Current.FillFontPath;
 
     public bool CanCompleteSelectedFont =>
         SelectedFont is not null;
@@ -446,29 +373,132 @@ public partial class MainWindowViewModel
         | (ConvertCyrillic ? ExtraScripts.Cyrillic : ExtraScripts.None)
         | (ConvertGreek ? ExtraScripts.Greek : ExtraScripts.None);
 
-    // the missing characters, and the scripts ticked, from the complete font of the same role
-    public bool CompleteSelectedFont()
+    [RelayCommand(CanExecute = nameof(CanReplaceFont))]
+    private async Task ConvertTrueTypeFontAsync()
     {
-        if (SelectedFont is null || _session.Draft is null)
+        if (SelectedFont is { } font
+            && await _fileDialogs.OpenFileAsync(
+                $"Select TTF, OTF or ZIP font file to convert for {font.DisplayName}",
+                new FileType("Font or Zip package", "*.ttf", "*.otf", "*.zip"),
+                new FileType("TrueType / OpenType font", "*.ttf", "*.otf"),
+                new FileType("Zip archive", "*.zip")) is { } fontPath)
         {
-            Status = "Select a font first.";
-            return false;
+            await ImportTrueTypeFontAsync(fontPath);
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanReplaceFont))]
+    private async Task ReplaceTextureAsync()
+    {
+        if (_session.Draft is not { } draft
+            || SelectedFont is not { } font
+            || await _fileDialogs.OpenFileAsync($"Select replacement PNG texture for {font.DisplayName}", Png) is not { } pngPath)
+        {
+            return;
         }
 
-        try
+        if (await RunAsync("Cannot replace font texture", () => _assetManager.ReplaceFontTexture(draft.DraftPath, font, pngPath)))
         {
-            _assetManager.CompleteFont(_session.Draft.DraftPath, SelectedFont, SelectedScripts, FillFontPath);
-            var name = SelectedFont.DisplayName;
-            ReloadFonts();
-            RunValidation();
-            MarkChanged();
-            Status = $"Filled {name} from the base font.";
-            return true;
+            _session.NotifyContentChanged();
+            _session.Status = $"Replaced texture for {font.DisplayName}.";
         }
-        catch (Exception ex)
+    }
+
+    [RelayCommand(CanExecute = nameof(CanReplaceFont))]
+    private async Task ReplaceFontFileAsync()
+    {
+        if (_session.Draft is not { } draft
+            || SelectedFont is not { } font
+            || await _fileDialogs.OpenFileAsync($"Select replacement font file for {font.DisplayName}", ConsoleFont) is not { } fontPath)
         {
-            Status = ex.Message;
-            return false;
+            return;
         }
+
+        if (await RunAsync("Cannot replace font file", () => _assetManager.ReplaceFont(draft.DraftPath, font, fontPath)))
+        {
+            _session.NotifyContentChanged();
+            _session.Status = $"Replaced font file for {font.DisplayName}.";
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanReplaceFont))]
+    private async Task ExportTextureAsync()
+    {
+        if (SelectedFont is { } font
+            && await _fileDialogs.SaveFileAsync($"Export font texture {font.DisplayName}", $"{font.Name}_texture.png", "png", Png) is { } savePath
+            && await RunAsync("Cannot export font texture", () => _assetManager.ExportFontTexture(font, savePath)))
+        {
+            _session.Status = $"Exported font texture for {font.DisplayName}.";
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanReplaceFont))]
+    private async Task ExportFontFileAsync()
+    {
+        if (SelectedFont is not { } font)
+        {
+            return;
+        }
+
+        var extension = Path.GetExtension(font.FilePath);
+        if (await _fileDialogs.SaveFileAsync($"Export font file {font.DisplayName}", $"{font.Name}{extension}", extension.TrimStart('.'), ConsoleFont) is { } savePath
+            && await RunAsync("Cannot export font", () => _assetManager.ExportFont(font, savePath)))
+        {
+            _session.Status = $"Exported font {font.DisplayName}.";
+        }
+    }
+
+    // the missing characters, and the scripts ticked, from the complete font of the same role
+    [RelayCommand(CanExecute = nameof(CanReplaceFont))]
+    private async Task CompleteFontAsync()
+    {
+        if (_session.Draft is not { } draft || SelectedFont is not { } font)
+        {
+            return;
+        }
+
+        var scripts = SelectedScripts;
+        var fillFontPath = FillFontPath;
+        if (await RunAsync("Cannot fill the font", () => _assetManager.CompleteFont(draft.DraftPath, font, scripts, fillFontPath)))
+        {
+            _session.NotifyContentChanged();
+            _session.Status = $"Filled {font.DisplayName} from the base font.";
+        }
+    }
+
+    private async Task ImportTrueTypeFontAsync(string fontOrZipPath)
+    {
+        if (_session.Draft is not { } draft || SelectedFont is not { } font)
+        {
+            return;
+        }
+
+        var scripts = SelectedScripts;
+        var fillFontPath = FillFontPath;
+        if (await RunAsync("Cannot convert font", () => _assetManager.ImportTrueTypeFont(draft.DraftPath, font, fontOrZipPath, null, false, scripts, fillFontPath)))
+        {
+            _session.NotifyContentChanged();
+            lastConvertedFontPath = fontOrZipPath;
+            _session.Status = $"Generated console font from {Path.GetFileName(fontOrZipPath)} for {font.DisplayName}.";
+        }
+    }
+
+    private void NotifyFontCommands()
+    {
+        ConvertTrueTypeFontCommand.NotifyCanExecuteChanged();
+        ReplaceTextureCommand.NotifyCanExecuteChanged();
+        ReplaceFontFileCommand.NotifyCanExecuteChanged();
+        ExportTextureCommand.NotifyCanExecuteChanged();
+        ExportFontFileCommand.NotifyCanExecuteChanged();
+        CompleteFontCommand.NotifyCanExecuteChanged();
+    }
+
+    private Task<bool> RunAsync(string failure, Action action)
+    {
+        return _errorHandler.TryRunAsync(failure, () =>
+        {
+            action();
+            return Task.CompletedTask;
+        });
     }
 }

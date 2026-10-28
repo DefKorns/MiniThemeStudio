@@ -502,7 +502,7 @@
 
       <!-- TAB 4: FONTS -->
       <TabItem Header="Fonts">
-        <Grid ColumnDefinitions="300,*,300" Margin="16,12">
+        <Grid DataContext="{Binding FontsTab}" x:DataType="vm:FontsViewModel" ColumnDefinitions="300,*,300" Margin="16,12">
           <!-- Column 1: Fonts List -->
           <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid RowDefinitions="Auto,Auto,*">
@@ -554,16 +554,16 @@
                   <!-- Action Buttons: Convert TTF/OTF, Replace PNG, Replace FNT, Export PNG, Export FNT -->
                   <Grid ColumnDefinitions="*,*" Margin="0,4" RowDefinitions="Auto,Auto,Auto" RowSpacing="6" ColumnSpacing="6">
                     <Button Padding="8,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold"
-                            IsEnabled="{Binding CanReplaceFont}" Click="ImportTrueTypeFont_Click" Content="Convert TTF / OTF..."
+                            Command="{Binding ConvertTrueTypeFontCommand}" Content="Convert TTF / OTF..."
                             Grid.ColumnSpan="2" ToolTip.Tip="Convert .ttf, .otf, or .zip directly into console BMFont" />
                     <Button Grid.Row="1" Padding="8,8" HorizontalAlignment="Stretch"
-                            IsEnabled="{Binding CanReplaceFont}" Click="ReplaceFontTexture_Click" Content="Replace PNG" ToolTip.Tip="Replace texture art while preserving glyph coordinates" />
+                            Command="{Binding ReplaceTextureCommand}" Content="Replace PNG" ToolTip.Tip="Replace texture art while preserving glyph coordinates" />
                     <Button Grid.Row="1" Grid.Column="1" Padding="8,8" HorizontalAlignment="Stretch"
-                            IsEnabled="{Binding CanReplaceFont}" Click="ExportFontTexture_Click" Content="Export PNG" ToolTip.Tip="Export glyph atlas as PNG" />
+                            Command="{Binding ExportTextureCommand}" Content="Export PNG" ToolTip.Tip="Export glyph atlas as PNG" />
                     <Button Grid.Row="2" Padding="8,8" HorizontalAlignment="Stretch"
-                            IsEnabled="{Binding CanReplaceFont}" Click="ReplaceFontFile_Click" Content="Replace .fnt" ToolTip.Tip="Import whole .fnt or .font file" />
+                            Command="{Binding ReplaceFontFileCommand}" Content="Replace .fnt" ToolTip.Tip="Import whole .fnt or .font file" />
                     <Button Grid.Row="2" Grid.Column="1" Padding="8,8" HorizontalAlignment="Stretch"
-                            IsEnabled="{Binding CanReplaceFont}" Click="ExportFontFile_Click" Content="Export .fnt" ToolTip.Tip="Export .fnt file to disk" />
+                            Command="{Binding ExportFontFileCommand}" Content="Export .fnt" ToolTip.Tip="Export .fnt file to disk" />
                   </Grid>
 
                 </StackPanel>
@@ -625,7 +625,7 @@
                       </Grid>
                       <Button Margin="0,6,0,0" Padding="8,6" HorizontalAlignment="Stretch" Content="Fill missing from base"
                               IsVisible="{Binding !FontValidation.IsSafeForWesternUi, FallbackValue=false}"
-                              Click="CompleteFont_Click" ToolTip.Tip="Add the characters this font lacks from the complete base font of its role" />
+                              Command="{Binding CompleteFontCommand}" ToolTip.Tip="Add the characters this font lacks from the complete base font of its role" />
                     </StackPanel>
                   </Border>
                 </StackPanel>

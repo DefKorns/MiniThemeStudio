@@ -24,27 +24,27 @@
       <Grid RowDefinitions="56,*,Auto">
         <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontFamily="Georgia, serif" FontSize="20" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" Text="M" />
         <StackPanel Grid.Row="1" Margin="8,14" Spacing="8">
-          <Button Width="40" Height="40" Padding="0" Background="Transparent" Click="CreateTheme_Click" ToolTip.Tip="Create new theme">
+          <Button Width="40" Height="40" Padding="0" Background="Transparent" Command="{Binding CreateThemeCommand}" ToolTip.Tip="Create new theme">
             <lucide:LucideIcon Kind="Plus" Size="20" Foreground="{DynamicResource HeaderMutedBrush}" />
           </Button>
-          <Button Width="40" Height="40" Padding="0" Background="Transparent" Click="OpenTheme_Click" ToolTip.Tip="Edit existing theme">
+          <Button Width="40" Height="40" Padding="0" Background="Transparent" Command="{Binding OpenThemeCommand}" ToolTip.Tip="Edit existing theme">
             <lucide:LucideIcon Kind="FolderOpen" Size="20" Foreground="{DynamicResource HeaderMutedBrush}" />
           </Button>
-          <Button Width="40" Height="40" Padding="0" Background="Transparent" Click="ShowSavedDrafts_Click" ToolTip.Tip="Saved drafts">
+          <Button Width="40" Height="40" Padding="0" Background="Transparent" Command="{Binding ShowSavedDraftsCommand}" ToolTip.Tip="Saved drafts">
             <lucide:LucideIcon Kind="FolderClock" Size="20" Foreground="{DynamicResource HeaderMutedBrush}" />
           </Button>
-          <Button Width="40" Height="40" Padding="0" Background="Transparent" Click="ManageBases_Click" ToolTip.Tip="Manage Base Firmwares">
+          <Button Width="40" Height="40" Padding="0" Background="Transparent" Command="{Binding ManageBasesCommand}" ToolTip.Tip="Manage Base Firmwares">
             <lucide:LucideIcon Kind="Database" Size="20" Foreground="{DynamicResource HeaderMutedBrush}" />
           </Button>
           <Button Width="40" Height="40" Padding="0" Background="{DynamicResource SidebarSelectedBrush}" ToolTip.Tip="Workspace" IsVisible="{Binding IsThemeOpen}">
             <lucide:LucideIcon Kind="LayoutDashboard" Size="20" Foreground="{DynamicResource AccentBrush}" />
           </Button>
-          <Button Width="40" Height="40" Padding="0" Background="Transparent" Click="ShowHome_Click" ToolTip.Tip="Discard draft and return to start" IsVisible="{Binding IsThemeOpen}">
+          <Button Width="40" Height="40" Padding="0" Background="Transparent" Command="{Binding ReturnHomeCommand}" ToolTip.Tip="Discard draft and return to start" IsVisible="{Binding IsThemeOpen}">
             <lucide:LucideIcon Kind="House" Size="20" Foreground="{DynamicResource HeaderMutedBrush}" />
           </Button>
         </StackPanel>
         <StackPanel Grid.Row="2" Margin="8,0,8,12" Spacing="8">
-          <Button Width="40" Height="40" Padding="0" Background="Transparent" Click="ShowSettings_Click" ToolTip.Tip="Settings">
+          <Button Width="40" Height="40" Padding="0" Background="Transparent" Command="{Binding ShowSettingsCommand}" ToolTip.Tip="Settings">
             <lucide:LucideIcon Kind="Settings" Size="20" Foreground="{DynamicResource HeaderMutedBrush}" />
           </Button>
           <Button Width="40" Height="40" Padding="0" Background="Transparent" Click="ThemeMode_Click" ToolTip.Tip="Toggle dark mode">
@@ -64,7 +64,7 @@
           <Border Grid.Column="1" Padding="6,2" Background="{DynamicResource SidebarSelectedBrush}" CornerRadius="4">
             <TextBlock FontSize="11" Foreground="{DynamicResource HeaderMutedBrush}" Text="{Binding Author, StringFormat='by {0}'}" />
           </Border>
-          <Button Grid.Column="2" Padding="8,2" Background="{DynamicResource SidebarSelectedBrush}" CornerRadius="4" Click="ChangeBase_Click" ToolTip.Tip="Console and Base used to edit this theme">
+          <Button Grid.Column="2" Padding="8,2" Background="{DynamicResource SidebarSelectedBrush}" CornerRadius="4" Command="{Binding ChangeBaseCommand}" ToolTip.Tip="Console and Base used to edit this theme">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <lucide:LucideIcon Kind="Gamepad2" Size="14" Foreground="{DynamicResource HeaderMutedBrush}" />
               <TextBlock FontSize="11" Foreground="{DynamicResource HeaderMutedBrush}" Text="{Binding CurrentBaseLabel}" />
@@ -79,25 +79,25 @@
           </Border>
         </Grid>
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" IsVisible="{Binding IsThemeOpen}">
-          <Button Padding="12,6" Background="Transparent" Click="RunValidation_Click" ToolTip.Tip="Validate theme integrity">
+          <Button Padding="12,6" Background="Transparent" Command="{Binding RunValidationCommand}" ToolTip.Tip="Validate theme integrity">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <lucide:LucideIcon Kind="Check" Size="16" />
               <TextBlock Text="Validate" />
             </StackPanel>
           </Button>
-          <Button Padding="12,6" Background="Transparent" Click="ExportPackage_Click" ToolTip.Tip="Validate and export the changed files as a .tar.gz theme package">
+          <Button Padding="12,6" Background="Transparent" Command="{Binding ExportPackageCommand}" ToolTip.Tip="Validate and export the changed files as a .tar.gz theme package">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <lucide:LucideIcon Kind="Package" Size="16" />
               <TextBlock Text="Export .tar.gz" />
             </StackPanel>
           </Button>
-          <Button Padding="12,6" Background="Transparent" Click="SaveDraft_Click" ToolTip.Tip="Keep this work in progress and resume it later">
+          <Button Padding="12,6" Background="Transparent" Command="{Binding SaveDraftCommand}" ToolTip.Tip="Keep this work in progress and resume it later">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <lucide:LucideIcon Kind="Bookmark" Size="16" />
               <TextBlock Text="Save draft" />
             </StackPanel>
           </Button>
-          <Button Padding="16,6" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" IsEnabled="{Binding HasUnsavedChanges}" Click="SaveTheme_Click" Content="Save" />
+          <Button Padding="16,6" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" IsEnabled="{Binding HasUnsavedChanges}" Command="{Binding SaveThemeCommand}" Content="Save" />
         </StackPanel>
       </Grid>
     </Border>
@@ -108,10 +108,10 @@
         <StackPanel Grid.ColumnSpan="3" Margin="0,0,0,32" Spacing="6">
           <TextBlock FontFamily="Georgia, serif" FontSize="32" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Mini Theme Studio" />
           <TextBlock Foreground="{DynamicResource SecondaryTextBrush}" Text="Choose an action to start building or editing retro themes." />
-          <Button Margin="0,6,0,0" Padding="0" Background="Transparent" Foreground="{DynamicResource AccentBrush}" Click="ShowSavedDrafts_Click" Content="Resume a saved draft..." />
+          <Button Margin="0,6,0,0" Padding="0" Background="Transparent" Foreground="{DynamicResource AccentBrush}" Command="{Binding ShowSavedDraftsCommand}" Content="Resume a saved draft..." />
         </StackPanel>
 
-        <Button Grid.Row="1" Margin="0,0,8,0" Padding="20" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Click="CreateTheme_Click">
+        <Button Grid.Row="1" Margin="0,0,8,0" Padding="20" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Command="{Binding CreateThemeCommand}">
           <StackPanel Spacing="10">
             <lucide:LucideIcon Kind="Plus" Size="28" Foreground="{DynamicResource AccentBrush}" />
             <TextBlock FontFamily="Georgia, serif" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Create theme" />
@@ -119,7 +119,7 @@
           </StackPanel>
         </Button>
 
-        <Button Grid.Row="1" Grid.Column="1" Margin="4,0,4,0" Padding="20" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Click="OpenTheme_Click">
+        <Button Grid.Row="1" Grid.Column="1" Margin="4,0,4,0" Padding="20" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Command="{Binding OpenThemeCommand}">
           <StackPanel Spacing="10">
             <lucide:LucideIcon Kind="FolderOpen" Size="28" Foreground="{DynamicResource AccentBrush}" />
             <TextBlock FontFamily="Georgia, serif" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Edit existing" />
@@ -127,7 +127,7 @@
           </StackPanel>
         </Button>
 
-        <Button Grid.Row="1" Grid.Column="2" Margin="8,0,0,0" Padding="20" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Click="ManageBases_Click">
+        <Button Grid.Row="1" Grid.Column="2" Margin="8,0,0,0" Padding="20" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" Command="{Binding ManageBasesCommand}">
           <StackPanel Spacing="10">
             <lucide:LucideIcon Kind="Database" Size="28" Foreground="{DynamicResource AccentBrush}" />
             <TextBlock FontFamily="Georgia, serif" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Base firmwares" />
@@ -138,10 +138,10 @@
     </Grid>
 
     <!-- Theme Workspace View -->
-    <TabControl x:Name="WorkspaceTabs" Grid.Row="1" Grid.Column="1" IsVisible="{Binding IsThemeOpen}">
+    <TabControl x:Name="WorkspaceTabs" Grid.Row="1" Grid.Column="1" IsVisible="{Binding IsThemeOpen}" SelectedIndex="{Binding SelectedTabIndex}">
       <!-- TAB 1: PACKED ATLAS SPRITES -->
       <TabItem Header="Sprites">
-        <Grid ColumnDefinitions="270,*,320" Margin="16,12">
+        <Grid ColumnDefinitions="270,*,320" Margin="16,12" DataContext="{Binding SpritesTab}" x:DataType="vm:SpritesViewModel">
           <!-- Atlas and sprite list -->
           <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid RowDefinitions="Auto,*">
@@ -163,7 +163,7 @@
                 </Grid>
               </StackPanel>
 
-              <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding FilteredSprites}" SelectedItem="{Binding SelectedSprite}" SelectionChanged="SpriteList_SelectionChanged">
+              <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding FilteredSprites}" SelectedItem="{Binding SelectedSprite}">
                 <ListBox.Styles>
                   <Style Selector="ListBoxItem">
                     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -227,8 +227,8 @@
                 <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedSprite.Name}" TextWrapping="Wrap" />
 
                 <Grid ColumnDefinitions="*,*" Margin="0,4">
-                  <Button Margin="0,0,4,0" Padding="12,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" IsEnabled="{Binding CanReplaceSprite}" Click="ReplaceSprite_Click" Content="Replace PNG" />
-                  <Button Grid.Column="1" Margin="4,0,0,0" Padding="12,8" HorizontalAlignment="Stretch" IsEnabled="{Binding CanReplaceSprite}" Click="ExportSprite_Click" Content="Export PNG" />
+                  <Button Margin="0,0,4,0" Padding="12,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Command="{Binding ReplaceSpriteCommand}" Content="Replace PNG" />
+                  <Button Grid.Column="1" Margin="4,0,0,0" Padding="12,8" HorizontalAlignment="Stretch" Command="{Binding ExportSpriteCommand}" Content="Export PNG" />
                 </Grid>
 
                 <Border Height="1" Background="{DynamicResource BorderBrush}" />
@@ -261,11 +261,11 @@
 
       <!-- TAB 2: WALLPAPERS -->
       <TabItem Header="Wallpapers">
-        <Grid ColumnDefinitions="*,380" Margin="16,12">
+        <Grid ColumnDefinitions="*,380" Margin="16,12" DataContext="{Binding WallpapersTab}" x:DataType="vm:WallpapersViewModel">
           <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid RowDefinitions="Auto,*">
               <TextBlock Margin="16,12" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Background Wallpapers (wall, wall_near, wall_far)" />
-              <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding Wallpapers}" SelectedItem="{Binding SelectedWallpaper}" SelectionChanged="WallpaperList_SelectionChanged">
+              <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding Wallpapers}" SelectedItem="{Binding SelectedWallpaper}">
                 <ListBox.Styles>
                   <Style Selector="ListBoxItem">
                     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -299,13 +299,13 @@
               <StackPanel Margin="20" Spacing="14">
                 <TextBlock FontFamily="Georgia, serif" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Wallpaper Preview" />
                 <Border Height="240" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
-                  <Image x:Name="WallpaperPreviewImage" Margin="8" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
+                  <controls:FileImage Margin="8" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" FilePath="{Binding SelectedWallpaper.ImagePath}" Revision="{Binding PreviewRevision}" />
                 </Border>
                 <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedWallpaper.DisplayName}" />
                 <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SelectedWallpaper.UsageText}" TextWrapping="Wrap" />
                 <Grid ColumnDefinitions="*,*" Margin="0,4">
-                  <Button Margin="0,0,4,0" Padding="12,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" IsEnabled="{Binding CanReplaceWallpaper}" Click="ReplaceWallpaper_Click" Content="Replace PNG" />
-                  <Button Grid.Column="1" Margin="4,0,0,0" Padding="12,8" HorizontalAlignment="Stretch" IsEnabled="{Binding CanReplaceWallpaper}" Click="ExportWallpaper_Click" Content="Export PNG" />
+                  <Button Margin="0,0,4,0" Padding="12,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Command="{Binding ReplaceWallpaperCommand}" Content="Replace PNG" />
+                  <Button Grid.Column="1" Margin="4,0,0,0" Padding="12,8" HorizontalAlignment="Stretch" Command="{Binding ExportWallpaperCommand}" Content="Export PNG" />
                 </Grid>
                 <Border Height="1" Background="{DynamicResource BorderBrush}" />
                 <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="Wallpapers define the main background, near foreground parallax layer, and far distant layer. Dimensions are automatically preserved or updated in JSON." TextWrapping="Wrap" />
@@ -317,7 +317,7 @@
 
       <!-- TAB 3: SCENES -->
       <TabItem Header="Scenes">
-        <Grid ColumnDefinitions="290,*,320" Margin="16,12">
+        <Grid ColumnDefinitions="290,*,320" Margin="16,12" DataContext="{Binding ScenesTab}" x:DataType="vm:ScenesViewModel">
           <!-- Scene and node tree -->
           <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid RowDefinitions="Auto,*">
@@ -402,15 +402,15 @@
                         </ComboBox.ItemTemplate>
                       </ComboBox>
                     </Grid>
-                    <Button Padding="10,6" HorizontalAlignment="Stretch" IsVisible="{Binding SelectedNodeIsTexture}" Click="ReplaceSceneImage_Click" Content="Replace PNG..."
+                    <Button Padding="10,6" HorizontalAlignment="Stretch" IsVisible="{Binding SelectedNodeIsTexture}" Command="{Binding ReplaceImageCommand}" Content="Replace PNG..."
                             ToolTip.Tip="Replaces the image file: every node that uses this texture changes" />
-                    <Button Padding="10,6" HorizontalAlignment="Stretch" IsVisible="{Binding SelectedNodeIsSprite}" Click="OpenSceneSprite_Click" Content="Edit sprite in Sprites tab" />
+                    <Button Padding="10,6" HorizontalAlignment="Stretch" IsVisible="{Binding SelectedNodeIsSprite}" Command="{Binding EditSpriteCommand}" Content="Edit sprite in Sprites tab" />
                   </StackPanel>
 
                   <Border Height="1" Background="{DynamicResource BorderBrush}" />
                   <Grid ColumnDefinitions="*,*">
-                    <Button Margin="0,0,4,0" Padding="10,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Click="ApplySceneNode_Click" Content="Apply" />
-                    <Button Grid.Column="1" Margin="4,0,0,0" Padding="10,8" HorizontalAlignment="Stretch" Click="ResetSceneNode_Click" Content="Discard" />
+                    <Button Margin="0,0,4,0" Padding="10,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Command="{Binding ApplyNodeChangesCommand}" Content="Apply" />
+                    <Button Grid.Column="1" Margin="4,0,0,0" Padding="10,8" HorizontalAlignment="Stretch" Command="{Binding ResetSceneNodeFieldsCommand}" Content="Discard" />
                   </Grid>
                   <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
                              Text="Changes are written to this theme's copy of the scene; the Base is never modified." />
@@ -423,7 +423,7 @@
 
       <!-- CHARACTERS -->
       <TabItem Header="Characters">
-        <Grid ColumnDefinitions="260,*,320" Margin="16,12">
+        <Grid DataContext="{Binding CharactersTab}" x:DataType="vm:CharactersViewModel" ColumnDefinitions="260,*,320" Margin="16,12">
           <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid RowDefinitions="Auto,*" Margin="12">
               <StackPanel Spacing="8">
@@ -476,22 +476,22 @@
                 <Border Height="220" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
                   <Image x:Name="AnimationPreviewImage" Margin="12" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
                 </Border>
-                <CheckBox x:Name="MirrorPreviewCheckBox" Content="Preview flipped" IsCheckedChanged="MirrorPreview_IsCheckedChanged"
+                <CheckBox x:Name="MirrorPreviewCheckBox" Content="Preview flipped" IsChecked="{Binding IsPreviewMirrored}" IsCheckedChanged="MirrorPreview_IsCheckedChanged"
                           ToolTip.Tip="Show the animation flipped horizontally without changing any frame" />
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                  <Button Padding="12,8" Click="MirrorSelectedFrames_Click" Content="Flip selected"
+                  <Button Padding="12,8" Command="{Binding MirrorSelectedFramesCommand}" CommandParameter="{Binding #AnimationFramesList.SelectedItems}" Content="Flip selected"
                           ToolTip.Tip="Flip the pixels of the selected frames horizontally" />
-                  <Button Padding="12,8" Click="MirrorAllFrames_Click" Content="Flip all frames"
+                  <Button Padding="12,8" Command="{Binding MirrorAllFramesCommand}" Content="Flip all frames"
                           ToolTip.Tip="Flip every frame of this animation horizontally, each texture once" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="8">
                   <TextBlock VerticalAlignment="Center" Text="Frame time (ms)" />
                   <NumericUpDown Width="130" Minimum="10" Maximum="1000" Increment="5" FormatString="0.#" Value="{Binding FrameTimeMilliseconds}" />
                 </StackPanel>
-                <Button Padding="12,8" HorizontalAlignment="Stretch" Click="ApplyFrameTime_Click" Content="Apply frame time"
+                <Button Padding="12,8" HorizontalAlignment="Stretch" Command="{Binding ApplyFrameTimeCommand}" Content="Apply frame time"
                         ToolTip.Tip="Space the loop frames of this animation evenly at this frame time" />
                 <Button Padding="12,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold"
-                        Click="ReplaceAnimationFrames_Click" Content="Replace frames from sprite sheet..." />
+                        Command="{Binding ReplaceFramesCommand}" Content="Replace frames from sprite sheet..." />
                 <TextBlock FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
                            Text="The loop frames are replaced in place and extra frames are added as new textures. Other animations of the character keep their own frames." />
               </StackPanel>
@@ -502,7 +502,7 @@
 
       <!-- TAB 4: FONTS -->
       <TabItem Header="Fonts">
-        <Grid ColumnDefinitions="300,*,300" Margin="16,12">
+        <Grid DataContext="{Binding FontsTab}" x:DataType="vm:FontsViewModel" ColumnDefinitions="300,*,300" Margin="16,12">
           <!-- Column 1: Fonts List -->
           <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid RowDefinitions="Auto,Auto,*">
@@ -554,16 +554,16 @@
                   <!-- Action Buttons: Convert TTF/OTF, Replace PNG, Replace FNT, Export PNG, Export FNT -->
                   <Grid ColumnDefinitions="*,*" Margin="0,4" RowDefinitions="Auto,Auto,Auto" RowSpacing="6" ColumnSpacing="6">
                     <Button Padding="8,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold"
-                            IsEnabled="{Binding CanReplaceFont}" Click="ImportTrueTypeFont_Click" Content="Convert TTF / OTF..."
+                            Command="{Binding ConvertTrueTypeFontCommand}" Content="Convert TTF / OTF..."
                             Grid.ColumnSpan="2" ToolTip.Tip="Convert .ttf, .otf, or .zip directly into console BMFont" />
                     <Button Grid.Row="1" Padding="8,8" HorizontalAlignment="Stretch"
-                            IsEnabled="{Binding CanReplaceFont}" Click="ReplaceFontTexture_Click" Content="Replace PNG" ToolTip.Tip="Replace texture art while preserving glyph coordinates" />
+                            Command="{Binding ReplaceTextureCommand}" Content="Replace PNG" ToolTip.Tip="Replace texture art while preserving glyph coordinates" />
                     <Button Grid.Row="1" Grid.Column="1" Padding="8,8" HorizontalAlignment="Stretch"
-                            IsEnabled="{Binding CanReplaceFont}" Click="ExportFontTexture_Click" Content="Export PNG" ToolTip.Tip="Export glyph atlas as PNG" />
+                            Command="{Binding ExportTextureCommand}" Content="Export PNG" ToolTip.Tip="Export glyph atlas as PNG" />
                     <Button Grid.Row="2" Padding="8,8" HorizontalAlignment="Stretch"
-                            IsEnabled="{Binding CanReplaceFont}" Click="ReplaceFontFile_Click" Content="Replace .fnt" ToolTip.Tip="Import whole .fnt or .font file" />
+                            Command="{Binding ReplaceFontFileCommand}" Content="Replace .fnt" ToolTip.Tip="Import whole .fnt or .font file" />
                     <Button Grid.Row="2" Grid.Column="1" Padding="8,8" HorizontalAlignment="Stretch"
-                            IsEnabled="{Binding CanReplaceFont}" Click="ExportFontFile_Click" Content="Export .fnt" ToolTip.Tip="Export .fnt file to disk" />
+                            Command="{Binding ExportFontFileCommand}" Content="Export .fnt" ToolTip.Tip="Export .fnt file to disk" />
                   </Grid>
 
                 </StackPanel>
@@ -625,7 +625,7 @@
                       </Grid>
                       <Button Margin="0,6,0,0" Padding="8,6" HorizontalAlignment="Stretch" Content="Fill missing from base"
                               IsVisible="{Binding !FontValidation.IsSafeForWesternUi, FallbackValue=false}"
-                              Click="CompleteFont_Click" ToolTip.Tip="Add the characters this font lacks from the complete base font of its role" />
+                              Command="{Binding CompleteFontCommand}" ToolTip.Tip="Add the characters this font lacks from the complete base font of its role" />
                     </StackPanel>
                   </Border>
                 </StackPanel>
@@ -659,7 +659,7 @@
       </TabItem>
 
       <TabItem Header="Colors">
-        <Grid ColumnDefinitions="280,*,400" Margin="16,12">
+        <Grid ColumnDefinitions="280,*,400" Margin="16,12" DataContext="{Binding ColorsTab}" x:DataType="vm:ColorsViewModel">
           <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid RowDefinitions="Auto,*">
               <TextBlock Margin="16,12" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Palettes (colors_*.lua)" />
@@ -717,7 +717,7 @@
               <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedPaletteColor.Name}" />
               <ColorView Color="{Binding EditColor}" IsAlphaEnabled="True" IsColorPaletteVisible="False" />
               <CheckBox IsChecked="{Binding ApplyColorToAllRegions}" Content="Apply to all regions" />
-              <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Classes="accent" Click="ApplyPaletteColor_Click" Content="Apply" />
+              <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Classes="accent" Command="{Binding ApplyColorCommand}" Content="Apply" />
               <TextBlock Margin="0,8,0,0" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding ColorUsageSummary}" />
               <ItemsControl ItemsSource="{Binding ColorUsages}">
                 <ItemsControl.ItemTemplate>
@@ -760,7 +760,7 @@
               </Border>
 
               <!-- Background Music (BGM) -->
-              <Border Padding="20" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+              <Border DataContext="{Binding AudioTab}" x:DataType="vm:AudioViewModel" Padding="20" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
                 <StackPanel Spacing="14">
                   <TextBlock FontFamily="Georgia, serif" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Background Music (BGM)" />
                   <CheckBox x:Name="IncludeBgmCheckBox" IsChecked="{Binding IncludeBgm}" Content="Include custom BGM in exported theme package" ToolTip.Tip="When unchecked, custom BGM audio is omitted from the exported package, allowing the console to play its original stock audio." />
@@ -793,15 +793,15 @@
                               <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding StatusDescription}" TextWrapping="Wrap" />
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                              <Button Padding="10,6" Content="Replace..." Tag="{Binding Name}" Click="ReplaceBgm_Click" ToolTip.Tip="Replace with custom MP3, OGG, FLAC, or WAV" />
-                              <Button Padding="10,6" Content="Mute" Tag="{Binding Name}" Click="MuteBgm_Click"
+                              <Button Padding="10,6" Content="Replace..." Command="{Binding $parent[ItemsControl].((vm:AudioViewModel)DataContext).ReplaceTrackCommand}" CommandParameter="{Binding Name}" ToolTip.Tip="Replace with custom MP3, OGG, FLAC, or WAV" />
+                              <Button Padding="10,6" Content="Mute" Command="{Binding $parent[ItemsControl].((vm:AudioViewModel)DataContext).MuteTrackCommand}" CommandParameter="{Binding Name}"
                                       IsVisible="{Binding CanMute}"
                                       IsEnabled="{Binding !IsMuted}"
                                       ToolTip.Tip="Mute boot music with a minimal silent WAV" />
-                              <Button Padding="10,6" Content="Convert now" Tag="{Binding Name}" Click="ConvertBgmNow_Click"
-                                      IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ConvertBgmAudio, FallbackValue=false}"
+                              <Button Padding="10,6" Content="Convert now" Command="{Binding $parent[ItemsControl].((vm:AudioViewModel)DataContext).ConvertTrackCommand}" CommandParameter="{Binding Name}"
+                                      IsVisible="{Binding $parent[ItemsControl].((vm:AudioViewModel)DataContext).ConvertBgmAudio, FallbackValue=false}"
                                       IsEnabled="{Binding ExistsInDraft}" ToolTip.Tip="Convert immediately using FFmpeg" />
-                              <Button Padding="10,6" Content="Revert" Tag="{Binding Name}" Click="RevertBgm_Click" IsVisible="{Binding ExistsInDraft}" ToolTip.Tip="Revert to base track / unmute" />
+                              <Button Padding="10,6" Content="Revert" Command="{Binding $parent[ItemsControl].((vm:AudioViewModel)DataContext).RevertTrackCommand}" CommandParameter="{Binding Name}" IsVisible="{Binding ExistsInDraft}" ToolTip.Tip="Revert to base track / unmute" />
                             </StackPanel>
                           </Grid>
                         </Border>
@@ -813,11 +813,12 @@
             </StackPanel>
           </ScrollViewer>
 
-          <Border Grid.Column="1" Margin="12,0,0,0" Padding="20" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+          <Border Grid.Column="1" Margin="12,0,0,0" Padding="20" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                  DataContext="{Binding ValidationTab}" x:DataType="vm:ValidationViewModel">
             <Grid RowDefinitions="Auto,Auto,*,Auto">
               <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,12">
                 <TextBlock VerticalAlignment="Center" FontFamily="Georgia, serif" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Integrity Validation" />
-                <Button Grid.Column="1" Click="RunValidation_Click" Padding="12,6" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Content="Re-validate" />
+                <Button Grid.Column="1" Command="{Binding RunCommand}" Padding="12,6" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Content="Re-validate" />
               </Grid>
 
               <Border Grid.Row="1" Margin="0,0,0,12" Padding="12" CornerRadius="4"
@@ -852,7 +853,7 @@
                       </DataTemplate>
                     </ListBox.ItemTemplate>
                   </ListBox>
-                  <Button Padding="10,6" HorizontalAlignment="Stretch" Click="ProvideMissingTexture_Click" Content="Provide PNG for selected texture" />
+                  <Button Padding="10,6" HorizontalAlignment="Stretch" Command="{Binding ProvideMissingTextureCommand}" Content="Provide PNG for selected texture" />
                 </StackPanel>
 
                 <StackPanel Spacing="8" Margin="0,12,0,0" IsVisible="{Binding HasUnusedImages}">
@@ -860,7 +861,7 @@
                   <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
                              Text="These images are in the theme but no scene draws them, so they only make the package bigger." />
                   <Grid ColumnDefinitions="*,96">
-                    <ListBox MaxHeight="160" ItemsSource="{Binding UnusedImages}" SelectedItem="{Binding SelectedUnusedImage}" SelectionChanged="UnusedImageList_SelectionChanged">
+                    <ListBox MaxHeight="160" ItemsSource="{Binding UnusedImages}" SelectedItem="{Binding SelectedUnusedImage}">
                       <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="themes:ExtraAsset">
                           <StackPanel Spacing="2">
@@ -871,10 +872,10 @@
                       </ListBox.ItemTemplate>
                     </ListBox>
                     <Border Grid.Column="1" Margin="8,0,0,0" Height="96" VerticalAlignment="Top" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
-                      <Image x:Name="UnusedImagePreviewImage" Margin="4" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
+                      <controls:FileImage Margin="4" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" FilePath="{Binding SelectedUnusedImage.ImagePath}" />
                     </Border>
                   </Grid>
-                  <Button Padding="10,6" HorizontalAlignment="Stretch" Click="DeleteUnusedImage_Click" Content="Delete selected image from the theme" />
+                  <Button Padding="10,6" HorizontalAlignment="Stretch" Command="{Binding DeleteUnusedImageCommand}" Content="Delete selected image from the theme" />
                 </StackPanel>
               </StackPanel>
             </Grid>

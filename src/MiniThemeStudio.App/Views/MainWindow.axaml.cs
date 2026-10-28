@@ -1,70 +1,39 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using Avalonia.Platform.Storage;
 using Avalonia.Styling;
 using Lucide.Avalonia;
-using MiniThemeStudio.App.Dialogs;
-using MiniThemeStudio.App.Errors;
-using MiniThemeStudio.App.Models;
 using MiniThemeStudio.App.ViewModels;
-using MiniThemeStudio.Core.Console;
-using MiniThemeStudio.Core.Firmware;
-using MiniThemeStudio.Core.Settings;
 using MiniThemeStudio.Core.Themes;
-using MiniThemeStudio.Infrastructure.Console;
-using MiniThemeStudio.Infrastructure.Firmware;
-using MiniThemeStudio.Infrastructure.Settings;
-using MiniThemeStudio.Infrastructure.Themes;
 
 namespace MiniThemeStudio.App.Views;
 
 public sealed partial class MainWindow : Window, IDisposable
 {
-    private readonly DialogService _dialogService;
-    private readonly ErrorHandlingService _errorHandlingService;
-    private readonly IAppSettingsStore _settingsStore;
-    private readonly IBaseFirmwareManager _baseFirmwareManager;
-    private readonly IThemeAssetManager _themeAssetManager;
-    private readonly IThemeValidator _themeValidator;
 
     private string _atlasImagePath = "";
     private bool _isCloseConfirmed;
     private bool _isCloseConfirmationOpen;
     private Bitmap? _atlasBitmap;
     private CroppedBitmap? _spritePreview;
-    private Bitmap? _wallpaperBitmap;
-    private Bitmap? _unusedImageBitmap;
     private readonly Avalonia.Threading.DispatcherTimer _animationTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
     private readonly System.Diagnostics.Stopwatch _animationClock = System.Diagnostics.Stopwatch.StartNew();
 
+    // for the XAML previewer only: the app builds the window through the service container
     public MainWindow()
-        : this(
-            new JsonAppSettingsStore(),
-            new BaseFirmwareManager(FirmwareRegistry.CreateDefault(), new ConsoleDirectoryClientFactory()))
+        : this(null)
     {
     }
 
-    public MainWindow(
-        IAppSettingsStore settingsStore,
-        IBaseFirmwareManager baseFirmwareManager,
-        IThemeAssetManager? themeAssetManager = null,
-        IThemeValidator? themeValidator = null)
+    public MainWindow(MainWindowViewModel? viewModel)
     {
-        _settingsStore = settingsStore;
-        _baseFirmwareManager = baseFirmwareManager;
-        _themeAssetManager = themeAssetManager ?? new ThemeAssetManager();
-        _themeValidator = themeValidator ?? new ThemeValidator();
+        DataContext = viewModel;
 
-        _dialogService = new DialogService();
-        _errorHandlingService = new ErrorHandlingService(_dialogService);
         InitializeComponent();
         Opened += MainWindow_Opened;
         _animationTimer.Tick += AnimationTimer_Tick;
@@ -77,564 +46,12 @@ public sealed partial class MainWindow : Window, IDisposable
         }
     }
 
-    private async void ShowSettings_Click(object? sender, RoutedEventArgs e)
-    {
-        await ShowSettingsAsync(false);
-    }
-
-    private async void ManageBases_Click(object? sender, RoutedEventArgs e)
-    {
-        await ShowBaseManagementAsync();
-    }
-
-    private Task ShowBaseManagementAsync()
-    {
-        return new BaseManagementDialog(_baseFirmwareManager, _settingsStore.Current).ShowDialog(this);
-    }
-
     private async void MainWindow_Opened(object? sender, EventArgs e)
     {
         Opened -= MainWindow_Opened;
-        if (DataContext is MainWindowViewModel startViewModel)
-        {
-            startViewModel.FillFontPath = _settingsStore.Current.FillFontPath;
-        }
-
-        if (!_settingsStore.Current.InitialSetupCompleted && !await ShowSettingsAsync(true))
+        if (DataContext is MainWindowViewModel viewModel && !await viewModel.StartAsync())
         {
             Close();
-            return;
-        }
-
-        if (_baseFirmwareManager.FindCompatibleBaseUiPath() is null)
-        {
-            await ShowBaseManagementAsync();
-        }
-
-        if (DataContext is MainWindowViewModel { IsThemeOpen: false } viewModel
-            && viewModel.ListSavedDrafts() is { Count: > 0 } drafts
-            && await _dialogService.ShowConfirmationAsync(
-                this,
-                "Resume your work?",
-                $"'{drafts[0].Name}' was saved as a draft at {drafts[0].SavedAt:g}.",
-                DialogVariant.Info,
-                "Resume draft",
-                "Not now"))
-        {
-            await OpenSavedDraftAsync(drafts[0]);
-        }
-    }
-
-    private async void SaveDraft_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainWindowViewModel viewModel && !viewModel.SaveDraft())
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot save draft", viewModel.Status);
-        }
-    }
-
-    private async void ShowSavedDrafts_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel viewModel)
-        {
-            return;
-        }
-
-        var draft = await new SavedDraftsDialog(viewModel).ShowDialog<SavedDraft?>(this);
-        if (draft is not null)
-        {
-            await OpenSavedDraftAsync(draft);
-        }
-    }
-
-    private async Task OpenSavedDraftAsync(SavedDraft draft)
-    {
-        if (DataContext is not MainWindowViewModel viewModel || !await ConfirmDiscardDraftAsync())
-        {
-            return;
-        }
-
-        if (viewModel.RestoreDraft(draft))
-        {
-            LoadAtlasImage(viewModel.AtlasImagePath);
-            ShowSpritePreview(viewModel.SelectedSprite);
-        }
-        else
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot open draft", viewModel.Status);
-        }
-    }
-
-    private async Task<bool> ShowSettingsAsync(bool isInitialSetup)
-    {
-        var settings = await new SettingsDialog(
-            _settingsStore.Current,
-            isInitialSetup).ShowDialog<AppSettings?>(this);
-        if (settings is null)
-        {
-            return false;
-        }
-
-        try
-        {
-            _settingsStore.Save(settings);
-            if (DataContext is MainWindowViewModel viewModel)
-            {
-                viewModel.FillFontPath = settings.FillFontPath;
-            }
-
-            if (Application.Current is { } application)
-            {
-                application.RequestedThemeVariant = settings.Theme switch
-                {
-                    ApplicationThemePreference.Light => ThemeVariant.Light,
-                    ApplicationThemePreference.Dark => ThemeVariant.Dark,
-                    _ => ThemeVariant.Default,
-                };
-            }
-
-            return true;
-        }
-        catch (Exception exception) when (exception is IOException
-            or UnauthorizedAccessException
-            or ArgumentException)
-        {
-            await _errorHandlingService.ShowErrorAsync(
-                this,
-                "Cannot save settings",
-                exception.Message);
-            return false;
-        }
-    }
-
-    private async void OpenTheme_Click(object? sender, RoutedEventArgs e)
-    {
-        if (!await ConfirmDiscardDraftAsync())
-        {
-            return;
-        }
-
-        var path = await PickFolderAsync("Edit existing theme");
-        if (path is not null && DataContext is MainWindowViewModel viewModel)
-        {
-            var baseUiPath = _baseFirmwareManager.FindCompatibleBaseUiPath(path);
-            if (baseUiPath is null)
-            {
-                baseUiPath = await AskForBaseAsync(
-                    path,
-                    "The console of this theme could not be detected. Choose the Base it was made for.");
-                if (baseUiPath is null && !HasAtlasDefinition(path))
-                {
-                    return;
-                }
-            }
-
-            if (viewModel.OpenTheme(path, baseUiPath))
-            {
-                LoadAtlasImage(viewModel.AtlasImagePath);
-                ShowSpritePreview(viewModel.SelectedSprite);
-            }
-            else
-            {
-                await _errorHandlingService.ShowErrorAsync(
-                    this,
-                    "Cannot open theme",
-                    viewModel.Status);
-            }
-        }
-    }
-
-    private async void ReplaceSprite_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel viewModel)
-        {
-            return;
-        }
-
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = "Select replacement PNG",
-            AllowMultiple = false,
-            FileTypeFilter =
-            [
-                new FilePickerFileType("PNG image")
-                {
-                    Patterns = ["*.png"],
-                    MimeTypes = ["image/png"],
-                },
-            ],
-        });
-
-        var replacementPath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
-        if (replacementPath is null)
-        {
-            return;
-        }
-
-        DisposePreview();
-        var replaced = viewModel.ReplaceSelectedSprite(replacementPath);
-        LoadAtlasImage(viewModel.AtlasImagePath);
-        ShowSpritePreview(viewModel.SelectedSprite);
-
-        if (!replaced)
-        {
-            await _errorHandlingService.ShowErrorAsync(
-                this,
-                "Cannot replace sprite",
-                viewModel.Status);
-        }
-    }
-
-    private async void ExportSprite_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel viewModel || viewModel.SelectedSprite is null)
-        {
-            return;
-        }
-
-        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-        {
-            Title = "Export sprite to PNG",
-            DefaultExtension = "png",
-            SuggestedFileName = $"{viewModel.SelectedSprite.Name}.png",
-            FileTypeChoices =
-            [
-                new FilePickerFileType("PNG image") { Patterns = ["*.png"] }
-            ]
-        });
-
-        var savePath = file?.TryGetLocalPath();
-        if (savePath != null)
-        {
-            viewModel.ExportSelectedSprite(savePath);
-        }
-    }
-
-    private async void SaveTheme_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainWindowViewModel viewModel && !viewModel.SaveTheme())
-        {
-            await _errorHandlingService.ShowErrorAsync(
-                this,
-                "Cannot save theme",
-                viewModel.Status);
-        }
-    }
-
-    private async void ExportPackage_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel { CurrentDraftPath: not null } viewModel)
-        {
-            return;
-        }
-
-        var outputDirectory = await PickFolderAsync("Select the output folder for the .tar.gz package");
-        if (outputDirectory is not null && !viewModel.ExportPackage(outputDirectory))
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot export package", viewModel.Status);
-        }
-    }
-
-    private void RunValidation_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainWindowViewModel viewModel)
-        {
-            viewModel.RunValidation();
-        }
-    }
-
-    private async void ReplaceBgm_Click(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: string trackName } || DataContext is not MainWindowViewModel viewModel)
-        {
-            return;
-        }
-
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = $"Select audio file for {trackName}",
-            AllowMultiple = false,
-            FileTypeFilter = [
-                new FilePickerFileType("Audio files (*.wav, *.mp3, *.ogg, *.flac, *.m4a)")
-                {
-                    Patterns = ["*.wav", "*.mp3", "*.ogg", "*.flac", "*.m4a", "*.aac", "*.wma"]
-                },
-                new FilePickerFileType("All files") { Patterns = ["*"] }
-            ],
-        });
-
-        if (files.Count > 0 && files[0].TryGetLocalPath() is { } path)
-        {
-            viewModel.ReplaceBgmTrack(trackName, path);
-        }
-    }
-
-    private async void ConvertBgmNow_Click(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: string trackName } || DataContext is not MainWindowViewModel viewModel)
-        {
-            return;
-        }
-
-        await viewModel.ConvertBgmTrackNowAsync(trackName);
-    }
-
-    private void RevertBgm_Click(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: string trackName } || DataContext is not MainWindowViewModel viewModel)
-        {
-            return;
-        }
-
-        viewModel.RevertBgmTrack(trackName);
-    }
-
-    private void MuteBgm_Click(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: string trackName } || DataContext is not MainWindowViewModel viewModel)
-        {
-            return;
-        }
-
-        viewModel.MuteBgmTrack(trackName);
-    }
-
-    private async void CreateTheme_Click(object? sender, RoutedEventArgs e)
-    {
-        if (!await ConfirmDiscardDraftAsync())
-        {
-            return;
-        }
-
-        var installedBases = _baseFirmwareManager.GetInstalledBases()
-            .Where(info => info.Status == BaseInstallStatus.Valid)
-            .ToList();
-        var details = await new CreateThemeDialog(installedBases, new AtlasLayoutMatcher()).ShowDialog<NewThemeDetails?>(this);
-        if (details is null)
-        {
-            return;
-        }
-
-        var destinationParentPath = await GetThemeDestinationParentPathAsync();
-        if (destinationParentPath is null || DataContext is not MainWindowViewModel viewModel)
-        {
-            return;
-        }
-
-        var destinationPath = Path.Combine(
-            destinationParentPath,
-            ThemeDirectoryName.FromDisplayName(details.Name));
-
-        var request = new NewThemeRequest(
-            details.BaseUiPath,
-            destinationPath,
-            details.Name,
-            details.Author,
-            details.AtlasImagePath);
-
-        if (viewModel.CreateTheme(request))
-        {
-            LoadAtlasImage(viewModel.AtlasImagePath);
-            ShowSpritePreview(viewModel.SelectedSprite);
-        }
-        else
-        {
-            await _errorHandlingService.ShowErrorAsync(
-                this,
-                "Cannot create theme",
-                viewModel.Status);
-        }
-    }
-
-    // Wallpapers Handlers
-    private void WallpaperList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (sender is ListBox { SelectedItem: WallpaperAsset wallpaper })
-        {
-            ShowWallpaperPreview(wallpaper);
-        }
-    }
-
-    private void ShowWallpaperPreview(WallpaperAsset wallpaper)
-    {
-        WallpaperPreviewImage.Source = null;
-        _wallpaperBitmap?.Dispose();
-        _wallpaperBitmap = null;
-
-        if (File.Exists(wallpaper.ImagePath))
-        {
-            try
-            {
-                _wallpaperBitmap = new Bitmap(wallpaper.ImagePath);
-                WallpaperPreviewImage.Source = _wallpaperBitmap;
-            }
-            catch
-            {
-                // Ignore preview decode failure
-            }
-        }
-    }
-
-    private async void ReplaceWallpaper_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel viewModel || viewModel.SelectedWallpaper is null)
-        {
-            return;
-        }
-
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = $"Select replacement PNG for {viewModel.SelectedWallpaper.DisplayName}",
-            AllowMultiple = false,
-            FileTypeFilter = [new FilePickerFileType("PNG image") { Patterns = ["*.png"] }]
-        });
-
-        var replacementPath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
-        if (replacementPath is null)
-        {
-            return;
-        }
-
-        if (viewModel.ReplaceSelectedWallpaper(replacementPath))
-        {
-            ShowWallpaperPreview(viewModel.SelectedWallpaper);
-        }
-        else
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot replace wallpaper", viewModel.Status);
-        }
-    }
-
-    private async void ExportWallpaper_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel viewModel || viewModel.SelectedWallpaper is null)
-        {
-            return;
-        }
-
-        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-        {
-            Title = "Export Wallpaper",
-            DefaultExtension = "png",
-            SuggestedFileName = $"{viewModel.SelectedWallpaper.Name}.png",
-            FileTypeChoices = [new FilePickerFileType("PNG image") { Patterns = ["*.png"] }]
-        });
-
-        var savePath = file?.TryGetLocalPath();
-        if (savePath != null)
-        {
-            viewModel.ExportSelectedWallpaper(savePath);
-        }
-    }
-
-    // Scene Handlers
-    private void ApplySceneNode_Click(object? sender, RoutedEventArgs e)
-    {
-        (DataContext as MainWindowViewModel)?.ApplySceneNodeChanges();
-    }
-
-    private void ResetSceneNode_Click(object? sender, RoutedEventArgs e)
-    {
-        (DataContext as MainWindowViewModel)?.ResetSceneNodeFields();
-    }
-
-    private async void ReplaceSceneImage_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel { SelectedSceneNode: { } node } viewModel)
-        {
-            return;
-        }
-
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = $"Select replacement PNG for {node.Name}",
-            AllowMultiple = false,
-            FileTypeFilter = [new FilePickerFileType("PNG image") { Patterns = ["*.png"] }]
-        });
-
-        var replacementPath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
-        if (replacementPath is not null && !viewModel.ReplaceSelectedSceneImage(replacementPath))
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot replace image", viewModel.Status);
-        }
-    }
-
-    private void OpenSceneSprite_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainWindowViewModel viewModel
-            && viewModel.SelectSceneSpriteInAtlas()
-            && WorkspaceTabs.Items.OfType<TabItem>().FirstOrDefault(tab => tab.Header as string == "Sprites") is { } tab)
-        {
-            WorkspaceTabs.SelectedItem = tab;
-        }
-    }
-
-    private void UnusedImageList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        UnusedImagePreviewImage.Source = null;
-        _unusedImageBitmap?.Dispose();
-        _unusedImageBitmap = LoadPreview((sender as ListBox)?.SelectedItem as ExtraAsset);
-        UnusedImagePreviewImage.Source = _unusedImageBitmap;
-    }
-
-    private static Bitmap? LoadPreview(ExtraAsset? asset)
-    {
-        if (asset is null || !File.Exists(asset.ImagePath))
-        {
-            return null;
-        }
-
-        try
-        {
-            return new Bitmap(asset.ImagePath);
-        }
-        catch (Exception exception) when (exception is IOException or ArgumentException or InvalidOperationException)
-        {
-            return null;
-        }
-    }
-
-    private async void DeleteUnusedImage_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel { SelectedUnusedImage: { } image } viewModel)
-        {
-            return;
-        }
-
-        var confirmed = await _dialogService.ShowConfirmationAsync(
-            this,
-            "Delete unused image?",
-            image.OverridesBase
-                ? $"No scene draws resources/{image.RelativePath}. Its replacement is removed and the Base image is kept."
-                : $"No scene draws resources/{image.RelativePath}. It is removed from the theme.",
-            DialogVariant.Warning,
-            "Delete",
-            "Keep",
-            true);
-        if (confirmed && !viewModel.DeleteSelectedUnusedImage())
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot delete image", viewModel.Status);
-        }
-    }
-
-    private async void ProvideMissingTexture_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel { SelectedMissingTexture: { } texture } viewModel)
-        {
-            return;
-        }
-
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = $"Select PNG for {Path.GetFileName(texture.ImageRelativePath)}",
-            AllowMultiple = false,
-            FileTypeFilter = [new FilePickerFileType("PNG image") { Patterns = ["*.png"] }]
-        });
-
-        var sourcePath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
-        if (sourcePath is not null && !viewModel.ProvideSelectedMissingTexture(sourcePath))
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot add texture", viewModel.Status);
         }
     }
 
@@ -644,119 +61,10 @@ public sealed partial class MainWindow : Window, IDisposable
     private void Zoom4x_Click(object? sender, RoutedEventArgs e) => SetSpriteZoom(4);
     private void ZoomFit_Click(object? sender, RoutedEventArgs e) => SetSpriteZoom(0);
 
+    // 0 fits the sprite in the preview
     private void SetSpriteZoom(int zoomLevel)
     {
-        if (DataContext is MainWindowViewModel viewModel)
-        {
-            viewModel.SpriteZoom = zoomLevel;
-            SpritePreviewImage.Stretch = zoomLevel == 0 ? Avalonia.Media.Stretch.Uniform : Avalonia.Media.Stretch.None;
-        }
-    }
-
-    private async Task<string?> GetThemeDestinationParentPathAsync()
-    {
-        var configuredPath = _settingsStore.Current.DefaultThemeDestinationPath;
-        if (string.IsNullOrWhiteSpace(configuredPath))
-        {
-            return await PickFolderAsync("Select destination parent folder");
-        }
-
-        try
-        {
-            Directory.CreateDirectory(configuredPath);
-            return configuredPath;
-        }
-        catch (Exception exception) when (
-            exception is IOException or UnauthorizedAccessException or ArgumentException)
-        {
-            await _errorHandlingService.ShowErrorAsync(
-                this,
-                "Cannot use theme destination",
-                exception.Message);
-            return null;
-        }
-    }
-
-    private async Task<string?> AskForBaseAsync(string themePath, string message, string? currentBaseUiPath = null)
-    {
-        var installedBases = GetValidBases();
-        if (installedBases.Count == 0)
-        {
-            await ShowBaseManagementAsync();
-            installedBases = GetValidBases();
-            if (installedBases.Count == 0)
-            {
-                return null;
-            }
-        }
-
-        var preferredPath = currentBaseUiPath ?? _baseFirmwareManager.FindCompatibleBaseUiPath(themePath);
-        var preferred = installedBases.FirstOrDefault(info => info.LocalPath == preferredPath);
-        var selected = await new SelectBaseDialog(installedBases, preferred, message).ShowDialog<InstalledBaseInfo?>(this);
-        return selected?.LocalPath;
-    }
-
-    private System.Collections.Generic.List<InstalledBaseInfo> GetValidBases()
-    {
-        return _baseFirmwareManager.GetInstalledBases()
-            .Where(info => info.Status == BaseInstallStatus.Valid)
-            .ToList();
-    }
-
-    private async void ChangeBase_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel { CurrentDraftPath: not null } viewModel)
-        {
-            return;
-        }
-
-        var baseUiPath = await AskForBaseAsync(
-            viewModel.ThemePath,
-            "Choose the Base this theme is edited against. Changes in the draft are kept.",
-            viewModel.CurrentBaseUiPath);
-        if (baseUiPath is not null && viewModel.ChangeBase(baseUiPath))
-        {
-            LoadAtlasImage(viewModel.AtlasImagePath);
-            ShowSpritePreview(viewModel.SelectedSprite);
-        }
-    }
-
-    private static bool HasAtlasDefinition(string rootPath)
-    {
-        return File.Exists(Path.Combine(rootPath, "resources", "sprites", "packed.json"));
-    }
-
-    private async void ShowHome_Click(object? sender, RoutedEventArgs e)
-    {
-        if (!await ConfirmDiscardDraftAsync())
-        {
-            return;
-        }
-
-        DisposePreview();
-        _atlasImagePath = "";
-
-        if (DataContext is MainWindowViewModel viewModel)
-        {
-            viewModel.ShowHome();
-        }
-    }
-
-    private async Task<bool> ConfirmDiscardDraftAsync()
-    {
-        if (DataContext is not MainWindowViewModel { HasUnsavedWork: true })
-        {
-            return true;
-        }
-
-        return await _dialogService.ShowConfirmationAsync(
-            this,
-            "Discard draft?",
-            "The unsaved changes in this draft will be lost.",
-            DialogVariant.Warning,
-            "Discard draft",
-            "Keep editing",
-            true);
+        SpritePreviewImage.Stretch = zoomLevel == 0 ? Avalonia.Media.Stretch.Uniform : Avalonia.Media.Stretch.None;
     }
 
     private void ThemeMode_Click(object? sender, RoutedEventArgs e)
@@ -788,25 +96,6 @@ public sealed partial class MainWindow : Window, IDisposable
             : LucideIconKind.Moon;
     }
 
-    private async Task<string?> PickFolderAsync(string title)
-    {
-        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = title,
-            AllowMultiple = false,
-        });
-
-        return folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
-    }
-
-    private void SpriteList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (sender is ListBox { SelectedItem: SpriteRegion sprite })
-        {
-            ShowSpritePreview(sprite);
-        }
-    }
-
     private void LoadAtlasImage(string path)
     {
         DisposeAtlasPreview();
@@ -834,6 +123,8 @@ public sealed partial class MainWindow : Window, IDisposable
         if (DataContext is MainWindowViewModel viewModel)
         {
             viewModel.PropertyChanged += ViewModel_PropertyChanged;
+            viewModel.SpritesTab.PropertyChanged += SpritesTab_PropertyChanged;
+            viewModel.CharactersTab.PropertyChanged += CharactersTab_PropertyChanged;
         }
     }
 
@@ -844,16 +135,36 @@ public sealed partial class MainWindow : Window, IDisposable
             return;
         }
 
-        if (e.PropertyName == nameof(MainWindowViewModel.AtlasImagePath) && viewModel.AtlasImagePath != _atlasImagePath)
+        if (e.PropertyName == nameof(MainWindowViewModel.IsThemeOpen) && !viewModel.IsThemeOpen)
         {
-            LoadAtlasImage(viewModel.AtlasImagePath);
-            ShowSpritePreview(viewModel.SelectedSprite);
+            DisposePreview();
+            _atlasImagePath = "";
         }
-        else if (e.PropertyName == nameof(MainWindowViewModel.SelectedSprite))
+
+    }
+
+    private void SpritesTab_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (sender is not SpritesViewModel sprites)
         {
-            ShowSpritePreview(viewModel.SelectedSprite);
+            return;
         }
-        else if (e.PropertyName == nameof(MainWindowViewModel.AnimationFrames))
+
+        if (e.PropertyName is nameof(SpritesViewModel.AtlasImagePath) or nameof(SpritesViewModel.AtlasRevision))
+        {
+            LoadAtlasImage(sprites.AtlasImagePath);
+            ShowSpritePreview(sprites.SelectedSprite);
+        }
+        else if (e.PropertyName == nameof(SpritesViewModel.SelectedSprite))
+        {
+            ShowSpritePreview(sprites.SelectedSprite);
+        }
+    }
+
+    // the animation preview starts again from its first frame when the frames change
+    private void CharactersTab_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(CharactersViewModel.AnimationFrames))
         {
             AnimationPreviewImage.Source = null;
             _animationClock.Restart();
@@ -862,7 +173,7 @@ public sealed partial class MainWindow : Window, IDisposable
 
     private void AnimationTimer_Tick(object? sender, EventArgs e)
     {
-        if (DataContext is not MainWindowViewModel { SelectedAnimation.Duration: > 0 } viewModel)
+        if (DataContext is not MainWindowViewModel { CharactersTab: { SelectedAnimation.Duration: > 0 } viewModel })
         {
             return;
         }
@@ -883,104 +194,9 @@ public sealed partial class MainWindow : Window, IDisposable
         }
     }
 
-    private async void CompleteFont_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainWindowViewModel viewModel && !viewModel.CompleteSelectedFont())
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot fill the font", viewModel.Status);
-        }
-    }
-
-    private async void ApplyPaletteColor_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainWindowViewModel viewModel && !viewModel.ApplyPaletteColor())
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot change the colour", viewModel.Status);
-        }
-    }
-
-    private async void ApplyFrameTime_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainWindowViewModel viewModel && !viewModel.ApplyFrameTime())
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot change the frame time", viewModel.Status);
-        }
-    }
-
     private void MirrorPreview_IsCheckedChanged(object? sender, RoutedEventArgs e)
     {
         AnimationPreviewImage.RenderTransform = MirrorPreviewCheckBox.IsChecked == true ? new ScaleTransform(-1, 1) : null;
-    }
-
-    private async void MirrorSelectedFrames_Click(object? sender, RoutedEventArgs e)
-    {
-        var textureIds = AnimationFramesList.SelectedItems?.OfType<AnimationFrameView>().Select(frame => frame.TextureId).ToList() ?? [];
-        await MirrorFramesAsync(textureIds);
-    }
-
-    private async void MirrorAllFrames_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is MainWindowViewModel { SelectedAnimation: { } animation })
-        {
-            await MirrorFramesAsync(animation.Tracks.SelectMany(track => track.Keys).Select(key => key.TextureId).ToList());
-        }
-    }
-
-    private async Task MirrorFramesAsync(IReadOnlyCollection<string> textureIds)
-    {
-        if (DataContext is not MainWindowViewModel viewModel)
-        {
-            return;
-        }
-
-        AnimationPreviewImage.Source = null;
-        if (viewModel.MirrorFrames(textureIds))
-        {
-            MirrorPreviewCheckBox.IsChecked = false;
-        }
-        else
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot flip frames", viewModel.Status);
-        }
-    }
-
-    private async void ReplaceAnimationFrames_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel { SelectedAnimation: { } animation, SelectedCharacter: { } character } viewModel)
-        {
-            return;
-        }
-
-        var result = await new SpriteSheetDialog(
-            new SpriteSheetImporter(),
-            $"Frames for {character} {animation.Name}",
-            viewModel.CurrentCharacterFrameSize,
-            viewModel.AnimationFrames.FirstOrDefault(frame => frame.IsLoopFrame)?.Thumbnail).ShowDialog<SpriteSheetResult?>(this);
-        if (result is null)
-        {
-            return;
-        }
-
-        var resize = false;
-        if (viewModel.CurrentCharacterFrameSize is { } current
-            && (current.Width != result.FrameSize.Width || current.Height != result.FrameSize.Height))
-        {
-            resize = await _dialogService.ShowConfirmationAsync(
-                this,
-                "Resize the character?",
-                $"The new frames are {result.FrameSize.Width} x {result.FrameSize.Height} but {character} is drawn from {current.Width} x {current.Height} frames. "
-                + "Resize the character in the scenes so the new frames are not stretched? Its other animations will then need frames of the same size.",
-                DialogVariant.Warning,
-                "Resize character",
-                "Keep current size",
-                false);
-        }
-
-        AnimationPreviewImage.Source = null;
-        if (!viewModel.ReplaceAnimationFrames(result.FramePaths, result.FrameSize, resize))
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot replace frames", viewModel.Status);
-        }
     }
 
     private void AtlasZoom1x_Click(object? sender, RoutedEventArgs e) => AtlasCanvas.Zoom = 1;
@@ -1024,27 +240,19 @@ public sealed partial class MainWindow : Window, IDisposable
     {
         DisposeAtlasPreview();
 
-        WallpaperPreviewImage.Source = null;
-        _wallpaperBitmap?.Dispose();
-        _wallpaperBitmap = null;
-
-        UnusedImagePreviewImage.Source = null;
-        _unusedImageBitmap?.Dispose();
-        _unusedImageBitmap = null;
     }
 
     protected override async void OnClosing(WindowClosingEventArgs e)
     {
-        if (_isCloseConfirmed
-            || DataContext is not MainWindowViewModel { IsThemeOpen: true, HasUnsavedWork: true } viewModel)
+        if (_isCloseConfirmed || DataContext is not MainWindowViewModel viewModel)
         {
             base.OnClosing(e);
             return;
         }
 
+        // the dialog is asynchronous, so the close is cancelled now and repeated once the user has chosen
         e.Cancel = true;
         base.OnClosing(e);
-
         if (_isCloseConfirmationOpen)
         {
             return;
@@ -1053,27 +261,11 @@ public sealed partial class MainWindow : Window, IDisposable
         _isCloseConfirmationOpen = true;
         try
         {
-            var choice = await _dialogService.ShowChoiceAsync(
-                this,
-                "Save draft before exiting?",
-                "The open theme has unsaved changes. Save them as a draft to resume next time, or exit and discard them.",
-                "Save draft and exit",
-                "Exit without saving",
-                "Cancel",
-                DialogVariant.Info);
-            if (choice == DialogResult.Cancelled)
+            if (await viewModel.ConfirmCloseAsync())
             {
-                return;
+                _isCloseConfirmed = true;
+                Close();
             }
-
-            if (choice == DialogResult.Accepted && !viewModel.SaveDraft())
-            {
-                await _errorHandlingService.ShowErrorAsync(this, "Cannot save draft", viewModel.Status);
-                return;
-            }
-
-            _isCloseConfirmed = true;
-            Close();
         }
         finally
         {
@@ -1096,144 +288,6 @@ public sealed partial class MainWindow : Window, IDisposable
 
         Dispose();
         base.OnClosed(e);
-    }
-
-    private async void ImportTrueTypeFont_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel viewModel || viewModel.SelectedFont is null)
-        {
-            return;
-        }
-
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = $"Select TTF, OTF or ZIP font file to convert for {viewModel.SelectedFont.DisplayName}",
-            AllowMultiple = false,
-            FileTypeFilter =
-            [
-                new FilePickerFileType("Font or Zip package") { Patterns = ["*.ttf", "*.otf", "*.zip"] },
-                new FilePickerFileType("TrueType / OpenType font") { Patterns = ["*.ttf", "*.otf"] },
-                new FilePickerFileType("Zip archive") { Patterns = ["*.zip"] }
-            ]
-        });
-
-        var fontPath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
-        if (fontPath is null)
-        {
-            return;
-        }
-
-        if (!viewModel.ImportSelectedTrueTypeFont(fontPath))
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot convert font", viewModel.Status);
-        }
-    }
-
-    private async void ReplaceFontTexture_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel viewModel || viewModel.SelectedFont is null)
-        {
-            return;
-        }
-
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = $"Select replacement PNG texture for {viewModel.SelectedFont.DisplayName}",
-            AllowMultiple = false,
-            FileTypeFilter = [new FilePickerFileType("PNG image") { Patterns = ["*.png"] }]
-        });
-
-        var replacementPath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
-        if (replacementPath is null)
-        {
-            return;
-        }
-
-        if (!viewModel.ReplaceSelectedFontTexture(replacementPath))
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot replace font texture", viewModel.Status);
-        }
-    }
-
-    private async void ReplaceFontFile_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel viewModel || viewModel.SelectedFont is null)
-        {
-            return;
-        }
-
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = $"Select replacement font file for {viewModel.SelectedFont.DisplayName}",
-            AllowMultiple = false,
-            FileTypeFilter = [new FilePickerFileType("Console Font file") { Patterns = ["*.fnt", "*.font"] }]
-        });
-
-        var replacementPath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
-        if (replacementPath is null)
-        {
-            return;
-        }
-
-        if (!viewModel.ReplaceSelectedFontFile(replacementPath))
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot replace font file", viewModel.Status);
-        }
-    }
-
-    private async void ExportFontTexture_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel viewModel || viewModel.SelectedFont is null)
-        {
-            return;
-        }
-
-        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-        {
-            Title = $"Export font texture {viewModel.SelectedFont.DisplayName}",
-            DefaultExtension = "png",
-            SuggestedFileName = $"{viewModel.SelectedFont.Name}_texture.png",
-            FileTypeChoices = [new FilePickerFileType("PNG image") { Patterns = ["*.png"] }]
-        });
-
-        var destinationPath = file?.TryGetLocalPath();
-        if (destinationPath is null)
-        {
-            return;
-        }
-
-        if (!viewModel.ExportSelectedFontTexture(destinationPath))
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot export font texture", viewModel.Status);
-        }
-    }
-
-    private async void ExportFontFile_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel viewModel || viewModel.SelectedFont is null)
-        {
-            return;
-        }
-
-        var ext = Path.GetExtension(viewModel.SelectedFont.FilePath);
-        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-        {
-            Title = $"Export font file {viewModel.SelectedFont.DisplayName}",
-            DefaultExtension = ext.TrimStart('.'),
-            SuggestedFileName = $"{viewModel.SelectedFont.Name}{ext}",
-            FileTypeChoices = [new FilePickerFileType("Console Font file") { Patterns = ["*.fnt", "*.font"] }]
-        });
-
-        var destinationPath = file?.TryGetLocalPath();
-        if (destinationPath is null)
-        {
-            return;
-        }
-
-        if (!viewModel.ExportSelectedFontFile(destinationPath))
-        {
-            await _errorHandlingService.ShowErrorAsync(this, "Cannot export font", viewModel.Status);
-        }
     }
 
     public void Dispose()

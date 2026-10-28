@@ -1,5 +1,3 @@
-using System;
-
 namespace MiniThemeStudio.Infrastructure.Fonts;
 
 internal static class FirmwareFonts

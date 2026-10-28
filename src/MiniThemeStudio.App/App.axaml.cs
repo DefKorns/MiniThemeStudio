@@ -1,17 +1,17 @@
-using Avalonia;
-using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Data.Core;
-using Avalonia.Data.Core.Plugins;
-using System.IO;
 using System.Linq;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
-using MiniThemeStudio.App.ViewModels;
+using Avalonia.Threading;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using MiniThemeStudio.App.Composition;
+using MiniThemeStudio.App.Errors;
+using MiniThemeStudio.App.Services;
 using MiniThemeStudio.App.Views;
 using MiniThemeStudio.Core.Settings;
-using MiniThemeStudio.Infrastructure.Console;
-using MiniThemeStudio.Infrastructure.Firmware;
-using MiniThemeStudio.Infrastructure.Settings;
-using MiniThemeStudio.Infrastructure.Themes;
 
 namespace MiniThemeStudio.App;
 
@@ -27,46 +27,38 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             DisableAvaloniaDataAnnotationValidation();
-            var settingsStore = new JsonAppSettingsStore();
-            RequestedThemeVariant = settingsStore.Current.Theme switch
-            {
-                ApplicationThemePreference.Light => Avalonia.Styling.ThemeVariant.Light,
-                ApplicationThemePreference.Dark => Avalonia.Styling.ThemeVariant.Dark,
-                _ => Avalonia.Styling.ThemeVariant.Default,
-            };
+            var services = new ServiceCollection()
+                .AddMiniThemeStudio()
+                .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+            desktop.Exit += (_, _) => services.Dispose();
+            services.GetRequiredService<GlobalExceptionHandler>().Register();
+            var logger = services.GetRequiredService<ILogger<App>>();
+            var version = typeof(App).Assembly.GetName().Version?.ToString() ?? "?";
+            LogStarting(logger, version);
 
-            var projectCreator = new ThemeProjectCreator();
-            var firmwareRegistry = FirmwareRegistry.CreateDefault(Path.Combine(
-                Path.GetDirectoryName(BaseFirmwareManager.DefaultBasesRootPath)!,
-                "firmwares.json"));
-            var baseFirmwareManager = new BaseFirmwareManager(
-                firmwareRegistry,
-                new ConsoleDirectoryClientFactory());
-            var themeAssetManager = new ThemeAssetManager();
-            var themeValidator = new ThemeValidator();
+            services.GetRequiredService<IAppearanceService>().Apply(services.GetRequiredService<IAppSettingsStore>().Current.Theme);
 
-            desktop.MainWindow = new MainWindow(
-                settingsStore,
-                baseFirmwareManager,
-                themeAssetManager,
-                themeValidator)
-            {
-                DataContext = new MainWindowViewModel(
-                    new ThemeMetadataReader(),
-                    new TextureAtlasReader(),
-                    new ThemeDraftService(
-                        projectCreator,
-                        () => settingsStore.Current.DraftRootPath),
-                    new TextureAtlasEditor(),
-                    themeAssetManager,
-                    themeValidator,
-                    baseFirmwareManager,
-                    savedDraftStore: new SavedDraftStore(null, () => settingsStore.Current.DraftRootPath),
-                    settingsStore: settingsStore),
-            };
+            var mainWindow = services.GetRequiredService<MainWindow>();
+            desktop.MainWindow = mainWindow;
+            Program.Instance?.ListenForActivation(() => Dispatcher.UIThread.Post(() => BringToFront(mainWindow)));
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Mini Theme Studio {Version} starting")]
+    private static partial void LogStarting(ILogger logger, string version);
+
+    // the app was started again: its window comes back instead of a second one
+    private static void BringToFront(Window window)
+    {
+        if (window.WindowState == WindowState.Minimized)
+        {
+            window.WindowState = WindowState.Normal;
+        }
+
+        window.Show();
+        window.Activate();
     }
 
     private static void DisableAvaloniaDataAnnotationValidation()

@@ -10,36 +10,32 @@ public sealed class ThemeResourceIndexer : IThemeResourceIndexer
         ArgumentException.ThrowIfNullOrWhiteSpace(themePath);
 
         var issues = new List<ThemeValidationIssue>();
-        var dependenciesPath = new[] { themePath, baseUiPath }
-            .Where(root => root != null)
-            .Select(root => Path.Combine(root!, "dependencies.json"))
-            .FirstOrDefault(File.Exists);
-        if (dependenciesPath is null)
-        {
-            issues.Add(new ThemeValidationIssue("dependencies.json not found: scene texture references were not checked.", false));
-            return ThemeResourceReport.Empty with { Issues = issues };
-        }
-
-        List<Resource> resources;
+        var resolver = new ThemeLayer(themePath, baseUiPath);
+        List<ManifestResource> resources;
         try
         {
-            resources = ReadResources(dependenciesPath);
+            if (DependencyManifest.TryLoad(resolver) is not { } manifest)
+            {
+                issues.Add(new ThemeValidationIssue("dependencies.json not found: scene texture references were not checked.", false));
+                return ThemeResourceReport.Empty with { Issues = issues };
+            }
+
+            resources = manifest.Resources.ToList();
         }
-        catch (Exception exception) when (exception is JsonException or InvalidOperationException or KeyNotFoundException)
+        catch (InvalidDataException exception)
         {
             issues.Add(new ThemeValidationIssue($"dependencies.json could not be read: {exception.Message}", true));
             return ThemeResourceReport.Empty with { Issues = issues };
         }
 
-        var resolver = new ResourceResolver(themePath, baseUiPath);
         var resourcesById = resources.GroupBy(resource => resource.Id).ToDictionary(group => group.Key, group => group.First());
         var sheetsByTextureId = resources
-            .Where(resource => resource.Type == "SpriteSheet" && resource.Path is not null && resource.Dependencies.Count > 0)
-            .GroupBy(resource => resource.Dependencies[0])
+            .Where(resource => resource.Type == DependencyManifest.SpriteSheet && resource.Path is not null && resource.References.Count > 0)
+            .GroupBy(resource => resource.References[0].Id)
             .ToDictionary(group => group.Key, group => group.First().Path!);
 
         var references = new List<TextureReference>();
-        foreach (var scene in resources.Where(resource => resource.Type is "Scene" or "SceneAnimation" && resource.Path is not null))
+        foreach (var scene in resources.Where(resource => resource.Type is DependencyManifest.Scene or DependencyManifest.SceneAnimation && resource.Path is not null))
         {
             var scenePath = resolver.Resolve(scene.Path!);
             if (scenePath is null)
@@ -73,7 +69,7 @@ public sealed class ThemeResourceIndexer : IThemeResourceIndexer
         }
 
         var missing = new List<MissingTexture>();
-        foreach (var texture in resources.Where(resource => resource.Type == "TextureResource" && resource.Path is not null))
+        foreach (var texture in resources.Where(resource => resource.Type == DependencyManifest.TextureResource && resource.Path is not null))
         {
             if (resolver.Resolve(texture.Path!) is not null)
             {
@@ -93,7 +89,7 @@ public sealed class ThemeResourceIndexer : IThemeResourceIndexer
         CheckNodeSizes(references, sheetsByTextureId, resolver, issues);
 
         var textureIdsByImagePath = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var texture in resources.Where(resource => resource.Type == "TextureResource" && resource.Path is not null))
+        foreach (var texture in resources.Where(resource => resource.Type == DependencyManifest.TextureResource && resource.Path is not null))
         {
             textureIdsByImagePath.TryAdd(texture.Path!.TrimStart('/'), texture.Id);
         }
@@ -104,7 +100,7 @@ public sealed class ThemeResourceIndexer : IThemeResourceIndexer
     private static void CheckNodeSizes(
         List<TextureReference> references,
         Dictionary<string, string> sheetsByTextureId,
-        ResourceResolver resolver,
+        ThemeLayer resolver,
         List<ThemeValidationIssue> issues)
     {
         foreach (var reference in references.Where(candidate => candidate.NodeSize is not null).DistinctBy(candidate => (candidate.TextureId, candidate.Scene, candidate.NodeSize)))
@@ -221,36 +217,5 @@ public sealed class ThemeResourceIndexer : IThemeResourceIndexer
         return Path.Combine("resources", resourcePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
     }
 
-    private static List<Resource> ReadResources(string dependenciesPath)
-    {
-        using var document = JsonDocument.Parse(File.ReadAllText(dependenciesPath));
-        return document.RootElement.GetProperty("resources").EnumerateArray()
-            .Select(resource => new Resource(
-                resource.GetProperty("id").GetString() ?? "",
-                resource.GetProperty("type").GetString() ?? "",
-                resource.TryGetProperty("path", out var path) ? path.GetString() : null,
-                resource.TryGetProperty("dependencies", out var dependencies)
-                    ? dependencies.EnumerateArray().Select(dependency => dependency.GetProperty("id").GetString() ?? "").ToList()
-                    : []))
-            .ToList();
-    }
-
-    private sealed record Resource(string Id, string Type, string? Path, IReadOnlyList<string> Dependencies);
-
     private sealed record TextureReference(string TextureId, string Scene, (int Width, int Height)? NodeSize);
-
-    private sealed class ResourceResolver(string themePath, string? baseUiPath)
-    {
-        public string? Resolve(string resourcePath) => ResolveInTheme(resourcePath) ?? ResolveInBase(resourcePath);
-
-        public string? ResolveInTheme(string resourcePath) => Existing(themePath, resourcePath);
-
-        public string? ResolveInBase(string resourcePath) => baseUiPath is null ? null : Existing(baseUiPath, resourcePath);
-
-        private static string? Existing(string root, string resourcePath)
-        {
-            var path = System.IO.Path.Combine(root, ToRelative(resourcePath));
-            return File.Exists(path) ? path : null;
-        }
-    }
 }

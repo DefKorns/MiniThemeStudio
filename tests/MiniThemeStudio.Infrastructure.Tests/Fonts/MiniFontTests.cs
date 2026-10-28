@@ -1,9 +1,5 @@
-using System;
-using System.IO;
-using System.Linq;
 using MiniThemeStudio.Core.Fonts;
 using MiniThemeStudio.Infrastructure.Fonts;
-using Xunit;
 
 namespace MiniThemeStudio.Infrastructure.Tests.Fonts;
 

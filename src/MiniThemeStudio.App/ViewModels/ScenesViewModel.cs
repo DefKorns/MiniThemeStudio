@@ -2,9 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using MiniThemeStudio.App.Controls;
+using MiniThemeStudio.App.Errors;
+using MiniThemeStudio.App.Services;
 using MiniThemeStudio.Core.Scenes;
 using MiniThemeStudio.Core.Themes;
 
@@ -29,11 +33,40 @@ public sealed record SceneTreeRow(SceneNode Node, int Depth)
 
 public sealed record SceneTextureChoice(string TextureId, string Name, string RelativePath);
 
-public partial class MainWindowViewModel
+// an atlas sprite a scene node draws, to be edited in the Sprites tab
+public sealed record SceneSpriteRequest(string TextureId, string SpriteName, string? ImagePath);
+
+// The Scenes tab: browse the nodes of a .scn file, preview them and edit the selected node.
+public sealed partial class ScenesViewModel : ViewModelBase
 {
+    private readonly ThemeSession _session;
     private readonly ISceneEditor _sceneEditor;
+    private readonly IThemeAssetManager _assetManager;
+    private readonly ITextureAtlasReader _atlasReader;
+    private readonly IFileDialogService _fileDialogs;
+    private readonly IErrorHandler _errorHandler;
     private IReadOnlyList<SceneTreeRow> _allSceneRows = [];
     private Dictionary<string, string> _textureImagePaths = new(StringComparer.Ordinal);
+
+    public ScenesViewModel(
+        ThemeSession session,
+        ISceneEditor sceneEditor,
+        IThemeAssetManager assetManager,
+        ITextureAtlasReader atlasReader,
+        IFileDialogService fileDialogs,
+        IErrorHandler errorHandler)
+    {
+        _session = session;
+        _sceneEditor = sceneEditor;
+        _assetManager = assetManager;
+        _atlasReader = atlasReader;
+        _fileDialogs = fileDialogs;
+        _errorHandler = errorHandler;
+        _session.Reloaded += (_, _) => Reload();
+    }
+
+    // "Edit sprite in Sprites tab": the window selects the sprite and switches tab
+    public event EventHandler<SceneSpriteRequest>? SpriteRequested;
 
     [ObservableProperty]
     private IReadOnlyList<string> sceneResources = [];
@@ -75,7 +108,7 @@ public partial class MainWindowViewModel
     [ObservableProperty]
     private IReadOnlyList<SceneTextureChoice> sceneTextureChoices = [];
 
-    // the editable copy of the selected node, written by ApplySceneNodeChanges
+    // the editable copy of the selected node, written by ApplyNodeChanges
     [ObservableProperty]
     private string sceneNodeName = "";
 
@@ -118,12 +151,12 @@ public partial class MainWindowViewModel
         var node => node.ComponentTypes.Count > 0 ? $"Components: {node.ComponentsText}." : "Empty node.",
     };
 
-    public bool ApplySceneNodeChanges()
+    [RelayCommand]
+    private async Task ApplyNodeChangesAsync()
     {
-        if (_draft is null || CurrentScene is not { } scene || SelectedSceneNode is not { } node)
+        if (_session.Draft is null || CurrentScene is not { } scene || SelectedSceneNode is not { } node)
         {
-            Status = "Select a scene node first.";
-            return false;
+            return;
         }
 
         var visual = node.Visual;
@@ -138,28 +171,25 @@ public partial class MainWindowViewModel
             Height: visual is { Kind: SceneVisualKind.Texture or SceneVisualKind.Sprite } ? Changed(SceneNodeHeight, visual.Height) : null);
         if (edit == new SceneNodeEdit())
         {
-            Status = $"{node.Name}: nothing changed.";
-            return false;
+            _session.Status = $"{node.Name}: nothing changed.";
+            return;
         }
 
-        try
+        var draftPath = _session.Draft.DraftPath;
+        var name = SceneNodeName;
+        if (await _errorHandler.TryRunAsync($"Cannot change {node.Name}", () =>
         {
-            _sceneEditor.EditNode(_draft.DraftPath, _currentBaseUiPath, scene.ResourcePath, node.Path, edit);
-            MarkChanged();
-            ReloadAssets();
-            RunValidation();
-            Status = $"{scene.FileName}: updated {SceneNodeName}.";
-            return true;
-        }
-        catch (Exception exception) when (
-            exception is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException)
+            _sceneEditor.EditNode(draftPath, _session.BaseUiPath, scene.ResourcePath, node.Path, edit);
+            return Task.CompletedTask;
+        }))
         {
-            Status = exception.Message;
-            return false;
+            _session.NotifyContentChanged();
+            _session.Status = $"{scene.FileName}: updated {name}.";
         }
     }
 
-    public void ResetSceneNodeFields()
+    [RelayCommand]
+    private void ResetSceneNodeFields()
     {
         var node = SelectedSceneNode;
         SceneNodeName = node?.Name ?? "";
@@ -175,72 +205,49 @@ public partial class MainWindowViewModel
     }
 
     // replaces the PNG of the texture the selected node draws (every node using that texture changes)
-    public bool ReplaceSelectedSceneImage(string replacementImagePath)
+    [RelayCommand]
+    private async Task ReplaceImageAsync()
     {
-        if (_draft is null || SelectedSceneNode?.Visual is not { Kind: SceneVisualKind.Texture, TextureId: { } textureId }
-            || SceneTextureChoices.FirstOrDefault(choice => choice.TextureId == textureId) is not { } texture)
+        if (_session.Draft is null
+            || SelectedSceneNode?.Visual is not { Kind: SceneVisualKind.Texture, TextureId: { } textureId }
+            || SceneTextureChoices.FirstOrDefault(choice => choice.TextureId == textureId) is not { } texture
+            || await _fileDialogs.OpenFileAsync($"Select replacement PNG for {texture.Name}", new FileType("PNG image", "*.png")) is not { } replacementPath)
         {
-            Status = "Select a node that draws an image.";
-            return false;
+            return;
         }
 
-        try
+        var draftPath = _session.Draft.DraftPath;
+        if (await _errorHandler.TryRunAsync($"Cannot replace {texture.Name}", () =>
         {
-            var target = Path.Combine(_draft.DraftPath, "resources", texture.RelativePath);
-            var definition = new[] { _draft.DraftPath, _currentBaseUiPath }
+            var target = Path.Combine(draftPath, "resources", texture.RelativePath);
+            var definition = new[] { draftPath, _session.BaseUiPath }
                 .Where(root => root is not null)
                 .Select(root => Path.Combine(root!, "resources", Path.ChangeExtension(texture.RelativePath, ".json")))
                 .FirstOrDefault(File.Exists);
-            _assetManager.ReplaceExtraAsset(target, replacementImagePath, definition);
-            MarkChanged();
-            ReloadAssets();
-            RunValidation();
-            Status = $"Replaced {texture.Name}.";
-            return true;
-        }
-        catch (Exception exception) when (
-            exception is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException)
+            _assetManager.ReplaceExtraAsset(target, replacementPath, definition);
+            return Task.CompletedTask;
+        }))
         {
-            Status = exception.Message;
-            return false;
+            _session.NotifyContentChanged();
+            _session.Status = $"Replaced {texture.Name}.";
         }
     }
 
-    // selects the atlas sprite the selected node draws in the Sprites tab
-    public bool SelectSceneSpriteInAtlas()
+    [RelayCommand]
+    private void EditSprite()
     {
-        if (SelectedSceneNode?.Visual is not { Kind: SceneVisualKind.Sprite, SpriteId: { } spriteId })
+        // spriteId is "<atlas texture id>.<sprite name>"
+        if (SelectedSceneNode?.Visual is { Kind: SceneVisualKind.Sprite, SpriteId: { } spriteId } && spriteId.IndexOf('.') is var dot and > 0)
         {
-            return false;
+            var textureId = spriteId[..dot];
+            SpriteRequested?.Invoke(this, new SceneSpriteRequest(textureId, spriteId[(dot + 1)..], _textureImagePaths.GetValueOrDefault(textureId)));
         }
-
-        var dot = spriteId.IndexOf('.');
-        if (dot <= 0)
-        {
-            return false;
-        }
-
-        var textureId = spriteId[..dot];
-        var name = spriteId[(dot + 1)..];
-        var imagePath = _textureImagePaths.GetValueOrDefault(textureId);
-        var atlas = Atlases.FirstOrDefault(candidate => candidate.TextureId == textureId)
-            ?? Atlases.FirstOrDefault(candidate => imagePath is not null && PathsEqual(candidate.ImagePath, imagePath));
-        if (atlas?.Sprites.FirstOrDefault(sprite => sprite.Name == name) is not { } sprite)
-        {
-            Status = $"Sprite {name} was not found in the atlases.";
-            return false;
-        }
-
-        SelectedAtlas = atlas;
-        SpriteSearchText = "";
-        SelectedSprite = sprite;
-        return true;
     }
 
-    private void ReloadScenes(ThemeResourceReport? report)
+    private void Reload()
     {
         var previousImages = SceneImages;
-        if (_draft is null || report is null)
+        if (_session.Draft is null)
         {
             SceneResources = [];
             CurrentScene = null;
@@ -251,11 +258,12 @@ public partial class MainWindowViewModel
             return;
         }
 
+        var draftPath = _session.Draft.DraftPath;
         _textureImagePaths = new Dictionary<string, string>(StringComparer.Ordinal);
         var choices = new List<SceneTextureChoice>();
-        foreach (var (relativePath, textureId) in report.TextureIdsByImagePath)
+        foreach (var (relativePath, textureId) in _session.Report.TextureIdsByImagePath)
         {
-            var imagePath = new[] { _draft.DraftPath, _currentBaseUiPath }
+            var imagePath = new[] { draftPath, _session.BaseUiPath }
                 .Where(root => root is not null)
                 .Select(root => Path.Combine(root!, "resources", relativePath))
                 .FirstOrDefault(File.Exists);
@@ -269,16 +277,17 @@ public partial class MainWindowViewModel
         }
 
         SceneTextureChoices = choices.OrderBy(choice => choice.Name, StringComparer.OrdinalIgnoreCase).ToList();
-        SceneImages = new SceneImageSource(_textureImagePaths, Atlases);
+        SceneImages = new SceneImageSource(_textureImagePaths, _atlasReader.ReadAll(draftPath, _session.BaseUiPath));
         DisposeSceneImages(previousImages);
 
         var previousScene = SelectedSceneResource;
         var previousPath = SelectedScenePath;
-        SceneResources = _sceneEditor.GetScenes(_draft.DraftPath, _currentBaseUiPath);
+        SceneResources = _sceneEditor.GetScenes(draftPath, _session.BaseUiPath);
         SelectedSceneResource = null;
         SelectedSceneResource = previousScene is not null && SceneResources.Contains(previousScene)
             ? previousScene
-            : SceneResources.FirstOrDefault(scene => scene.EndsWith("/bg.scn", StringComparison.Ordinal)) ?? SceneResources.FirstOrDefault();
+            : SceneResources.FirstOrDefault(scene => scene.EndsWith("/bg.scn", StringComparison.Ordinal))
+                ?? (SceneResources.Count > 0 ? SceneResources[0] : null);
         if (previousPath is not null && CurrentScene?.Find(previousPath) is not null)
         {
             SelectedScenePath = previousPath;
@@ -288,7 +297,7 @@ public partial class MainWindowViewModel
     partial void OnSelectedSceneResourceChanged(string? value)
     {
         SelectedScenePath = null;
-        if (_draft is null || value is null)
+        if (_session.Draft is null || value is null)
         {
             CurrentScene = null;
             _allSceneRows = [];
@@ -298,12 +307,12 @@ public partial class MainWindowViewModel
 
         try
         {
-            CurrentScene = _sceneEditor.Load(_draft.DraftPath, _currentBaseUiPath, value);
+            CurrentScene = _sceneEditor.Load(_session.Draft.DraftPath, _session.BaseUiPath, value);
         }
         catch (Exception exception) when (exception is IOException or InvalidDataException)
         {
             CurrentScene = null;
-            Status = exception.Message;
+            _ = _errorHandler.HandleAsync(exception, $"Cannot open {value}");
         }
 
         var rows = new List<SceneTreeRow>();

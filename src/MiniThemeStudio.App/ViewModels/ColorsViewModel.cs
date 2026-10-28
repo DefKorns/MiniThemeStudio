@@ -1,17 +1,34 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using MiniThemeStudio.App.Errors;
 using MiniThemeStudio.Core.Themes;
 
 namespace MiniThemeStudio.App.ViewModels;
 
 public sealed record PaletteColorRow(string Name, IBrush Swatch, string Hex, PaletteColor Color);
 
-public partial class MainWindowViewModel
+// The Colors tab: the Lua colour palettes of each region and where the scenes use each colour.
+public sealed partial class ColorsViewModel : ViewModelBase
 {
+    private readonly ThemeSession _session;
+    private readonly IThemePaletteEditor _paletteEditor;
+    private readonly IErrorHandler _errorHandler;
+
+    public ColorsViewModel(ThemeSession session, IThemePaletteEditor paletteEditor, IErrorHandler errorHandler)
+    {
+        _session = session;
+        _paletteEditor = paletteEditor;
+        _errorHandler = errorHandler;
+        _session.Reloaded += (_, _) => Reload();
+    }
+
     [ObservableProperty]
     private IReadOnlyList<ThemePalette> palettes = [];
 
@@ -67,39 +84,34 @@ public partial class MainWindowViewModel
             : $"Used by {ColorUsages.Count} scene components:";
     }
 
-    public bool ApplyPaletteColor()
+    [RelayCommand]
+    private async Task ApplyColorAsync()
     {
-        if (_draft is null || SelectedPalette is null || SelectedPaletteColor is null)
+        if (_session.Draft is not { } draft || SelectedPalette is not { } palette || SelectedPaletteColor is not { } row)
         {
-            Status = "Select a colour first.";
-            return false;
+            return;
         }
 
-        var name = SelectedPaletteColor.Name;
+        var name = row.Name;
         var color = PaletteColor.FromBytes(name, EditColor.R, EditColor.G, EditColor.B, EditColor.A);
         var targets = ApplyColorToAllRegions
             ? Palettes.Where(p => p.Colors.Any(c => c.Name == name)).Select(p => p.RelativePath).ToList()
-            : [SelectedPalette.RelativePath];
+            : [palette.RelativePath];
 
-        try
+        if (await _errorHandler.TryRunAsync($"Cannot change {name}", () =>
         {
-            _paletteEditor.SetColor(_draft.DraftPath, _currentBaseUiPath, color, targets);
-        }
-        catch (Exception exception)
+            _paletteEditor.SetColor(draft.DraftPath, _session.BaseUiPath, color, targets);
+            return Task.CompletedTask;
+        }))
         {
-            Status = exception.Message;
-            return false;
+            _session.NotifyContentChanged();
+            _session.Status = $"{name}: {ToRow(color).Hex} in {string.Join(", ", targets.Select(Path.GetFileNameWithoutExtension))}.";
         }
-
-        ReloadPalettes();
-        MarkChanged();
-        Status = $"{name}: {ToRow(color).Hex} in {string.Join(", ", targets.Select(t => System.IO.Path.GetFileNameWithoutExtension(t)))}.";
-        return true;
     }
 
-    private void ReloadPalettes()
+    private void Reload()
     {
-        if (_draft is null)
+        if (_session.Draft is null)
         {
             Palettes = [];
             SelectedPalette = null;
@@ -107,8 +119,8 @@ public partial class MainWindowViewModel
         }
 
         var previous = SelectedPalette?.RelativePath;
-        _allColorUsages = _paletteEditor.GetUsages(_draft.DraftPath, _currentBaseUiPath);
-        Palettes = _paletteEditor.GetPalettes(_draft.DraftPath, _currentBaseUiPath);
+        _allColorUsages = _paletteEditor.GetUsages(_session.Draft.DraftPath, _session.BaseUiPath);
+        Palettes = _paletteEditor.GetPalettes(_session.Draft.DraftPath, _session.BaseUiPath);
         SelectedPalette = Palettes.FirstOrDefault(p => p.RelativePath.Equals(previous, StringComparison.OrdinalIgnoreCase))
             ?? (Palettes.Count > 0 ? Palettes[0] : null);
     }

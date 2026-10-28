@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
-using MiniThemeStudio.App.Dialogs;
 using MiniThemeStudio.App.Errors;
 using MiniThemeStudio.Core.Console;
 using MiniThemeStudio.Core.Firmware;
@@ -18,18 +17,18 @@ public sealed partial class BaseManagementDialog : Window
 
     private readonly IBaseFirmwareManager _manager;
     private readonly AppSettings? _settings;
-    private readonly ErrorHandlingService _errorService;
+    private readonly IErrorHandler _errorHandler;
 
     public BaseManagementDialog()
-        : this(null!, null)
+        : this(null!, null, null!)
     {
     }
 
-    public BaseManagementDialog(IBaseFirmwareManager manager, AppSettings? settings)
+    public BaseManagementDialog(IBaseFirmwareManager manager, AppSettings? settings, IErrorHandler errorHandler)
     {
         _manager = manager;
         _settings = settings;
-        _errorService = new ErrorHandlingService(new DialogService());
+        _errorHandler = errorHandler;
         InitializeComponent();
         Loaded += (_, _) => RefreshList();
     }
@@ -103,7 +102,7 @@ public sealed partial class BaseManagementDialog : Window
         }
         else if (progressDialog.Error is { } error)
         {
-            await _errorService.ShowErrorAsync(this, "Cannot import from console", error.Message);
+            await _errorHandler.HandleAsync(error, "Cannot import from console");
         }
     }
 
@@ -117,10 +116,10 @@ public sealed partial class BaseManagementDialog : Window
             RefreshList();
             StatusText.Text = $"Installed {result.Definition.DisplayName} v{result.Definition.Version}.";
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             StatusText.Text = "Import failed.";
-            await _errorService.ShowErrorAsync(this, errorTitle, exception.Message);
+            await _errorHandler.HandleAsync(exception, errorTitle);
         }
         finally
         {

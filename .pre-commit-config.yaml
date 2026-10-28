@@ -1,0 +1,30 @@
+# Fast checks run on every commit; the build (with the analyzers as errors) and the tests run in CI
+# (.github/workflows/ci.yml).
+# Setup: pip install pre-commit && pre-commit install
+
+# third-party files are kept exactly as distributed
+exclude: ^src/MiniThemeStudio\.Infrastructure/Fonts/Resources/OFL-.*\.txt$
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-json
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+
+  - repo: local
+    hooks:
+      # .editorconfig layout of the staged C# files; --folder skips loading the solution, so it takes seconds
+      - id: dotnet-format-whitespace
+        name: dotnet format whitespace
+        language: system
+        entry: dotnet format whitespace --folder --verify-no-changes --include
+        types: [c#]

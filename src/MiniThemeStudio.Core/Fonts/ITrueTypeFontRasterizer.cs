@@ -1,6 +1,3 @@
-using System.Collections.Generic;
-using System.IO;
-
 namespace MiniThemeStudio.Core.Fonts;
 
 public sealed record TrueTypeRasterOptions(

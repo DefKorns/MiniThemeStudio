@@ -1,6 +1,5 @@
 using MiniThemeStudio.Core.Audio;
 using MiniThemeStudio.Infrastructure.Audio;
-using Xunit;
 
 namespace MiniThemeStudio.Infrastructure.Tests.Audio;
 

@@ -1,6 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
-
 namespace MiniThemeStudio.Core.Fonts;
 
 public sealed record FontValidationResult(

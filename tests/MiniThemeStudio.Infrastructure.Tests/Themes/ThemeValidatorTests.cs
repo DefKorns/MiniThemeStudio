@@ -1,7 +1,5 @@
-using System.IO;
 using MiniThemeStudio.Infrastructure.Themes;
 using SkiaSharp;
-using Xunit;
 
 namespace MiniThemeStudio.Infrastructure.Tests.Themes;
 

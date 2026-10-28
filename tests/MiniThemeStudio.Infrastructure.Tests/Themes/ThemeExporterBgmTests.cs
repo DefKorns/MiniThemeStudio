@@ -4,7 +4,6 @@ using MiniThemeStudio.Core.Audio;
 using MiniThemeStudio.Core.Themes;
 using MiniThemeStudio.Infrastructure.Audio;
 using MiniThemeStudio.Infrastructure.Themes;
-using Xunit;
 
 namespace MiniThemeStudio.Infrastructure.Tests.Themes;
 

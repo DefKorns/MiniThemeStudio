@@ -1,29 +1,26 @@
 using System.Threading.Tasks;
-using Avalonia.Controls;
+using MiniThemeStudio.App.Services;
 using MiniThemeStudio.App.Views;
 
 namespace MiniThemeStudio.App.Dialogs;
 
 public sealed class DialogService : IDialogService
 {
-    public Task<DialogResult> ShowAsync(Window owner, DialogRequest request)
+    public Task<DialogResult> ShowAsync(DialogRequest request)
     {
-        return new MessageDialog(request).ShowDialog<DialogResult>(owner);
+        return new MessageDialog(request).ShowDialog<DialogResult>(ActiveWindow.Get());
     }
 
     public async Task ShowInformationAsync(
-        Window owner,
         string title,
         string message,
         DialogVariant variant = DialogVariant.Info)
     {
         await ShowAsync(
-            owner,
             new DialogRequest(title, message, variant, DialogCategory.Information));
     }
 
     public async Task<bool> ShowConfirmationAsync(
-        Window owner,
         string title,
         string message,
         DialogVariant variant = DialogVariant.Warning,
@@ -32,7 +29,6 @@ public sealed class DialogService : IDialogService
         bool isDestructive = false)
     {
         var result = await ShowAsync(
-            owner,
             new DialogRequest(
                 title,
                 message,
@@ -46,7 +42,6 @@ public sealed class DialogService : IDialogService
     }
 
     public Task<DialogResult> ShowChoiceAsync(
-        Window owner,
         string title,
         string message,
         string acceptButtonText,
@@ -55,7 +50,6 @@ public sealed class DialogService : IDialogService
         DialogVariant variant = DialogVariant.Warning)
     {
         return ShowAsync(
-            owner,
             new DialogRequest(
                 title,
                 message,

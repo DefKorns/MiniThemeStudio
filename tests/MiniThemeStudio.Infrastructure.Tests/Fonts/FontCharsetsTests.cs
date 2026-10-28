@@ -1,6 +1,5 @@
 using MiniThemeStudio.Core.Fonts;
 using MiniThemeStudio.Infrastructure.Fonts;
-using Xunit;
 
 namespace MiniThemeStudio.Infrastructure.Tests.Fonts;
 

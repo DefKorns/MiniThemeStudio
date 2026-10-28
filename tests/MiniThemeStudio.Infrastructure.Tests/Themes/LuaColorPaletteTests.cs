@@ -1,9 +1,5 @@
-using System;
-using System.IO;
-using System.Linq;
 using MiniThemeStudio.Core.Themes;
 using MiniThemeStudio.Infrastructure.Themes;
-using Xunit;
 
 namespace MiniThemeStudio.Infrastructure.Tests.Themes;
 

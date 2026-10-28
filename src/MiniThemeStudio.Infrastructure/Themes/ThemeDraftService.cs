@@ -74,7 +74,7 @@ public sealed class ThemeDraftService(
 
         var destination = new DirectoryInfo(draft.SavePath);
         var parentPath = destination.Parent?.FullName
-            ?? throw new InvalidOperationException("The theme destination must have a parent directory.");
+            ?? throw new ArgumentException("The theme destination must have a parent directory.", nameof(draft));
         var stagingPath = Path.Combine(
             parentPath,
             $".{destination.Name}.mts-stage-{Guid.NewGuid():N}");

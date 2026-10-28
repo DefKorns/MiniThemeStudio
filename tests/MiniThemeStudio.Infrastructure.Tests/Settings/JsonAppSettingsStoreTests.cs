@@ -1,4 +1,3 @@
-using MiniThemeStudio.Core.Settings;
 using MiniThemeStudio.Infrastructure.Settings;
 
 namespace MiniThemeStudio.Infrastructure.Tests.Settings;

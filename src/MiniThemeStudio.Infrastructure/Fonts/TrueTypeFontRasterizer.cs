@@ -1,8 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
 using System.IO.Compression;
-using System.Linq;
 using MiniThemeStudio.Core.Fonts;
 using SkiaSharp;
 
@@ -24,7 +20,9 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
                 e.FullName.EndsWith(".otf", StringComparison.OrdinalIgnoreCase));
 
             if (entry is null)
+            {
                 throw new InvalidDataException($"No .ttf or .otf font found inside zip archive: {fontOrZipPath}");
+            }
 
             using var entryStream = entry.Open();
             using var ms = new MemoryStream();
@@ -44,7 +42,9 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
 
         using var typeface = SKTypeface.FromStream(fontStream);
         if (typeface is null)
+        {
             throw new InvalidDataException("Invalid TrueType or OpenType font stream.");
+        }
 
         var effectiveFontName = !string.IsNullOrWhiteSpace(fontName) ? fontName
             : !string.IsNullOrWhiteSpace(typeface.FamilyName) ? typeface.FamilyName
@@ -63,7 +63,10 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
         paint.GetFontMetrics(out var metrics);
         var lineHeight = (int)Math.Ceiling(metrics.Descent - metrics.Ascent + metrics.Leading);
         var baseOffset = (int)Math.Ceiling(-metrics.Ascent);
-        if (lineHeight <= 0) lineHeight = fontSize + 4;
+        if (lineHeight <= 0)
+        {
+            lineHeight = fontSize + 4;
+        }
 
         // ── Build full character set ──────────────────────────────────────────
         var charset = BuildCharacterSet(options);
@@ -84,7 +87,7 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
             }
 
             // 1. Try custom typeface
-            var glyphId  = typeface.GetGlyph(c);
+            var glyphId = typeface.GetGlyph(c);
             var drawChar = c;
 
             // Uppercase fallback for pixel fonts that only have caps
@@ -93,14 +96,14 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
                 var upper = char.ToUpperInvariant(c);
                 if (typeface.GetGlyph(upper) != 0)
                 {
-                    glyphId  = typeface.GetGlyph(upper);
+                    glyphId = typeface.GetGlyph(upper);
                     drawChar = upper;
                 }
             }
 
             if (glyphId != 0)
             {
-                var bounds  = new SKRect();
+                var bounds = new SKRect();
                 var advance = paint.MeasureText(drawChar.ToString(), ref bounds);
                 if (bounds.Width > 0 && bounds.Height > 0)
                 {
@@ -120,7 +123,10 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
 
         foreach (var item in pendingGlyphs)
         {
-            if (item.Ch == ' ') continue;
+            if (item.Ch == ' ')
+            {
+                continue;
+            }
 
             var w = (int)Math.Ceiling(item.Bounds.Width);
             var h = (int)Math.Ceiling(item.Bounds.Height);
@@ -149,7 +155,7 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
 
         // Space glyph (zero-size, XAdvance only)
         var spaceItem = pendingGlyphs.FirstOrDefault(p => p.Ch == ' ');
-        var spaceAdv  = spaceItem.Advance > 0 ? (int)Math.Round(spaceItem.Advance) : fontSize / 2;
+        var spaceAdv = spaceItem.Advance > 0 ? (int)Math.Round(spaceItem.Advance) : fontSize / 2;
         finalGlyphs.Add(new FontGlyph(Id: ' ', X: 0, Y: 0, Width: 0, Height: 0,
             XOffset: 0, YOffset: 0, XAdvance: spaceAdv, Page: 0, Channel: 15));
 
@@ -163,7 +169,7 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
                 (int)Math.Round(p.Advance), 0, 15));
         }
 
-        using var image   = surface.Snapshot();
+        using var image = surface.Snapshot();
         using var pngData = image.Encode(SKEncodedImageFormat.Png, 100);
 
         var rasterized = new MiniFont(
@@ -192,7 +198,11 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
     private static int NextPowerOfTwo(int value)
     {
         var power = 64;
-        while (power < value && power < 4096) power *= 2;
+        while (power < value && power < 4096)
+        {
+            power *= 2;
+        }
+
         return Math.Max(power, value);
     }
 }

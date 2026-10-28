@@ -17,8 +17,8 @@ namespace MiniThemeStudio.Infrastructure.Tests.Fonts;
 public sealed class FontComparisonDiagnosticsTests(ITestOutputHelper output)
 {
     private const string HakchiFntPath = @"D:\games\SNESCE\hakchi-CE\user_mods\title.fnt";
-    private const string OtfZipPath    = @"E:\Downloads\super-metroid-intro-snes.otf.zip";
-    private const string TtfZipPath    = @"E:\Downloads\super-metroid-intro-snes.ttf.zip";
+    private const string OtfZipPath = @"E:\Downloads\super-metroid-intro-snes.otf.zip";
+    private const string TtfZipPath = @"E:\Downloads\super-metroid-intro-snes.ttf.zip";
 
     [Fact]
     public void CompareHakchiTitleFntWithRasterizer()
@@ -37,14 +37,14 @@ public sealed class FontComparisonDiagnosticsTests(ITestOutputHelper output)
             return;
         }
 
-        var reference  = MiniFontReader.Read(HakchiFntPath);
+        var reference = MiniFontReader.Read(HakchiFntPath);
         var rasterizer = new TrueTypeFontRasterizer();
         var rasterized = rasterizer.Rasterize(fontPath, new TrueTypeRasterOptions(
-            FontSize:   (int)Math.Abs(reference.Info.FontSize),
-            AntiAlias:  reference.Info.Smooth,
+            FontSize: (int)Math.Abs(reference.Info.FontSize),
+            AntiAlias: reference.Info.Smooth,
             AtlasWidth: (int)reference.Common.ScaleW));
 
-        var refIds  = reference.Glyphs.Select(g => g.Id).ToHashSet();
+        var refIds = reference.Glyphs.Select(g => g.Id).ToHashSet();
         var rastIds = rasterized.Glyphs.Select(g => g.Id).ToHashSet();
 
         // characters the CFW expects but the Super Metroid font lacks
@@ -99,7 +99,7 @@ public sealed class FontComparisonDiagnosticsTests(ITestOutputHelper output)
 
         // ASCII 32-126 summary
         var asciiMissing = missing.Where(id => id is >= 32 and <= 126).Select(id => (char)id).ToList();
-        var asciiInRef   = refIds.Count(id => id is >= 32 and <= 126);
+        var asciiInRef = refIds.Count(id => id is >= 32 and <= 126);
         output.WriteLine($"-- ASCII 32-126 summary --");
         output.WriteLine($"  In the rasterized font : {asciiInRef - asciiMissing.Count} / {asciiInRef}");
         output.WriteLine(asciiMissing.Count > 0
@@ -110,4 +110,3 @@ public sealed class FontComparisonDiagnosticsTests(ITestOutputHelper output)
         Assert.NotNull(rasterized);
     }
 }
-

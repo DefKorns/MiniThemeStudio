@@ -91,7 +91,7 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
             }
 
             // 1. Try custom typeface
-            var glyphId  = typeface.GetGlyph(c);
+            var glyphId = typeface.GetGlyph(c);
             var drawChar = c;
 
             // Uppercase fallback for pixel fonts that only have caps
@@ -100,14 +100,14 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
                 var upper = char.ToUpperInvariant(c);
                 if (typeface.GetGlyph(upper) != 0)
                 {
-                    glyphId  = typeface.GetGlyph(upper);
+                    glyphId = typeface.GetGlyph(upper);
                     drawChar = upper;
                 }
             }
 
             if (glyphId != 0)
             {
-                var bounds  = new SKRect();
+                var bounds = new SKRect();
                 var advance = paint.MeasureText(drawChar.ToString(), ref bounds);
                 if (bounds.Width > 0 && bounds.Height > 0)
                 {
@@ -159,7 +159,7 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
 
         // Space glyph (zero-size, XAdvance only)
         var spaceItem = pendingGlyphs.FirstOrDefault(p => p.Ch == ' ');
-        var spaceAdv  = spaceItem.Advance > 0 ? (int)Math.Round(spaceItem.Advance) : fontSize / 2;
+        var spaceAdv = spaceItem.Advance > 0 ? (int)Math.Round(spaceItem.Advance) : fontSize / 2;
         finalGlyphs.Add(new FontGlyph(Id: ' ', X: 0, Y: 0, Width: 0, Height: 0,
             XOffset: 0, YOffset: 0, XAdvance: spaceAdv, Page: 0, Channel: 15));
 
@@ -173,7 +173,7 @@ public sealed class TrueTypeFontRasterizer : ITrueTypeFontRasterizer
                 (int)Math.Round(p.Advance), 0, 15));
         }
 
-        using var image   = surface.Snapshot();
+        using var image = surface.Snapshot();
         using var pngData = image.Encode(SKEncodedImageFormat.Png, 100);
 
         var rasterized = new MiniFont(

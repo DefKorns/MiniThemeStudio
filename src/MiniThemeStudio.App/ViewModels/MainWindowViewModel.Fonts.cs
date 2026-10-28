@@ -187,7 +187,7 @@ public partial class MainWindowViewModel
     {
         var hasJapanese = false;
         var hasCyrillic = false;
-        var hasGreek    = false;
+        var hasGreek = false;
 
         foreach (var g in font.Glyphs)
         {
@@ -218,7 +218,7 @@ public partial class MainWindowViewModel
         {
             ConvertJapanese = hasJapanese;
             ConvertCyrillic = hasCyrillic;
-            ConvertGreek    = hasGreek;
+            ConvertGreek = hasGreek;
         }
         finally
         {

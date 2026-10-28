@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -7,45 +6,37 @@ using CommunityToolkit.Mvvm.Input;
 using MiniThemeStudio.App.Dialogs;
 using MiniThemeStudio.App.Errors;
 using MiniThemeStudio.App.Services;
-using MiniThemeStudio.Core.Audio;
 using MiniThemeStudio.Core.Firmware;
 using MiniThemeStudio.Core.Settings;
 using MiniThemeStudio.Core.Themes;
 
 namespace MiniThemeStudio.App.ViewModels;
 
+// The window: the theme being edited and its metadata, the workspace tabs, and opening, saving and exporting
+// (the commands are in MainWindowViewModel.Workflow.cs, saved drafts in MainWindowViewModel.Drafts.cs).
 public partial class MainWindowViewModel : ViewModelBase
 {
     private readonly IThemeMetadataReader _metadataReader;
     private readonly IThemeDraftService _themeDraftService;
-    private readonly IThemeAssetManager _assetManager;
-    private readonly IThemeValidator _themeValidator;
     private readonly IBaseFirmwareManager _baseFirmwareManager;
     private readonly IThemeExporter _themeExporter;
-    private readonly ICharacterAnimationEditor _characterEditor;
     private readonly ISavedDraftStore _savedDraftStore;
     private readonly IAppSettingsStore _settingsStore;
-    private readonly IFFmpegAudioConverter _audioConverter;
     private readonly IDialogService _dialogService;
     private readonly IFileDialogService _fileDialogs;
     private readonly IAppDialogs _appDialogs;
     private readonly IAppearanceService _appearance;
     private readonly IErrorHandler _errorHandler;
-
     private readonly ThemeSession _session;
     private FirmwareDefinition? _currentBase;
 
     public MainWindowViewModel(
         IThemeMetadataReader metadataReader,
         IThemeDraftService themeDraftService,
-        IThemeAssetManager assetManager,
-        IThemeValidator themeValidator,
         IBaseFirmwareManager baseFirmwareManager,
         IThemeExporter themeExporter,
-        ICharacterAnimationEditor characterEditor,
         ISavedDraftStore savedDraftStore,
         IAppSettingsStore settingsStore,
-        IFFmpegAudioConverter audioConverter,
         IDialogService dialogService,
         IFileDialogService fileDialogs,
         IAppDialogs appDialogs,
@@ -57,18 +48,16 @@ public partial class MainWindowViewModel : ViewModelBase
         WallpapersViewModel wallpapersTab,
         CharactersViewModel charactersTab,
         FontsViewModel fontsTab,
-        ColorsViewModel colorsTab)
+        ColorsViewModel colorsTab,
+        AudioViewModel audioTab,
+        ValidationViewModel validationTab)
     {
         _metadataReader = metadataReader;
         _themeDraftService = themeDraftService;
-        _assetManager = assetManager;
-        _themeValidator = themeValidator;
         _baseFirmwareManager = baseFirmwareManager;
         _themeExporter = themeExporter;
-        _characterEditor = characterEditor;
         _savedDraftStore = savedDraftStore;
         _settingsStore = settingsStore;
-        _audioConverter = audioConverter;
         _dialogService = dialogService;
         _fileDialogs = fileDialogs;
         _appDialogs = appDialogs;
@@ -81,6 +70,9 @@ public partial class MainWindowViewModel : ViewModelBase
         CharactersTab = charactersTab;
         FontsTab = fontsTab;
         ColorsTab = colorsTab;
+        AudioTab = audioTab;
+        ValidationTab = validationTab;
+
         ScenesTab.SpriteRequested += (_, request) =>
         {
             if (SpritesTab.ShowSprite(request))
@@ -100,10 +92,12 @@ public partial class MainWindowViewModel : ViewModelBase
                 OnPropertyChanged(nameof(HasUnsavedWork));
             }
         };
+
+        // a tab wrote to the draft: every tab reloads and the theme is validated again
         _session.ContentChanged += (_, _) =>
         {
-            ReloadAssets();
-            RunValidation();
+            _session.Reload();
+            ValidationTab.Run();
         };
     }
 
@@ -118,6 +112,10 @@ public partial class MainWindowViewModel : ViewModelBase
     public FontsViewModel FontsTab { get; }
 
     public ColorsViewModel ColorsTab { get; }
+
+    public AudioViewModel AudioTab { get; }
+
+    public ValidationViewModel ValidationTab { get; }
 
     // the workspace tab shown; 0 is Sprites
     [ObservableProperty]
@@ -141,43 +139,14 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private bool requiresOverlay;
 
+    [ObservableProperty]
+    private string currentBaseLabel = "No Base";
+
     public string Status
     {
         get => _session.Status;
         set => _session.Status = value;
     }
-
-    [ObservableProperty]
-    private string currentBaseLabel = "No Base";
-
-    // images of this theme that no scene draws
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasUnusedImages))]
-    private IReadOnlyList<ExtraAsset> unusedImages = [];
-
-    public bool HasUnusedImages => UnusedImages.Count > 0;
-
-    [ObservableProperty]
-    private ExtraAsset? selectedUnusedImage;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasMissingTextures))]
-    private IReadOnlyList<MissingTexture> missingTextures = [];
-
-    public bool HasMissingTextures => MissingTextures.Count > 0;
-
-    [ObservableProperty]
-    private MissingTexture? selectedMissingTexture;
-
-    // Validation
-    [ObservableProperty]
-    private IReadOnlyList<ThemeValidationIssue> validationIssues = [];
-
-    [ObservableProperty]
-    private string validationSummary = "Theme not validated yet.";
-
-    [ObservableProperty]
-    private bool isThemeValid = true;
 
     public bool HasUnsavedChanges
     {
@@ -199,18 +168,26 @@ public partial class MainWindowViewModel : ViewModelBase
     // changes that would be lost on closing: not in the theme and not in a saved draft
     public bool HasUnsavedWork => HasUnsavedChanges && !IsDraftSaved;
 
-    private void MarkChanged()
-    {
-        _session.MarkChanged();
-    }
-
     public string? CurrentDraftPath => _session.Draft?.DraftPath;
+
     public string? CurrentBaseUiPath => _session.BaseUiPath;
+
+    public string? PackagingSystem => _currentBase is null ? null : ConsoleFamilies.PackagingSystem(ConsoleFamilies.Of(_currentBase));
+
+    public string PackagingName => _session.Draft is null
+        ? ""
+        : ThemeDirectoryName.FromDisplayName(Path.GetFileName(Path.TrimEndingDirectorySeparator(_session.Draft.SavePath)));
 
     public void OpenTheme(string rootPath, string? baseUiPath = null)
     {
         _session.BaseUiPath = baseUiPath ?? _baseFirmwareManager.FindCompatibleBaseUiPath(rootPath);
         OpenDraft(() => _themeDraftService.OpenExisting(rootPath), false);
+    }
+
+    public void CreateTheme(NewThemeRequest request)
+    {
+        _session.BaseUiPath = request.BaseThemePath;
+        OpenDraft(() => _themeDraftService.CreateNew(request), true);
     }
 
     public void ChangeBase(string baseUiPath)
@@ -227,20 +204,6 @@ public partial class MainWindowViewModel : ViewModelBase
         Status = $"Using {CurrentBaseLabel} - {SpritesTab.Sprites.Count} sprites, {WallpapersTab.Wallpapers.Count} wallpapers.";
     }
 
-    private static bool PathsEqual(string first, string? second)
-    {
-        return second is not null && string.Equals(
-            Path.TrimEndingDirectorySeparator(Path.GetFullPath(first)),
-            Path.TrimEndingDirectorySeparator(Path.GetFullPath(second)),
-            StringComparison.OrdinalIgnoreCase);
-    }
-
-    public void CreateTheme(NewThemeRequest request)
-    {
-        _session.BaseUiPath = request.BaseThemePath;
-        OpenDraft(() => _themeDraftService.CreateNew(request), true);
-    }
-
     public void SaveTheme()
     {
         if (_session.Draft is null || !HasUnsavedChanges)
@@ -248,7 +211,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        ValidateBeforeOutput("saving");
+        ValidationTab.EnsureValidFor("saving");
         _session.Draft = _themeDraftService.Save(_session.Draft);
         HasUnsavedChanges = false;
         Status = _session.Draft.LastBackupPath is null
@@ -256,48 +219,6 @@ public partial class MainWindowViewModel : ViewModelBase
             : $"Saved to {_session.Draft.SavePath} (previous version backed up to {_session.Draft.LastBackupPath})";
         ForgetSavedDraftAfterSave();
     }
-
-    public bool DeleteSelectedUnusedImage()
-    {
-        if (SelectedUnusedImage is not { IsFromBaseUi: false } image)
-        {
-            return false;
-        }
-
-        return DeleteDraftImage(image, image.OverridesBase
-            ? $"Removed the replacement of {image.DisplayName}; the Base image is used again."
-            : $"Deleted {image.DisplayName}.");
-    }
-
-    private bool DeleteDraftImage(ExtraAsset image, string status)
-    {
-        if (_session.Draft is null)
-        {
-            return false;
-        }
-
-        try
-        {
-            var targetPng = Path.Combine(_session.Draft.DraftPath, "resources", image.RelativePath);
-            _assetManager.DeleteExtraAsset(targetPng);
-            ReloadAssets();
-            RunValidation();
-            MarkChanged();
-            Status = status;
-            return true;
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            Status = exception.Message;
-            return false;
-        }
-    }
-
-    public string? PackagingSystem => _currentBase is null ? null : ConsoleFamilies.PackagingSystem(ConsoleFamilies.Of(_currentBase));
-
-    public string PackagingName => _session.Draft is null
-        ? ""
-        : ThemeDirectoryName.FromDisplayName(Path.GetFileName(Path.TrimEndingDirectorySeparator(_session.Draft.SavePath)));
 
     public void ExportPackage(string outputDirectory)
     {
@@ -308,67 +229,26 @@ public partial class MainWindowViewModel : ViewModelBase
 
         var system = PackagingSystem
             ?? throw new OperationFailedException("Choose the Base of this theme first (click the console badge in the header).");
-        ValidateBeforeOutput("exporting");
+        ValidationTab.EnsureValidFor("exporting");
 
         var previewPath = $"{Path.TrimEndingDirectorySeparator(_session.Draft.SavePath)}.png";
-        var exportOptions = new ThemeExportOptions(
-            ConvertBgmAudio: ConvertBgmAudio,
-            FFmpegPath: _settingsStore.Current.FFmpegPath,
-            BgmChannels: BgmChannels,
-            IncludeBgm: IncludeBgm);
-        var result = _themeExporter.ExportPackage(_session.Draft.DraftPath, outputDirectory, system, PackagingName, previewPath, _session.BaseUiPath, exportOptions);
+        var result = _themeExporter.ExportPackage(_session.Draft.DraftPath, outputDirectory, system, PackagingName, previewPath, _session.BaseUiPath, AudioTab.ExportOptions);
         var summary = $"Exported {result.FileCount} changed files to {result.PackagePath} ({result.UnchangedFilesSkipped} unchanged Base files left out)";
         Status = result.IncludesPreview
             ? $"{summary}."
             : $"{summary}, without a preview (no {Path.GetFileName(previewPath)} next to the theme folder).";
     }
 
-    // throws when the theme has validation errors, so nothing broken is saved or exported
-    private void ValidateBeforeOutput(string action)
-    {
-        var validationOptions = new ThemeValidationOptions(
-            ConvertBgmAudio: ConvertBgmAudio,
-            FFmpegPath: _settingsStore.Current.FFmpegPath,
-            BgmChannels: BgmChannels,
-            IncludeBgm: IncludeBgm);
-        var validation = _themeValidator.Validate(_session.Draft!.DraftPath, _session.BaseUiPath, validationOptions);
-        ValidationIssues = validation.Issues;
-        IsThemeValid = validation.IsValid;
-        if (!validation.HasErrors)
-        {
-            return;
-        }
-
-        var errors = validation.Issues.Where(issue => issue.IsError).ToList();
-        throw new OperationFailedException($"Fix {errors.Count} validation error(s) before {action}: {errors[0].Message}");
-    }
-
     [RelayCommand]
-    public void RunValidation()
+    private void RunValidation()
     {
-        if (_session.Draft is null)
-        {
-            return;
-        }
-
-        var validationOptions = new ThemeValidationOptions(
-            ConvertBgmAudio: ConvertBgmAudio,
-            FFmpegPath: _settingsStore.Current.FFmpegPath,
-            BgmChannels: BgmChannels,
-            IncludeBgm: IncludeBgm);
-        var result = _themeValidator.Validate(_session.Draft.DraftPath, _session.BaseUiPath, validationOptions);
-        ValidationIssues = result.Issues;
-        IsThemeValid = result.IsValid;
-        ValidationSummary = result.IsValid
-            ? (result.HasWarnings ? "Validation passed with notices." : "Theme is fully valid!")
-            : "Validation found errors that must be fixed.";
-        Status = ValidationSummary;
+        ValidationTab.Run();
     }
 
     public void ShowHome()
     {
         DiscardTheme();
-        ReloadAssets();
+        _session.Reload();
         IsThemeOpen = false;
         IsHomeVisible = true;
         Status = "Draft discarded";
@@ -418,71 +298,18 @@ public partial class MainWindowViewModel : ViewModelBase
             .FirstOrDefault(info => info.Status == BaseInstallStatus.Valid && PathsEqual(info.LocalPath, _session.BaseUiPath))?
             .Definition;
         CurrentBaseLabel = _currentBase is null ? "No Base" : ConsoleFamilies.ShortLabel(_currentBase);
-        ReloadAssets();
-        RunValidation();
-        ShowWorkspace();
+        _session.Reload();
+        ValidationTab.Run();
+        IsHomeVisible = false;
+        IsThemeOpen = true;
         Status = $"Draft opened - {SpritesTab.Sprites.Count} sprites, {WallpapersTab.Wallpapers.Count} wallpapers.";
     }
 
-    private void ReloadAssets()
+    private static bool PathsEqual(string first, string? second)
     {
-        if (_session.Draft is null)
-        {
-            UnusedImages = [];
-            MissingTextures = [];
-            ReloadBgmTracks();
-            _session.Reload();
-            return;
-        }
-
-        _session.Reload();
-        var report = _session.Report;
-        var images = _assetManager.GetExtraAssets(_session.Draft.DraftPath, _session.BaseUiPath)
-            .Select(asset => report.TextureIdOf(asset.RelativePath, asset.TextureId) is var textureId
-                ? asset with { TextureId = textureId, UsedBy = report.UsageOf(textureId) }
-                : asset)
-            .ToList();
-
-        // a Base image nobody draws is not part of the theme, so only the theme's own files are reported
-        var selectedUnusedPath = SelectedUnusedImage?.RelativePath;
-        UnusedImages = images.Where(asset => asset.UsedBy.Count == 0 && !asset.IsFromBaseUi).ToList();
-        SelectedUnusedImage = UnusedImages.FirstOrDefault(asset => asset.RelativePath == selectedUnusedPath)
-            ?? (UnusedImages.Count > 0 ? UnusedImages[0] : null);
-
-        MissingTextures = report.MissingTextures;
-        SelectedMissingTexture = MissingTextures.Count > 0 ? MissingTextures[0] : null;
-        ReloadBgmTracks();
+        return second is not null && string.Equals(
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(first)),
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(second)),
+            StringComparison.OrdinalIgnoreCase);
     }
-
-    public bool ProvideSelectedMissingTexture(string sourceImagePath)
-    {
-        if (SelectedMissingTexture is not { } texture || _session.Draft is null)
-        {
-            Status = "Select a missing texture first.";
-            return false;
-        }
-
-        try
-        {
-            _assetManager.ProvideMissingTexture(_session.Draft.DraftPath, texture, sourceImagePath);
-            ReloadAssets();
-            RunValidation();
-            MarkChanged();
-            Status = $"Added {Path.GetFileName(texture.ImageRelativePath)} for texture {texture.TextureId}.";
-            return true;
-        }
-        catch (Exception exception) when (
-            exception is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException)
-        {
-            Status = exception.Message;
-            return false;
-        }
-    }
-
-    private void ShowWorkspace()
-    {
-        IsHomeVisible = false;
-        IsThemeOpen = true;
-    }
-
 }

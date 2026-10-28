@@ -760,7 +760,7 @@
               </Border>
 
               <!-- Background Music (BGM) -->
-              <Border Padding="20" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+              <Border DataContext="{Binding AudioTab}" x:DataType="vm:AudioViewModel" Padding="20" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
                 <StackPanel Spacing="14">
                   <TextBlock FontFamily="Georgia, serif" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Background Music (BGM)" />
                   <CheckBox x:Name="IncludeBgmCheckBox" IsChecked="{Binding IncludeBgm}" Content="Include custom BGM in exported theme package" ToolTip.Tip="When unchecked, custom BGM audio is omitted from the exported package, allowing the console to play its original stock audio." />
@@ -793,15 +793,15 @@
                               <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding StatusDescription}" TextWrapping="Wrap" />
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                              <Button Padding="10,6" Content="Replace..." Tag="{Binding Name}" Click="ReplaceBgm_Click" ToolTip.Tip="Replace with custom MP3, OGG, FLAC, or WAV" />
-                              <Button Padding="10,6" Content="Mute" Tag="{Binding Name}" Click="MuteBgm_Click"
+                              <Button Padding="10,6" Content="Replace..." Command="{Binding $parent[ItemsControl].((vm:AudioViewModel)DataContext).ReplaceTrackCommand}" CommandParameter="{Binding Name}" ToolTip.Tip="Replace with custom MP3, OGG, FLAC, or WAV" />
+                              <Button Padding="10,6" Content="Mute" Command="{Binding $parent[ItemsControl].((vm:AudioViewModel)DataContext).MuteTrackCommand}" CommandParameter="{Binding Name}"
                                       IsVisible="{Binding CanMute}"
                                       IsEnabled="{Binding !IsMuted}"
                                       ToolTip.Tip="Mute boot music with a minimal silent WAV" />
-                              <Button Padding="10,6" Content="Convert now" Tag="{Binding Name}" Click="ConvertBgmNow_Click"
-                                      IsVisible="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ConvertBgmAudio, FallbackValue=false}"
+                              <Button Padding="10,6" Content="Convert now" Command="{Binding $parent[ItemsControl].((vm:AudioViewModel)DataContext).ConvertTrackCommand}" CommandParameter="{Binding Name}"
+                                      IsVisible="{Binding $parent[ItemsControl].((vm:AudioViewModel)DataContext).ConvertBgmAudio, FallbackValue=false}"
                                       IsEnabled="{Binding ExistsInDraft}" ToolTip.Tip="Convert immediately using FFmpeg" />
-                              <Button Padding="10,6" Content="Revert" Tag="{Binding Name}" Click="RevertBgm_Click" IsVisible="{Binding ExistsInDraft}" ToolTip.Tip="Revert to base track / unmute" />
+                              <Button Padding="10,6" Content="Revert" Command="{Binding $parent[ItemsControl].((vm:AudioViewModel)DataContext).RevertTrackCommand}" CommandParameter="{Binding Name}" IsVisible="{Binding ExistsInDraft}" ToolTip.Tip="Revert to base track / unmute" />
                             </StackPanel>
                           </Grid>
                         </Border>
@@ -813,11 +813,12 @@
             </StackPanel>
           </ScrollViewer>
 
-          <Border Grid.Column="1" Margin="12,0,0,0" Padding="20" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+          <Border Grid.Column="1" Margin="12,0,0,0" Padding="20" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                  DataContext="{Binding ValidationTab}" x:DataType="vm:ValidationViewModel">
             <Grid RowDefinitions="Auto,Auto,*,Auto">
               <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,12">
                 <TextBlock VerticalAlignment="Center" FontFamily="Georgia, serif" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Integrity Validation" />
-                <Button Grid.Column="1" Command="{Binding RunValidationCommand}" Padding="12,6" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Content="Re-validate" />
+                <Button Grid.Column="1" Command="{Binding RunCommand}" Padding="12,6" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Content="Re-validate" />
               </Grid>
 
               <Border Grid.Row="1" Margin="0,0,0,12" Padding="12" CornerRadius="4"
@@ -852,7 +853,7 @@
                       </DataTemplate>
                     </ListBox.ItemTemplate>
                   </ListBox>
-                  <Button Padding="10,6" HorizontalAlignment="Stretch" Click="ProvideMissingTexture_Click" Content="Provide PNG for selected texture" />
+                  <Button Padding="10,6" HorizontalAlignment="Stretch" Command="{Binding ProvideMissingTextureCommand}" Content="Provide PNG for selected texture" />
                 </StackPanel>
 
                 <StackPanel Spacing="8" Margin="0,12,0,0" IsVisible="{Binding HasUnusedImages}">
@@ -860,7 +861,7 @@
                   <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
                              Text="These images are in the theme but no scene draws them, so they only make the package bigger." />
                   <Grid ColumnDefinitions="*,96">
-                    <ListBox MaxHeight="160" ItemsSource="{Binding UnusedImages}" SelectedItem="{Binding SelectedUnusedImage}" SelectionChanged="UnusedImageList_SelectionChanged">
+                    <ListBox MaxHeight="160" ItemsSource="{Binding UnusedImages}" SelectedItem="{Binding SelectedUnusedImage}">
                       <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="themes:ExtraAsset">
                           <StackPanel Spacing="2">
@@ -871,10 +872,10 @@
                       </ListBox.ItemTemplate>
                     </ListBox>
                     <Border Grid.Column="1" Margin="8,0,0,0" Height="96" VerticalAlignment="Top" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
-                      <Image x:Name="UnusedImagePreviewImage" Margin="4" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
+                      <controls:FileImage Margin="4" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" FilePath="{Binding SelectedUnusedImage.ImagePath}" />
                     </Border>
                   </Grid>
-                  <Button Padding="10,6" HorizontalAlignment="Stretch" Click="DeleteUnusedImage_Click" Content="Delete selected image from the theme" />
+                  <Button Padding="10,6" HorizontalAlignment="Stretch" Command="{Binding DeleteUnusedImageCommand}" Content="Delete selected image from the theme" />
                 </StackPanel>
               </StackPanel>
             </Grid>

@@ -1,51 +1,37 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using Avalonia.Platform.Storage;
 using Avalonia.Styling;
 using Lucide.Avalonia;
-using MiniThemeStudio.App.Dialogs;
-using MiniThemeStudio.App.Errors;
-using MiniThemeStudio.App.Models;
 using MiniThemeStudio.App.ViewModels;
-using MiniThemeStudio.Core.Console;
-using MiniThemeStudio.Core.Firmware;
-using MiniThemeStudio.Core.Settings;
 using MiniThemeStudio.Core.Themes;
 
 namespace MiniThemeStudio.App.Views;
 
 public sealed partial class MainWindow : Window, IDisposable
 {
-    private readonly IDialogService _dialogService;
 
     private string _atlasImagePath = "";
     private bool _isCloseConfirmed;
     private bool _isCloseConfirmationOpen;
     private Bitmap? _atlasBitmap;
     private CroppedBitmap? _spritePreview;
-    private Bitmap? _unusedImageBitmap;
     private readonly Avalonia.Threading.DispatcherTimer _animationTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
     private readonly System.Diagnostics.Stopwatch _animationClock = System.Diagnostics.Stopwatch.StartNew();
 
     // for the XAML previewer only: the app builds the window through the service container
     public MainWindow()
-        : this(null!, null)
+        : this(null)
     {
     }
 
-    public MainWindow(
-        IDialogService dialogService,
-        MainWindowViewModel? viewModel)
+    public MainWindow(MainWindowViewModel? viewModel)
     {
-        _dialogService = dialogService;
         DataContext = viewModel;
 
         InitializeComponent();
@@ -66,130 +52,6 @@ public sealed partial class MainWindow : Window, IDisposable
         if (DataContext is MainWindowViewModel viewModel && !await viewModel.StartAsync())
         {
             Close();
-        }
-    }
-
-    private async void ReplaceBgm_Click(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: string trackName } || DataContext is not MainWindowViewModel viewModel)
-        {
-            return;
-        }
-
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = $"Select audio file for {trackName}",
-            AllowMultiple = false,
-            FileTypeFilter = [
-                new FilePickerFileType("Audio files (*.wav, *.mp3, *.ogg, *.flac, *.m4a)")
-                {
-                    Patterns = ["*.wav", "*.mp3", "*.ogg", "*.flac", "*.m4a", "*.aac", "*.wma"]
-                },
-                new FilePickerFileType("All files") { Patterns = ["*"] }
-            ],
-        });
-
-        if (files.Count > 0 && files[0].TryGetLocalPath() is { } path)
-        {
-            viewModel.ReplaceBgmTrack(trackName, path);
-        }
-    }
-
-    private async void ConvertBgmNow_Click(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: string trackName } || DataContext is not MainWindowViewModel viewModel)
-        {
-            return;
-        }
-
-        await viewModel.ConvertBgmTrackNowAsync(trackName);
-    }
-
-    private void RevertBgm_Click(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: string trackName } || DataContext is not MainWindowViewModel viewModel)
-        {
-            return;
-        }
-
-        viewModel.RevertBgmTrack(trackName);
-    }
-
-    private void MuteBgm_Click(object? sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: string trackName } || DataContext is not MainWindowViewModel viewModel)
-        {
-            return;
-        }
-
-        viewModel.MuteBgmTrack(trackName);
-    }
-
-    private void UnusedImageList_SelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        UnusedImagePreviewImage.Source = null;
-        _unusedImageBitmap?.Dispose();
-        _unusedImageBitmap = LoadPreview((sender as ListBox)?.SelectedItem as ExtraAsset);
-        UnusedImagePreviewImage.Source = _unusedImageBitmap;
-    }
-
-    private static Bitmap? LoadPreview(ExtraAsset? asset)
-    {
-        if (asset is null || !File.Exists(asset.ImagePath))
-        {
-            return null;
-        }
-
-        try
-        {
-            return new Bitmap(asset.ImagePath);
-        }
-        catch (Exception exception) when (exception is IOException or ArgumentException or InvalidOperationException)
-        {
-            return null;
-        }
-    }
-
-    private async void DeleteUnusedImage_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel { SelectedUnusedImage: { } image } viewModel)
-        {
-            return;
-        }
-
-        var confirmed = await _dialogService.ShowConfirmationAsync(
-            "Delete unused image?",
-            image.OverridesBase
-                ? $"No scene draws resources/{image.RelativePath}. Its replacement is removed and the Base image is kept."
-                : $"No scene draws resources/{image.RelativePath}. It is removed from the theme.",
-            DialogVariant.Warning,
-            "Delete",
-            "Keep",
-            true);
-        if (confirmed && !viewModel.DeleteSelectedUnusedImage())
-        {
-            await ShowErrorAsync("Cannot delete image", viewModel.Status);
-        }
-    }
-
-    private async void ProvideMissingTexture_Click(object? sender, RoutedEventArgs e)
-    {
-        if (DataContext is not MainWindowViewModel { SelectedMissingTexture: { } texture } viewModel)
-        {
-            return;
-        }
-
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
-        {
-            Title = $"Select PNG for {Path.GetFileName(texture.ImageRelativePath)}",
-            AllowMultiple = false,
-            FileTypeFilter = [new FilePickerFileType("PNG image") { Patterns = ["*.png"] }]
-        });
-
-        var sourcePath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
-        if (sourcePath is not null && !viewModel.ProvideSelectedMissingTexture(sourcePath))
-        {
-            await ShowErrorAsync("Cannot add texture", viewModel.Status);
         }
     }
 
@@ -378,9 +240,6 @@ public sealed partial class MainWindow : Window, IDisposable
     {
         DisposeAtlasPreview();
 
-        UnusedImagePreviewImage.Source = null;
-        _unusedImageBitmap?.Dispose();
-        _unusedImageBitmap = null;
     }
 
     protected override async void OnClosing(WindowClosingEventArgs e)
@@ -412,11 +271,6 @@ public sealed partial class MainWindow : Window, IDisposable
         {
             _isCloseConfirmationOpen = false;
         }
-    }
-
-    private Task ShowErrorAsync(string title, string message)
-    {
-        return _dialogService.ShowInformationAsync(title, message, DialogVariant.Error);
     }
 
     protected override void OnClosed(EventArgs e)

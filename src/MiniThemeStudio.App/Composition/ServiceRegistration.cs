@@ -74,6 +74,8 @@ public static class ServiceRegistration
         services.AddSingleton<CharactersViewModel>();
         services.AddSingleton<FontsViewModel>();
         services.AddSingleton<ColorsViewModel>();
+        services.AddSingleton<AudioViewModel>();
+        services.AddSingleton<ValidationViewModel>();
         services.AddSingleton<MainWindowViewModel>();
         services.AddSingleton<MainWindow>();
 

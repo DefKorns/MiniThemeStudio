@@ -4,7 +4,9 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Data.Core.Plugins;
 using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using MiniThemeStudio.App.Composition;
+using MiniThemeStudio.App.Errors;
 using MiniThemeStudio.App.Views;
 using MiniThemeStudio.Core.Settings;
 
@@ -26,6 +28,10 @@ public partial class App : Application
                 .AddMiniThemeStudio()
                 .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
             desktop.Exit += (_, _) => services.Dispose();
+            services.GetRequiredService<GlobalExceptionHandler>().Register(desktop);
+            var logger = services.GetRequiredService<ILogger<App>>();
+            var version = typeof(App).Assembly.GetName().Version?.ToString() ?? "?";
+            LogStarting(logger, version);
 
             RequestedThemeVariant = services.GetRequiredService<IAppSettingsStore>().Current.Theme switch
             {
@@ -39,6 +45,9 @@ public partial class App : Application
 
         base.OnFrameworkInitializationCompleted();
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Mini Theme Studio {Version} starting")]
+    private static partial void LogStarting(ILogger logger, string version);
 
     private static void DisableAvaloniaDataAnnotationValidation()
     {

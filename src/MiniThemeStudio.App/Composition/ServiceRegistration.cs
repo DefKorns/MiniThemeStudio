@@ -1,5 +1,6 @@
 using System.IO;
 using Microsoft.Extensions.DependencyInjection;
+using MiniThemeStudio.App.Diagnostics;
 using MiniThemeStudio.App.Dialogs;
 using MiniThemeStudio.App.Errors;
 using MiniThemeStudio.App.ViewModels;
@@ -23,6 +24,7 @@ public static class ServiceRegistration
 {
     public static IServiceCollection AddMiniThemeStudio(this IServiceCollection services)
     {
+        services.AddLogging(builder => builder.AddFileLogging());
         services.AddSingleton<IAppSettingsStore, JsonAppSettingsStore>();
 
         // firmware
@@ -60,6 +62,7 @@ public static class ServiceRegistration
         // user interface
         services.AddSingleton<IDialogService, DialogService>();
         services.AddSingleton<IErrorHandlingService, ErrorHandlingService>();
+        services.AddSingleton<GlobalExceptionHandler>();
         services.AddSingleton<MainWindowViewModel>();
         services.AddSingleton<MainWindow>();
 

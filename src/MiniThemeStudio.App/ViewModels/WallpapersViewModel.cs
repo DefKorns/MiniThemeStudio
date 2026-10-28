@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using MiniThemeStudio.App.Dialogs;
 using MiniThemeStudio.App.Errors;
 using MiniThemeStudio.App.Services;
 using MiniThemeStudio.Core.Themes;
@@ -18,10 +19,18 @@ public sealed partial class WallpapersViewModel : ViewModelBase
     private readonly ThemeSession _session;
     private readonly IThemeAssetManager _assetManager;
     private readonly IFileDialogService _fileDialogs;
+    private readonly IDialogService _dialogs;
     private readonly IErrorHandler _errorHandler;
 
-    public WallpapersViewModel(ThemeSession session, IThemeAssetManager assetManager, IFileDialogService fileDialogs, IErrorHandler errorHandler, ParallaxViewModel parallax)
+    public WallpapersViewModel(
+        ThemeSession session,
+        IThemeAssetManager assetManager,
+        IFileDialogService fileDialogs,
+        IDialogService dialogs,
+        IErrorHandler errorHandler,
+        ParallaxViewModel parallax)
     {
+        _dialogs = dialogs;
         _session = session;
         Parallax = parallax;
         Parallax.PropertyChanged += (_, args) =>
@@ -46,7 +55,8 @@ public sealed partial class WallpapersViewModel : ViewModelBase
     private IReadOnlyList<WallpaperAsset> wallpapers = [];
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ReplaceWallpaperCommand), nameof(ExportWallpaperCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ReplaceWallpaperCommand), nameof(ExportWallpaperCommand), nameof(DeleteWallpaperCommand))]
+    [NotifyPropertyChangedFor(nameof(DeleteWallpaperText))]
     private WallpaperAsset? selectedWallpaper;
 
     // bumped when the selected image is rewritten, so its preview is read again
@@ -54,6 +64,39 @@ public sealed partial class WallpapersViewModel : ViewModelBase
     private int previewRevision;
 
     private bool HasSelection => SelectedWallpaper is not null;
+
+    // the theme's own image: a replacement goes back to the Base one, an added image no scene draws is removed
+    private bool CanDeleteWallpaper => SelectedWallpaper is { ExistsInTheme: true } wallpaper && (wallpaper.OverridesBase || wallpaper.UsedBy.Count == 0);
+
+    public string DeleteWallpaperText => SelectedWallpaper is { OverridesBase: true } ? "Use the Base image" : "Delete image";
+
+    [RelayCommand(CanExecute = nameof(CanDeleteWallpaper))]
+    private async Task DeleteWallpaperAsync()
+    {
+        if (_session.Draft is not { } draft || SelectedWallpaper is not { } wallpaper)
+        {
+            return;
+        }
+
+        var message = wallpaper.OverridesBase
+            ? $"Remove this theme's {wallpaper.Name}.png? The image of the Base shows again."
+            : $"Delete {wallpaper.Name}.png? No scene draws it, so it is removed from the theme.";
+        if (!await _dialogs.ShowConfirmationAsync(DeleteWallpaperText, message, acceptButtonText: wallpaper.OverridesBase ? "Use the Base image" : "Delete", isDestructive: true))
+        {
+            return;
+        }
+
+        if (await _errorHandler.TryRunAsync($"Cannot remove {wallpaper.DisplayName}", () =>
+        {
+            _assetManager.DeleteThemeImage(draft.DraftPath, _session.BaseUiPath, $"layout/asset/sprite/wallpaper/{wallpaper.Name}.png");
+            return Task.CompletedTask;
+        }))
+        {
+            _session.NotifyContentChanged();
+            PreviewRevision++;
+            _session.Status = wallpaper.OverridesBase ? $"{wallpaper.DisplayName} uses the Base image again." : $"Deleted {wallpaper.DisplayName}.";
+        }
+    }
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private async Task ReplaceWallpaperAsync()

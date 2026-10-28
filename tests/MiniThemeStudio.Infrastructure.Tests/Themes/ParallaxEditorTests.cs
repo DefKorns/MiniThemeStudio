@@ -132,6 +132,27 @@ public sealed class ParallaxEditorTests : IDisposable
         Assert.Equal(["wall_far", "wall_near"], after.Layers.Select(layer => layer.Name));
         Assert.Equal(2, ReadJson(_themePath, "resources" + Animation)["animations"]!.AsArray().Count);
         Assert.Equal(2, new SceneEditor().Load(_themePath, _basePath, "/prefab/bg.scn").Find("1/0")!.Children.Count);
+
+        // the image the layer was made from goes with it
+        Assert.False(File.Exists(Path.Combine(_themePath, "resources", "layout", "asset", "sprite", "wallpaper", "hills.png")));
+        Assert.False(File.Exists(Path.Combine(_themePath, "resources", "layout", "asset", "sprite", "wallpaper", "hills.json")));
+        Assert.DoesNotContain("hills", File.ReadAllText(Path.Combine(_themePath, "dependencies.json")), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AnImageAnotherNodeStillDrawsIsKept()
+    {
+        var source = Path.Combine(_themePath, "hills.png");
+        SavePng(source, 640, 40);
+        _editor.AddLayer(_themePath, _basePath, _editor.GetBackgrounds(_themePath, _basePath)[0], new NewParallaxLayer("hills", source, 0, 1, 3, 1));
+        var layer = new ThemeLayer(_themePath, _basePath);
+
+        // a second node drawing the same image
+        new SceneEditor().DuplicateNode(_themePath, _basePath, "/prefab/bg.scn", "1/0/2");
+
+        Assert.Throws<InvalidDataException>(() => ThemeTextures.Delete(layer, "/layout/asset/sprite/wallpaper/hills.png"));
+        _editor.RemoveLayer(_themePath, _basePath, _editor.GetBackgrounds(_themePath, _basePath)[0], "hills");
+        Assert.True(File.Exists(Path.Combine(_themePath, "resources", "layout", "asset", "sprite", "wallpaper", "hills.png")));
     }
 
     private static JsonNode ReadJson(string root, string relativePath) =>

@@ -79,6 +79,30 @@ internal sealed class DependencyManifest
         return textureId;
     }
 
+    // the scenes and animations that still draw the texture (the sprite sheet describing it does not count)
+    public IReadOnlyList<string> UsersOf(string textureId) =>
+        Resources
+            .Where(resource => resource.Type is Scene or SceneAnimation && resource.References.Any(reference => reference.Id == textureId && reference.Count > 0))
+            .Select(resource => resource.Path ?? resource.Id)
+            .ToList();
+
+    // drops the texture and the sprite sheets that only describe it
+    public void RemoveTexture(string textureId)
+    {
+        foreach (var resource in _resources.OfType<JsonObject>().ToList())
+        {
+            var isTexture = Text(resource["id"]) == textureId && Text(resource["type"]) == TextureResource;
+            var isItsSheet = Text(resource["type"]) == SpriteSheet
+                && resource["dependencies"] is JsonArray references
+                && references.OfType<JsonObject>().All(reference => Text(reference["id"]) == textureId)
+                && references.Count > 0;
+            if (isTexture || isItsSheet)
+            {
+                _resources.Remove(resource);
+            }
+        }
+    }
+
     // adds delta to how many times the resource at ownerPath references referencedId; a count of 0 drops the entry
     public void ChangeReferenceCount(string ownerType, string ownerPath, string referencedId, int delta)
     {

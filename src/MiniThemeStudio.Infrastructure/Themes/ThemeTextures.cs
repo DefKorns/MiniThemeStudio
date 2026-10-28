@@ -47,6 +47,38 @@ internal static class ThemeTextures
         return resourcePath;
     }
 
+    // Removes an image of the theme (its PNG and its sprite sheet definition). An image the theme added also leaves
+    // dependencies.json; one that replaces an image of the Base only loses the replacement, so the Base one is used
+    // again. An added image a scene or an animation still draws is kept.
+    public static void Delete(ThemeLayer layer, string imageResourcePath)
+    {
+        ArgumentNullException.ThrowIfNull(layer);
+        if (layer.ResolveInTheme(imageResourcePath) is not { } imagePath)
+        {
+            throw new FileNotFoundException($"The theme has no image at resources{imageResourcePath}.");
+        }
+
+        var definitionPath = layer.ResolveInTheme(Path.ChangeExtension(imageResourcePath, ".json"));
+        if (layer.ResolveInBase(imageResourcePath) is null && DependencyManifest.TryLoad(layer) is { } manifest
+            && manifest.Resources.FirstOrDefault(resource => resource.Type == DependencyManifest.TextureResource && resource.Path == imageResourcePath) is { } texture)
+        {
+            var users = manifest.UsersOf(texture.Id);
+            if (users.Count > 0)
+            {
+                throw new InvalidDataException($"{Path.GetFileName(imageResourcePath)} is still drawn by {string.Join(", ", users.Select(Path.GetFileName))}.");
+            }
+
+            manifest.RemoveTexture(texture.Id);
+            manifest.Save(layer);
+        }
+
+        File.Delete(imagePath);
+        if (definitionPath is not null)
+        {
+            File.Delete(definitionPath);
+        }
+    }
+
     // the pixel size of a registered texture: from its sprite sheet definition, or from the image itself
     public static (int Width, int Height)? Size(ThemeLayer layer, DependencyManifest manifest, string textureId)
     {

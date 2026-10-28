@@ -141,6 +141,8 @@ public sealed class ParallaxEditor(ISceneEditor sceneEditor) : IParallaxEditor
         var layer = background.Layers.FirstOrDefault(candidate => candidate.Name == layerName)
             ?? throw new InvalidDataException($"{layerName} is not a layer of {background.AnimatorName}.");
 
+        var textureId = sceneEditor.Load(themeDraftPath, baseUiPath, background.SceneResourcePath).Find(layer.NodePath)?.Visual?.TextureId;
+
         // the node goes first: it is kept when the scene still links to it, and then the track stays too
         sceneEditor.DeleteNode(themeDraftPath, baseUiPath, background.SceneResourcePath, layer.NodePath);
 
@@ -153,6 +155,17 @@ public sealed class ParallaxEditor(ISceneEditor sceneEditor) : IParallaxEditor
         }
 
         themeLayer.WriteThemeResource(background.AnimationResourcePath, EngineJson.ToCompactString(animation));
+
+        // the image of a layer the theme added goes too, unless another node still draws it
+        if (textureId is not null
+            && DependencyManifest.TryLoad(themeLayer) is { } manifest
+            && manifest.FindById(textureId) is { Path: { } imagePath }
+            && themeLayer.ResolveInTheme(imagePath) is not null
+            && themeLayer.ResolveInBase(imagePath) is null
+            && manifest.UsersOf(textureId).Count == 0)
+        {
+            ThemeTextures.Delete(themeLayer, imagePath);
+        }
     }
 
     private static ParallaxLayer? ReadLayer(JsonObject animator, string animatorPath, JsonObject track, double cycle)

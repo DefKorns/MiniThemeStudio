@@ -121,7 +121,7 @@ public sealed partial class ValidationViewModel : ViewModelBase
 
         if (await _errorHandler.TryRunAsync($"Cannot delete {image.DisplayName}", () =>
         {
-            _assetManager.DeleteExtraAsset(Path.Combine(draft.DraftPath, "resources", image.RelativePath));
+            _assetManager.DeleteThemeImage(draft.DraftPath, _session.BaseUiPath, image.RelativePath);
             return Task.CompletedTask;
         }))
         {

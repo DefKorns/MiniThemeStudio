@@ -315,6 +315,7 @@
                       </Border>
                       <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                         <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding DisplayName}" />
+                        <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="Not drawn by any scene" IsVisible="{Binding !UsedBy.Count}" />
                         <StackPanel Orientation="Horizontal" Spacing="6">
                           <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Width, StringFormat='{}{0} × '}" />
                           <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Height, StringFormat='{}{0} px'}" />
@@ -343,6 +344,8 @@
                   <Button Margin="0,0,4,0" Padding="12,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Command="{Binding ReplaceWallpaperCommand}" Content="Replace PNG" />
                   <Button Grid.Column="1" Margin="4,0,0,0" Padding="12,8" HorizontalAlignment="Stretch" Command="{Binding ExportWallpaperCommand}" Content="Export PNG" />
                 </Grid>
+                <Button Padding="12,8" HorizontalAlignment="Stretch" Command="{Binding DeleteWallpaperCommand}" Content="{Binding DeleteWallpaperText}"
+                        ToolTip.Tip="Only the theme's own images: an image a scene still draws is kept (remove its layer first)" />
                 <Border Height="1" Background="{DynamicResource BorderBrush}" />
                 <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="Wallpapers define the main background, near foreground parallax layer, and far distant layer. Dimensions are automatically preserved or updated in JSON." TextWrapping="Wrap" />
 

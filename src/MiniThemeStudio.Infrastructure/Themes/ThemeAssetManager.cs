@@ -72,7 +72,12 @@ public sealed class ThemeAssetManager : IThemeAssetManager
                 _ => $"{char.ToUpperInvariant(name[0])}{name[1..]}"
             };
 
-            list.Add(new WallpaperAsset(name, displayName, pngPath, jsonPath, width, height, isFromBase, ReadTextureId(jsonPath)));
+            var overridesBase = !isFromBase && layer.ResolveInBase(pngResource) is not null;
+            list.Add(new WallpaperAsset(name, displayName, pngPath, jsonPath, width, height, isFromBase, ReadTextureId(jsonPath))
+            {
+                OverridesBase = overridesBase,
+                IsCore = CoreWallpaperNames.Contains(name, StringComparer.OrdinalIgnoreCase),
+            });
         }
 
         return list;
@@ -187,18 +192,10 @@ public sealed class ThemeAssetManager : IThemeAssetManager
         ReplaceWallpaper(targetImagePath, replacementImagePath, templateJsonPath);
     }
 
-    public void DeleteExtraAsset(string imagePath, string? jsonPath = null)
+    public void DeleteThemeImage(string themeDraftPath, string? baseUiPath, string relativePath)
     {
-        if (File.Exists(imagePath))
-        {
-            File.Delete(imagePath);
-        }
-
-        var json = jsonPath ?? Path.ChangeExtension(imagePath, ".json");
-        if (File.Exists(json))
-        {
-            File.Delete(json);
-        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
+        ThemeTextures.Delete(new ThemeLayer(themeDraftPath, baseUiPath), "/" + relativePath.Replace('\\', '/').TrimStart('/'));
     }
 
     public void ExportExtraAsset(ExtraAsset asset, string destinationPath)

@@ -185,7 +185,7 @@ public sealed partial class ParallaxViewModel : ViewModelBase
 
         if (!await _dialogs.ShowConfirmationAsync(
             "Remove layer",
-            $"Remove {row.Name} from {background.AnimatorLabel}? Its node and its track in {Path.GetFileName(background.AnimationResourcePath)} are removed; its image stays in the theme.",
+            $"Remove {row.Name} from {background.AnimatorLabel}? Its node, its track in {Path.GetFileName(background.AnimationResourcePath)} and, when nothing else draws it, its image are removed.",
             acceptButtonText: "Remove",
             isDestructive: true))
         {

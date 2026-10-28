@@ -10,7 +10,10 @@ public interface IThemeAssetManager
 
     IReadOnlyList<ExtraAsset> GetExtraAssets(string themeDraftPath, string? baseUiPath = null);
     void ReplaceExtraAsset(string targetImagePath, string replacementImagePath, string? templateJsonPath = null);
-    void DeleteExtraAsset(string imagePath, string? jsonPath = null);
+    // removes an image of the theme (relativePath inside resources/, e.g. layout/asset/sprite/wallpaper/hills.png):
+    // an image the theme added also leaves dependencies.json, a replacement of a Base image makes the Base one
+    // show again; an added image a scene still draws is kept
+    void DeleteThemeImage(string themeDraftPath, string? baseUiPath, string relativePath);
     void ExportExtraAsset(ExtraAsset asset, string destinationPath);
 
     void ProvideMissingTexture(string themeDraftPath, MissingTexture texture, string sourceImagePath);

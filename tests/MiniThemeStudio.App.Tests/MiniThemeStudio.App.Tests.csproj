@@ -19,6 +19,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- the compiled LuaJIT palettes the Infrastructure tests use, shared instead of copied -->
+    <Compile Include="..\MiniThemeStudio.Infrastructure.Tests\Themes\PaletteFixtures.cs" Link="TestDoubles\PaletteFixtures.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\MiniThemeStudio.App\MiniThemeStudio.App.csproj" />
   </ItemGroup>
 

@@ -41,6 +41,29 @@ public class MiniFontCompleterTests
     }
 
     [Fact]
+    public void APlaceholderFontIsFilledIntoASquareishTexture()
+    {
+        // the NES and Famicom title.fnt: a space on a 1 x 1 texture
+        using var pixel = new SKBitmap(1, 1);
+        using var png = SKImage.FromBitmap(pixel).Encode(SKEncodedImageFormat.Png, 100);
+        var placeholder = new MiniFont(
+            formatType: 1,
+            info: new FontInfo("Title", 47, false, false, true, false, 0, 100, 0, 0, 0, 0, 0, 0, 0, 0),
+            common: new FontCommon(47, 40, 1, 1, 1, false, 0, 0, 0, 0),
+            pageNames: ["title.png"],
+            glyphs: [new FontGlyph(' ', 0, 0, 2, 2, 0, 0, 12, 0, 15)],
+            kerningPairs: [],
+            texturePngBytes: png.ToArray());
+
+        var completed = MiniFontCompleter.Complete(placeholder, ExtraScripts.None);
+
+        Assert.True(completed.HasGlyph('A'));
+        Assert.True(completed.Common.ScaleH <= completed.Common.ScaleW);
+        Assert.Equal(0, completed.Common.ScaleW & (completed.Common.ScaleW - 1));
+        Assert.Equal(0, completed.Common.ScaleH & (completed.Common.ScaleH - 1));
+    }
+
+    [Fact]
     public void EveryCharsetCharacterIsThereWhenAllScriptsAreAsked()
     {
         var completed = MiniFontCompleter.Complete(SmallFont(), AllScripts);

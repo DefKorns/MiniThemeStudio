@@ -244,24 +244,23 @@ public static class MiniFontCompleter
             .OrderBy(p => p.Glyph.Id)
             .ToList();
 
-        var atlasWidth = Math.Max(font.Common.ScaleW, 64);
-        var placed = new List<(FontGlyph Glyph, SKBitmap? Bitmap, SKRectI Source)>();
-        int x = Padding, y = Padding, rowHeight = 0;
-        foreach (var piece in pieces)
+        // the narrowest power of two that keeps the atlas no taller than it is wide: a font that started from a
+        // placeholder 1 x 1 texture would otherwise become a strip thousands of pixels tall
+        var atlasWidth = NextPowerOfTwo(Math.Max(font.Common.ScaleW, 64));
+        List<(FontGlyph Glyph, SKBitmap? Bitmap, SKRectI Source)> placed;
+        int used;
+        while (true)
         {
-            if (x + piece.Glyph.Width + Padding > atlasWidth)
+            (placed, used) = Shelve(pieces, atlasWidth);
+            if (used <= atlasWidth || atlasWidth >= 4096)
             {
-                x = Padding;
-                y += rowHeight + Padding;
-                rowHeight = 0;
+                break;
             }
 
-            placed.Add((piece.Glyph with { X = x, Y = y, Page = 0 }, piece.Bitmap, piece.Source));
-            x += piece.Glyph.Width + Padding;
-            rowHeight = Math.Max(rowHeight, piece.Glyph.Height);
+            atlasWidth *= 2;
         }
 
-        var atlasHeight = NextPowerOfTwo(y + rowHeight + Padding);
+        var atlasHeight = NextPowerOfTwo(used);
         using var surface = SKSurface.Create(new SKImageInfo(atlasWidth, atlasHeight, SKColorType.Rgba8888, SKAlphaType.Premul));
         var canvas = surface.Canvas;
         canvas.Clear(SKColors.Transparent);
@@ -341,6 +340,29 @@ public static class MiniFontCompleter
     {
         values.Sort();
         return values.Count % 2 == 1 ? values[values.Count / 2] : (values[values.Count / 2 - 1] + values[values.Count / 2]) / 2;
+    }
+
+    // rows of glyphs across the width; returns where they went and the height they take
+    private static (List<(FontGlyph Glyph, SKBitmap? Bitmap, SKRectI Source)> Placed, int Height) Shelve(
+        List<(FontGlyph Glyph, SKBitmap? Bitmap, SKRectI Source)> pieces, int width)
+    {
+        var placed = new List<(FontGlyph Glyph, SKBitmap? Bitmap, SKRectI Source)>();
+        int x = Padding, y = Padding, rowHeight = 0;
+        foreach (var piece in pieces)
+        {
+            if (x + piece.Glyph.Width + Padding > width)
+            {
+                x = Padding;
+                y += rowHeight + Padding;
+                rowHeight = 0;
+            }
+
+            placed.Add((piece.Glyph with { X = x, Y = y, Page = 0 }, piece.Bitmap, piece.Source));
+            x += piece.Glyph.Width + Padding;
+            rowHeight = Math.Max(rowHeight, piece.Glyph.Height);
+        }
+
+        return (placed, y + rowHeight + Padding);
     }
 
     private static int NextPowerOfTwo(int value)

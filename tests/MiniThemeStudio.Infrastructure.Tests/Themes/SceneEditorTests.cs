@@ -83,6 +83,41 @@ public sealed class SceneEditorTests : IDisposable
     }
 
     [Fact]
+    public void ASpriteWithNoPictureIsAFillOfItsColour()
+    {
+        string scenePath = Path.Combine(_basePath, "resources", "prefab", "fill.scn");
+        File.WriteAllText(scenePath, """
+            {"rootWorldNode":{"name":"root","components":[],"children":[
+              {"name":"base","components":[{"type":"SpriteComponent","spriteId":"","color":[0,0,0.5,1],"size":[640,72]}],"children":[]}
+            ]}}
+            """);
+
+        SceneNode fill = new SceneEditor().Load(_themePath, _basePath, "/prefab/fill.scn").Find("0")!;
+
+        Assert.Equal(new SceneFill(0, 0, 0.5), fill.Visual!.Fill);
+        Assert.Equal(640, fill.Visual.Width);
+    }
+
+    [Fact]
+    public void ALabelIsPivotedOnItsAnchorsAndKeepsItsAlignment()
+    {
+        string scenePath = Path.Combine(_basePath, "resources", "prefab", "title.scn");
+        File.WriteAllText(scenePath, """
+            {"rootWorldNode":{"name":"root","components":[],"children":[
+              {"name":"title","components":[{"type":"LabelComponent","text":"Display","horizontalAnchor":"Left","verticalAnchor":"Center","alignment":"Left"}],"children":[]},
+              {"name":"version","components":[{"type":"LabelComponent","text":"V","horizontalAnchor":"Right","verticalAnchor":"Bottom","alignment":"Right"}],"children":[]}
+            ]}}
+            """);
+
+        SceneDocument scene = new SceneEditor().Load(_themePath, _basePath, "/prefab/title.scn");
+
+        Assert.Equal((0d, 0.5d), (scene.Find("0")!.Visual!.PivotX, scene.Find("0")!.Visual!.PivotY));
+        Assert.Equal("Left", scene.Find("0")!.Visual!.Alignment);
+        Assert.Equal((1d, 1d), (scene.Find("1")!.Visual!.PivotX, scene.Find("1")!.Visual!.PivotY));
+        Assert.Equal("Right", scene.Find("1")!.Visual!.Alignment);
+    }
+
+    [Fact]
     public void EditWritesADraftCopyAndKeepsUnknownFields()
     {
         var editor = new SceneEditor();

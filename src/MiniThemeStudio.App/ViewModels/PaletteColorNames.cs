@@ -45,6 +45,28 @@ public static class PaletteColorNames
     public static string Title(string colorName) =>
         Titles.TryGetValue(colorName, out string? title) ? title : Humanize(colorName);
 
+    // the screens of the console, by the name of the branch of the scene that draws each
+    private static readonly Dictionary<string, string> Screens = new()
+    {
+        ["homemenu"] = "Home",
+        ["option_display"] = "Options: Display",
+        ["option_languages"] = "Options: Languages",
+        ["option_languages_first"] = "First start: Languages",
+        ["option_settings"] = "Options: Settings",
+        ["resumemenu"] = "Suspend points",
+        ["manual"] = "Manuals",
+        ["copyright"] = "Legal notices",
+        ["sys_autoplay"] = "Demo",
+        ["unlock_event"] = "Unlocked games",
+        ["sys_popup_warning"] = "Warning pop-up",
+        ["sys_popup_unlock"] = "Unlock pop-up",
+        ["sys_dialog"] = "Dialog",
+        ["err_dialog"] = "Error dialog",
+    };
+
+    public static string Screen(string branchName) =>
+        Screens.TryGetValue(branchName, out string? title) ? title : Humanize(branchName);
+
     public static string Region(string region) =>
         Regions.TryGetValue(region, out string? name) ? name : region;
 
@@ -52,7 +74,7 @@ public static class PaletteColorNames
     private static string Humanize(string colorName)
     {
         string words = colorName.Replace('_', ' ').Trim();
-        foreach (string prefix in new[] { "font ", "bg " })
+        foreach (string prefix in new[] { "font ", "bg ", "sys " })
         {
             if (words.StartsWith(prefix, StringComparison.Ordinal))
             {

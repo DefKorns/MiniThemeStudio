@@ -360,7 +360,7 @@ public sealed class SceneEditor : ISceneEditor
             }
 
             (double First, double Second)? size = Pair(component["size"]);
-            (double First, double Second)? pivot = Pair(component["pivot"]);
+            (double First, double Second)? pivot = Pair(component["pivot"]) ?? LabelPivot(kind.Value, component);
             (double First, double Second)? repeat = Pair(component["uvRepeat"]);
             var color = component["color"] as JsonArray;
             return new SceneVisual(
@@ -377,10 +377,27 @@ public sealed class SceneEditor : ISceneEditor
                 Bool(component["hFlip"]) ?? false,
                 color is { Count: 4 } ? Double(color[3]) ?? 1 : 1,
                 Pair(component["uvOffset"])?.First ?? 0,
-                String(component["properties"]?["colorName"]));
+                String(component["properties"]?["colorName"]),
+                kind.Value == SceneVisualKind.Sprite && string.IsNullOrEmpty(String(component["spriteId"])) && color is { Count: 4 }
+                    ? new SceneFill(Double(color[0]) ?? 0, Double(color[1]) ?? 0, Double(color[2]) ?? 0)
+                    : null,
+                kind.Value == SceneVisualKind.Label ? String(component["alignment"]) : null);
         }
 
         return null;
+    }
+
+    // where a label's node sits in its text, as fractions from the top left: "Left" is 0, "Center" 0.5, "Right" 1
+    private static (double First, double Second)? LabelPivot(SceneVisualKind kind, JsonObject component)
+    {
+        if (kind != SceneVisualKind.Label || String(component["horizontalAnchor"]) is not { } horizontal || String(component["verticalAnchor"]) is not { } vertical)
+        {
+            return null;
+        }
+
+        double x = horizontal switch { "Left" => 0, "Right" => 1, _ => 0.5 };
+        double y = vertical switch { "Top" => 0, "Bottom" => 1, _ => 0.5 };
+        return (x, y);
     }
 
     private static JsonObject? VisualComponent(JsonObject node)

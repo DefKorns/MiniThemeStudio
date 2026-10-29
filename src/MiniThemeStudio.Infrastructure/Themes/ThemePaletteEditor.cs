@@ -87,12 +87,13 @@ public sealed class ThemePaletteEditor : IThemePaletteEditor
 
         var layer = new ThemeLayer(themeDraftPath, baseUiPath);
         var usages = new List<PaletteColorUsage>();
+        IReadOnlyDictionary<string, string> strings = ReadStrings(layer);
         foreach (string scene in RelativePaths(layer, "", "*.scn"))
         {
             (string? filePath, bool _) = Resolve(layer, scene);
             if (JsonNode.Parse(File.ReadAllText(filePath))?["rootWorldNode"] is JsonObject root)
             {
-                CollectUsages(root, "", scene, usages);
+                CollectUsages(root, "", scene, strings, usages);
             }
         }
 
@@ -177,7 +178,56 @@ public sealed class ThemePaletteEditor : IThemePaletteEditor
             : throw new ArgumentException($"Expected a path inside {ResourcesFolder}/: {relativePath}", nameof(relativePath));
     }
 
-    private static void CollectUsages(JsonObject node, string parentPath, string scene, List<PaletteColorUsage> usages)
+    // the English strings of the Base ("@sys_resume_Title" is "Suspend Point List"), or the first language it has
+    private static Dictionary<string, string> ReadStrings(ThemeLayer layer)
+    {
+        var strings = new Dictionary<string, string>(StringComparer.Ordinal);
+        IReadOnlyList<LayeredFile> files = layer.ListFiles("strings", "strings.*");
+        LayeredFile? file = files.FirstOrDefault(candidate => candidate.ResourcePath.Contains("/usa_en/", StringComparison.OrdinalIgnoreCase))
+            ?? files.FirstOrDefault(candidate => candidate.ResourcePath.Contains("_en/", StringComparison.OrdinalIgnoreCase))
+            ?? (files.Count > 0 ? files[0] : null);
+        if (file is null)
+        {
+            return strings;
+        }
+
+        try
+        {
+            if (JsonNode.Parse(File.ReadAllText(file.FilePath))?["strings"] is JsonObject entries)
+            {
+                foreach ((string key, JsonNode? value) in entries)
+                {
+                    if (value is JsonValue text && text.TryGetValue(out string? words))
+                    {
+                        strings[key] = words;
+                    }
+                }
+            }
+        }
+        catch (Exception exception) when (exception is System.Text.Json.JsonException or IOException)
+        {
+        }
+
+        return strings;
+    }
+
+    // a key names a string; text that is no key (the "GameTitle" of a sample label) is shown as it is
+    private static string? ReadableText(string? text, IReadOnlyDictionary<string, string> strings)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        if (text.StartsWith('@'))
+        {
+            return strings.TryGetValue(text[1..], out string? words) ? words : null;
+        }
+
+        return text;
+    }
+
+    private static void CollectUsages(JsonObject node, string parentPath, string scene, IReadOnlyDictionary<string, string> strings, List<PaletteColorUsage> usages)
     {
         string path = $"{parentPath}/{node["name"]?.GetValue<string>()}";
         foreach (JsonObject component in node["components"]?.AsArray().OfType<JsonObject>() ?? [])
@@ -185,13 +235,13 @@ public sealed class ThemePaletteEditor : IThemePaletteEditor
             if (component["properties"]?["colorName"]?.GetValue<string>() is { Length: > 0 } colorName)
             {
                 string? text = component["text"]?.GetValue<string>();
-                usages.Add(new PaletteColorUsage(colorName, scene, path, string.IsNullOrEmpty(text) ? null : text));
+                usages.Add(new PaletteColorUsage(colorName, scene, path, string.IsNullOrEmpty(text) ? null : text, ReadableText(text, strings)));
             }
         }
 
         foreach (JsonObject child in node["children"]?.AsArray().OfType<JsonObject>() ?? [])
         {
-            CollectUsages(child, path, scene, usages);
+            CollectUsages(child, path, scene, strings, usages);
         }
     }
 }

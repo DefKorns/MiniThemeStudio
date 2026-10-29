@@ -16,7 +16,9 @@ public enum SceneVisualKind
 
 // what a node draws: a whole texture (TextureComponent), an atlas sprite (SpriteComponent) or text (LabelComponent);
 // OffsetX slides the texture inside the node, in widths of the node (uvOffset, which scrolling backgrounds animate);
-// ColorName is the palette colour a label is drawn with
+// ColorName is the palette colour a label is drawn with, and Alignment how its lines sit in it (Left, Center or Right;
+// a label's pivot comes from its anchors, so a title anchored to the left starts at the node); Fill is the colour of a sprite with no picture, which the
+// console draws as a plain rectangle of the node's size (the black of a balloon)
 public sealed record SceneVisual(
     SceneVisualKind Kind,
     string? TextureId,
@@ -31,10 +33,15 @@ public sealed record SceneVisual(
     bool HorizontalFlip,
     double Opacity,
     double OffsetX = 0,
-    string? ColorName = null)
+    string? ColorName = null,
+    SceneFill? Fill = null,
+    string? Alignment = null)
 {
     public bool HasSize => Width > 0 && Height > 0;
 }
+
+// channels from 0 to 1
+public sealed record SceneFill(double Red, double Green, double Blue);
 
 // Alpha is the node's own opacity, which its children inherit
 public sealed record SceneNode(

@@ -88,6 +88,20 @@ public sealed class ThemePaletteEditorTests : IDisposable
     }
 
     [Fact]
+    public void UsagesCarryTheWordsTheConsoleShows()
+    {
+        Place(_baseUi, "resources/defaultscene.scn", Scene("font_home_hud", "@sys_hud_Menu"));
+        Place(_baseUi, "resources/prefab/other.scn", Scene("font_home_gametitle", "GameTitle"));
+        Place(_baseUi, "resources/strings/usa_en/strings.lng", System.Text.Encoding.UTF8.GetBytes("""{"strings":{"sys_hud_Menu":"Menu"}}"""));
+        Place(_baseUi, "resources/strings/eur_de/strings.lng", System.Text.Encoding.UTF8.GetBytes("""{"strings":{"sys_hud_Menu":"Menue"}}"""));
+
+        IReadOnlyList<PaletteColorUsage> usages = _editor.GetUsages(_draft, _baseUi);
+
+        Assert.Equal("Menu", usages.Single(usage => usage.ColorName == "font_home_hud").Text);
+        Assert.Equal("GameTitle", usages.Single(usage => usage.ColorName == "font_home_gametitle").Text);
+    }
+
+    [Fact]
     public void AColourNamedInAScriptCountsAsUsed()
     {
         Place(_baseUi, "resources/scripts/home.lua", System.Text.Encoding.UTF8.GetBytes("LJ...bg_base..."));

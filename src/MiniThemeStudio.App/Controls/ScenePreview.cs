@@ -43,20 +43,48 @@ public sealed class ScenePreview : Control
     public static readonly StyledProperty<IReadOnlyDictionary<string, Color>?> ColorsProperty =
         AvaloniaProperty.Register<ScenePreview, IReadOnlyDictionary<string, Color>?>(nameof(Colors));
 
-    // the labels drawn with this palette colour get a frame
-    public static readonly StyledProperty<string?> HighlightColorNameProperty =
-        AvaloniaProperty.Register<ScenePreview, string?>(nameof(HighlightColorName));
+    // the view is framed on the labels drawn with this palette colour: on the whole group of nodes when it is small
+    // (a card, a button, an item with its picture), else on a margin around the text, so a balloon or a bar the text
+    // sits on shows only in part. It shows no screen around it, and is as tall as its width needs
+    public static readonly StyledProperty<string?> FocusColorNameProperty =
+        AvaloniaProperty.Register<ScenePreview, string?>(nameof(FocusColorName));
+
+    // a text whose middle is over a small icon is moved to the right of it, as the console's scripts lay out a button and its
+    // name (the scene keeps both at the same place)
+    public static readonly StyledProperty<bool> TextBesideIconsProperty =
+        AvaloniaProperty.Register<ScenePreview, bool>(nameof(TextBesideIcons));
+
+    // the words of the "@key" labels of the scene, as the console shows them
+    public static readonly StyledProperty<IReadOnlyDictionary<string, string>?> StringsProperty =
+        AvaloniaProperty.Register<ScenePreview, IReadOnlyDictionary<string, string>?>(nameof(Strings));
+
+    // how much of itself a hidden node keeps when ShowHidden draws it
+    public static readonly StyledProperty<double> HiddenOpacityProperty =
+        AvaloniaProperty.Register<ScenePreview, double>(nameof(HiddenOpacity), 0.35);
 
     // executed with a SceneNodeMove when a dragged node is dropped; nodes cannot be dragged without it
-    // the control is as tall as its width needs for the 16:9 screen, so the scene fills it with no empty sides
-    public static readonly StyledProperty<bool> FitWidthProperty =
-        AvaloniaProperty.Register<ScenePreview, bool>(nameof(FitWidth));
-
     public static readonly StyledProperty<ICommand?> MoveCommandProperty =
         AvaloniaProperty.Register<ScenePreview, ICommand?>(nameof(MoveCommand));
 
     // screen pixels the pointer must travel before a press becomes a drag
     private const double DragThreshold = 3;
+
+    // screen units: the margin around the framed text (wide enough for the icon beside a title), and how far the
+    // framed part is enlarged
+    private const double FocusMarginX = 64;
+    private const double FocusMarginY = 24;
+    private const double MaxFocusScale = 2;
+
+    // a group of nodes no bigger than this is shown whole, with a small margin; the heights the control takes
+    private const double MaxWholeGroupWidth = 520;
+    private const double MaxWholeGroupHeight = 340;
+    private const double WholeGroupMargin = 8;
+    private const double MinFocusHeight = 96;
+    private const double MaxFocusHeight = 280;
+
+    // screen units: the biggest picture that is an icon beside a text, and the space between the icon and the text
+    private const double MaxIconSize = 96;
+    private const double IconGap = 8;
 
     private static readonly IBrush ScreenBrush = new SolidColorBrush(Color.FromRgb(16, 16, 20));
     private static readonly IBrush OutsideBrush = new SolidColorBrush(Color.FromArgb(150, 0, 0, 0));
@@ -64,7 +92,6 @@ public sealed class ScenePreview : Control
     private static readonly IPen MissingPen = new Pen(new SolidColorBrush(Color.FromArgb(160, 255, 80, 80)), 1, DashStyle.Dash);
     private static readonly IPen SelectionPen = new Pen(new SolidColorBrush(Color.FromRgb(255, 170, 0)), 2);
     private static readonly IPen GroupPen = new Pen(new SolidColorBrush(Color.FromArgb(200, 255, 170, 0)), 1, DashStyle.Dash);
-    private static readonly IPen ColorPen = new Pen(new SolidColorBrush(Color.FromRgb(255, 170, 0)), 2, DashStyle.Dash);
     private static readonly IPen HoverPen = new Pen(new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)), 1);
     private static readonly Typeface LabelTypeface = new(FontFamily.Default, FontStyle.Normal, FontWeight.SemiBold);
 
@@ -77,8 +104,7 @@ public sealed class ScenePreview : Control
 
     static ScenePreview()
     {
-        AffectsMeasure<ScenePreview>(FitWidthProperty);
-        AffectsRender<ScenePreview>(RootProperty, SelectedPathProperty, BranchPathProperty, ShowHiddenProperty, ImagesProperty, ColorsProperty, HighlightColorNameProperty);
+        AffectsRender<ScenePreview>(RootProperty, SelectedPathProperty, BranchPathProperty, ShowHiddenProperty, ImagesProperty, ColorsProperty, StringsProperty, HiddenOpacityProperty, FocusColorNameProperty, TextBesideIconsProperty);
     }
 
     public SceneNode? Root
@@ -117,16 +143,28 @@ public sealed class ScenePreview : Control
         set => SetValue(ColorsProperty, value);
     }
 
-    public string? HighlightColorName
+    public IReadOnlyDictionary<string, string>? Strings
     {
-        get => GetValue(HighlightColorNameProperty);
-        set => SetValue(HighlightColorNameProperty, value);
+        get => GetValue(StringsProperty);
+        set => SetValue(StringsProperty, value);
     }
 
-    public bool FitWidth
+    public double HiddenOpacity
     {
-        get => GetValue(FitWidthProperty);
-        set => SetValue(FitWidthProperty, value);
+        get => GetValue(HiddenOpacityProperty);
+        set => SetValue(HiddenOpacityProperty, value);
+    }
+
+    public bool TextBesideIcons
+    {
+        get => GetValue(TextBesideIconsProperty);
+        set => SetValue(TextBesideIconsProperty, value);
+    }
+
+    public string? FocusColorName
+    {
+        get => GetValue(FocusColorNameProperty);
+        set => SetValue(FocusColorNameProperty, value);
     }
 
     public ICommand? MoveCommand
@@ -135,10 +173,15 @@ public sealed class ScenePreview : Control
         set => SetValue(MoveCommandProperty, value);
     }
 
-    protected override Size MeasureOverride(Size availableSize) =>
-        FitWidth && double.IsFinite(availableSize.Width)
-            ? new Size(availableSize.Width, availableSize.Width * ScreenHeight / ScreenWidth)
-            : base.MeasureOverride(availableSize);
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        if (FocusColorName is { Length: > 0 } focus && double.IsFinite(availableSize.Width) && FocusBox(focus) is { } box)
+        {
+            return new Size(availableSize.Width, Math.Clamp(availableSize.Width * box.Height / box.Width, MinFocusHeight, MaxFocusHeight));
+        }
+
+        return base.MeasureOverride(availableSize);
+    }
 
     public override void Render(DrawingContext context)
     {
@@ -150,36 +193,46 @@ public sealed class ScenePreview : Control
 
         _screen = new Rect((Bounds.Width - ScreenWidth * scale) / 2, (Bounds.Height - ScreenHeight * scale) / 2, ScreenWidth * scale, ScreenHeight * scale);
         _screenMatrix = new Matrix(scale, 0, 0, -scale, _screen.Center.X, _screen.Center.Y);
+        bool framed = false;
+        if (FocusColorName is { Length: > 0 } focus && FocusView(focus, Bounds.Size) is { } focused)
+        {
+            (_screenMatrix, _screen) = focused;
+            framed = true;
+        }
+
         Collect(_screenMatrix);
+        if (TextBesideIcons)
+        {
+            PlaceTextBesideIcons(_screenMatrix.M11);
+        }
 
         using DrawingContext.PushedState clip = context.PushClip(new Rect(Bounds.Size));
-        context.FillRectangle(ScreenBrush, _screen);
+        if (!framed)
+        {
+            context.FillRectangle(ScreenBrush, _screen);
+        }
+
         using (context.PushRenderOptions(new RenderOptions { BitmapInterpolationMode = BitmapInterpolationMode.None }))
         {
             foreach (DrawItem item in _items)
             {
-                Draw(context, item);
+                Draw(context, item, HiddenOpacity);
             }
         }
 
-        // dim what lies outside the console screen
-        context.FillRectangle(OutsideBrush, new Rect(0, 0, Bounds.Width, _screen.Top));
-        context.FillRectangle(OutsideBrush, new Rect(0, _screen.Bottom, Bounds.Width, Bounds.Height - _screen.Bottom));
-        context.FillRectangle(OutsideBrush, new Rect(0, _screen.Top, _screen.Left, _screen.Height));
-        context.FillRectangle(OutsideBrush, new Rect(_screen.Right, _screen.Top, Bounds.Width - _screen.Right, _screen.Height));
-        context.DrawRectangle(null, ScreenPen, _screen);
+        if (!framed)
+        {
+            // dim what lies outside the console screen
+            context.FillRectangle(OutsideBrush, new Rect(0, 0, Bounds.Width, _screen.Top));
+            context.FillRectangle(OutsideBrush, new Rect(0, _screen.Bottom, Bounds.Width, Bounds.Height - _screen.Bottom));
+            context.FillRectangle(OutsideBrush, new Rect(0, _screen.Top, _screen.Left, _screen.Height));
+            context.FillRectangle(OutsideBrush, new Rect(_screen.Right, _screen.Top, Bounds.Width - _screen.Right, _screen.Height));
+            context.DrawRectangle(null, ScreenPen, _screen);
+        }
 
         if (_hoveredPath != SelectedPath && _items.FirstOrDefault(item => item.Node.Path == _hoveredPath) is { } hovered)
         {
             DrawOutline(context, Corners(hovered), HoverPen);
-        }
-
-        if (HighlightColorName is { Length: > 0 } highlighted)
-        {
-            foreach (DrawItem item in _items.Where(item => item.Visual.ColorName == highlighted))
-            {
-                DrawOutline(context, Corners(item), ColorPen);
-            }
         }
 
         DrawSelection(context);
@@ -289,6 +342,92 @@ public sealed class ScenePreview : Control
         InvalidateVisual();
     }
 
+    // the part of the screen, in screen units, that shows the labels drawn with the colour; null when there are none
+    private Rect? FocusBox(string colorName)
+    {
+        Collect(new Matrix(1, 0, 0, -1, ScreenWidth / 2, ScreenHeight / 2));
+        if (TextBesideIcons)
+        {
+            PlaceTextBesideIcons(1);
+        }
+
+        Rect? labels = null;
+        Rect? everything = null;
+        foreach (DrawItem item in _items)
+        {
+            Rect box = BoxOf(item);
+            everything = everything is { } all ? all.Union(box) : box;
+            if (item.Visual.ColorName == colorName)
+            {
+                labels = labels is { } known ? known.Union(box) : box;
+            }
+        }
+
+        if (labels is not { } found || everything is not { } whole)
+        {
+            return null;
+        }
+
+        return whole.Width <= MaxWholeGroupWidth && whole.Height <= MaxWholeGroupHeight
+            ? whole.Inflate(WholeGroupMargin)
+            : new Rect(found.X - FocusMarginX, found.Y - FocusMarginY, found.Width + 2 * FocusMarginX, found.Height + 2 * FocusMarginY);
+    }
+
+    // the matrix and the screen rectangle that frame the labels drawn with the colour, or null when there are none
+    private (Matrix Matrix, Rect Screen)? FocusView(string colorName, Size bounds)
+    {
+        if (FocusBox(colorName) is not { } framed)
+        {
+            return null;
+        }
+
+        double scale = Math.Min(Math.Min(bounds.Width / framed.Width, bounds.Height / framed.Height), MaxFocusScale);
+        if (scale <= 0 || double.IsInfinity(scale))
+        {
+            return null;
+        }
+
+        var matrix = new Matrix(scale, 0, 0, -scale, bounds.Width / 2 + scale * (ScreenWidth / 2 - framed.Center.X), bounds.Height / 2 + scale * (ScreenHeight / 2 - framed.Center.Y));
+        var screen = new Rect(bounds.Width / 2 - scale * framed.Center.X, bounds.Height / 2 - scale * framed.Center.Y, ScreenWidth * scale, ScreenHeight * scale);
+        return (matrix, screen);
+    }
+
+    // moves each text whose middle is over a small icon to the right of the icon; the pieces of a frame, which only touch
+    // the text, stay where they are; scale is device pixels per screen unit
+    private void PlaceTextBesideIcons(double scale)
+    {
+        for (int index = 0; index < _items.Count; index++)
+        {
+            DrawItem label = _items[index];
+            if (label.Text is null)
+            {
+                continue;
+            }
+
+            Rect box = BoxOf(label);
+            double right = double.NegativeInfinity;
+            foreach (DrawItem icon in _items.Where(item => item.Text is null))
+            {
+                Rect iconBox = BoxOf(icon);
+                if (iconBox.Width <= MaxIconSize * scale && iconBox.Height <= MaxIconSize * scale && iconBox.Contains(box.Center))
+                {
+                    right = Math.Max(right, iconBox.Right);
+                }
+            }
+
+            if (!double.IsNegativeInfinity(right))
+            {
+                _items[index] = label with { Transform = label.Transform * Matrix.CreateTranslation(right + IconGap * scale - box.Left, 0) };
+            }
+        }
+    }
+
+    private static Rect BoxOf(DrawItem item)
+    {
+        Point[] corners = Corners(item);
+        return new Rect(new Point(corners.Min(point => point.X), corners.Min(point => point.Y)), new Point(corners.Max(point => point.X), corners.Max(point => point.Y)));
+    }
+
     private void Collect(Matrix screenMatrix)
     {
         _items = [];
@@ -340,11 +479,16 @@ public sealed class ScenePreview : Control
             _items.Add(item);
         }
 
-        foreach (SceneNode? child in node.Children.OrderBy(child => child.ZIndex))
+        // at the same depth a text is drawn after the pictures (the balloon a text sits on can come after it in the file)
+        foreach (SceneNode? child in node.Children.OrderBy(child => child.ZIndex).ThenBy(child => child.Visual?.Kind == SceneVisualKind.Label ? 1 : 0))
         {
             Collect(child, world, hidden, alpha);
         }
     }
+
+    // "@sys_resume_Title" is "Suspend Point List" when the strings are known
+    private string? ReadableText(string? text) =>
+        text is { Length: > 1 } && text[0] == '@' && Strings?.TryGetValue(text[1..], out string? words) == true ? words : text;
 
     private IBrush LabelBrush(SceneVisual visual) =>
         visual.ColorName is { } name && Colors?.TryGetValue(name, out Color color) == true ? new SolidColorBrush(color) : Brushes.White;
@@ -356,12 +500,14 @@ public sealed class ScenePreview : Control
         double width, height;
         if (visual.Kind == SceneVisualKind.Label)
         {
-            if (string.IsNullOrEmpty(visual.Text))
+            string? words = ReadableText(visual.Text);
+            if (string.IsNullOrEmpty(words))
             {
                 return null;
             }
 
-            text = new FormattedText(visual.Text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, LabelTypeface, 22, LabelBrush(visual));
+            text = new FormattedText(words, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, LabelTypeface, 22, LabelBrush(visual));
+            text.TextAlignment = visual.Alignment switch { "Left" => TextAlignment.Left, "Right" => TextAlignment.Right, _ => TextAlignment.Center };
             (width, height) = (text.Width, text.Height);
         }
         else
@@ -393,10 +539,10 @@ public sealed class ScenePreview : Control
         return new DrawItem(node, visual, imageToNode * world, new Size(width, height), image, text, hidden, alpha);
     }
 
-    private static void Draw(DrawingContext context, DrawItem item)
+    private static void Draw(DrawingContext context, DrawItem item, double hiddenOpacity)
     {
         using DrawingContext.PushedState transform = context.PushTransform(item.Transform);
-        using DrawingContext.PushedState opacity = context.PushOpacity(Math.Clamp(item.Visual.Opacity, 0, 1) * item.Alpha * (item.Hidden ? 0.35 : 1));
+        using DrawingContext.PushedState opacity = context.PushOpacity(Math.Clamp(item.Visual.Opacity, 0, 1) * item.Alpha * (item.Hidden ? hiddenOpacity : 1));
         if (item.Text is { } text)
         {
             context.DrawText(text, default);
@@ -405,7 +551,17 @@ public sealed class ScenePreview : Control
 
         if (item.Image is not { } image)
         {
-            context.DrawRectangle(null, MissingPen, new Rect(item.Size));
+            // a sprite with no picture is a plain rectangle of its colour
+            if (item.Visual.Fill is { } fill)
+            {
+                var color = Color.FromRgb((byte)Math.Round(Math.Clamp(fill.Red, 0, 1) * 255), (byte)Math.Round(Math.Clamp(fill.Green, 0, 1) * 255), (byte)Math.Round(Math.Clamp(fill.Blue, 0, 1) * 255));
+                context.DrawRectangle(new SolidColorBrush(color), null, new Rect(item.Size));
+            }
+            else
+            {
+                context.DrawRectangle(null, MissingPen, new Rect(item.Size));
+            }
+
             return;
         }
 

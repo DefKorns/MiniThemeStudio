@@ -37,6 +37,7 @@ public sealed class ColorsViewModelTests : IDisposable
         ColorsViewModel colors = _app.Window.ColorsTab;
 
         Assert.Equal(["jpn", "usa"], colors.Palettes.Select(palette => palette.Region));
+        Assert.Equal("A change applies to Japan, USA.", colors.RegionsText);
         PaletteColorRow hud = Assert.Single(colors.PaletteColors);
         Assert.Equal("font_home_hud", hud.Name);
         Assert.Equal("#FFFFFF", hud.Hex);

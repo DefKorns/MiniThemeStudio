@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MiniThemeStudio.App.Errors;
 using MiniThemeStudio.App.Controls;
+using MiniThemeStudio.Core.Firmware;
 using MiniThemeStudio.Core.Scenes;
 using MiniThemeStudio.Core.Themes;
 
@@ -48,6 +49,9 @@ public sealed partial class ColorsViewModel : ViewModelBase
 
     [ObservableProperty]
     private ThemePalette? selectedPalette;
+
+    [ObservableProperty]
+    private string regionsText = "";
 
     [ObservableProperty]
     private IReadOnlyList<PaletteColorRow> paletteColors = [];
@@ -239,8 +243,12 @@ public sealed partial class ColorsViewModel : ViewModelBase
         _allColorUsages = _paletteEditor.GetUsages(_session.Draft.DraftPath, _session.BaseUiPath);
         UpdateModifiedNames();
         Palettes = _paletteEditor.GetPalettes(_session.Draft.DraftPath, _session.BaseUiPath);
-        SelectedPalette = Palettes.FirstOrDefault(p => p.RelativePath.Equals(previous, StringComparison.OrdinalIgnoreCase))
+        // one list is shown, with the values of the Base's own region; a change is written to every region
+        string? ownRegion = _session.BaseDefinition is { } definition ? ConsoleFamilies.PaletteRegion(definition) : null;
+        SelectedPalette = Palettes.FirstOrDefault(p => p.Region == ownRegion)
+            ?? Palettes.FirstOrDefault(p => p.RelativePath.Equals(previous, StringComparison.OrdinalIgnoreCase))
             ?? (Palettes.Count > 0 ? Palettes[0] : null);
+        RegionsText = Palettes.Count == 0 ? "" : "A change applies to " + string.Join(", ", Palettes.Select(p => PaletteColorNames.Region(p.Region))) + ".";
         LoadPreviewScene();
     }
 

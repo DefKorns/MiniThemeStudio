@@ -39,6 +39,19 @@ public static class ConsoleFamilies
         _ => throw new ArgumentOutOfRangeException(nameof(family)),
     };
 
+    // the palette (colors_<region>.lua) a Base's own UI uses: the region of a SNES Base, "nes" or "hvc" for the others
+    public static string PaletteRegion(FirmwareDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+
+        return Of(definition) switch
+        {
+            ConsoleFamily.Snes => definition.Region.ToLowerInvariant(),
+            ConsoleFamily.NesFamicom => definition.Console.Equals("nes", StringComparison.OrdinalIgnoreCase) ? "nes" : "hvc",
+            _ => "hvc",
+        };
+    }
+
     public static string ShortLabel(FirmwareDefinition definition)
     {
         ArgumentNullException.ThrowIfNull(definition);

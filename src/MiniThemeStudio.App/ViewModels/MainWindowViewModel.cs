@@ -315,6 +315,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _currentBase = _baseFirmwareManager.GetInstalledBases()
             .FirstOrDefault(info => info.Status == BaseInstallStatus.Valid && PathsEqual(info.LocalPath, _session.BaseUiPath))?
             .Definition;
+        _session.BaseDefinition = _currentBase;
         CurrentBaseLabel = _currentBase is null ? "No Base" : ConsoleFamilies.ShortLabel(_currentBase);
         _session.Reload();
         ValidationTab.Run();

@@ -1,5 +1,6 @@
 using System;
 using CommunityToolkit.Mvvm.ComponentModel;
+using MiniThemeStudio.Core.Firmware;
 using MiniThemeStudio.Core.Themes;
 
 namespace MiniThemeStudio.App.ViewModels;
@@ -13,6 +14,10 @@ public sealed partial class ThemeSession(IThemeResourceIndexer resourceIndexer) 
 
     [ObservableProperty]
     private string? baseUiPath;
+
+    // the firmware definition of the Base, when it is one of the installed ones
+    [ObservableProperty]
+    private FirmwareDefinition? baseDefinition;
 
     [ObservableProperty]
     private string status = "Ready";

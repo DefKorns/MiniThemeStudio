@@ -28,3 +28,6 @@ repos:
         language: system
         entry: dotnet format whitespace --folder --verify-no-changes --include
         types: [c#]
+        # pre-commit splits the files over parallel processes; two dotnet CLIs starting together race on the
+        # shared-memory folder .NET keeps in XDG_RUNTIME_DIR and one of them fails with ENOENT
+        require_serial: true

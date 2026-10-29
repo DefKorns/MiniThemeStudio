@@ -33,15 +33,15 @@ internal static class NesFamilyPalettes
     ];
 
     /// <summary>The palette the Base lacks, as a resource path, when the Base is a NES or a Famicom one.</summary>
-    public static string? MissingPaletteResource(ThemeLayer layer)
+    public static string? MissingPaletteResource(ThemeLayer layer, bool inBaseOnly = false)
     {
         if (layer.BaseUiPath is null || IsShonen(layer.BaseUiPath))
         {
             return null;
         }
 
-        string? nes = Find(layer, NesFileName);
-        string? famicom = Find(layer, FamicomFileName);
+        string? nes = Find(layer, NesFileName, inBaseOnly);
+        string? famicom = Find(layer, FamicomFileName, inBaseOnly);
         return (nes, famicom) switch
         {
             (not null, null) => nes.Replace(NesFileName, FamicomFileName, StringComparison.Ordinal),
@@ -50,18 +50,21 @@ internal static class NesFamilyPalettes
         };
     }
 
-    private static string? Find(ThemeLayer layer, string fileName)
+    // inBaseOnly: the Base's own palettes, whatever the theme holds
+    private static string? Find(ThemeLayer layer, string fileName, bool inBaseOnly)
     {
-        IReadOnlyList<string> found = layer.EnumerateResources("scripts", fileName);
-        return found.Count > 0 ? found[0] : null;
+        List<LayeredFile> found = layer.ListFiles("scripts", fileName)
+            .Where(file => !inBaseOnly || file.IsFromBase || file.OverridesBase)
+            .ToList();
+        return found.Count > 0 ? found[0].ResourcePath : null;
     }
 
     /// <summary>The bytes of the missing palette, made from the one the theme has.</summary>
-    public static byte[] Generate(ThemeLayer layer, string missingResourcePath)
+    public static byte[] Generate(ThemeLayer layer, string missingResourcePath, bool fromBaseOnly = false)
     {
         bool toFamicom = missingResourcePath.EndsWith(FamicomFileName, StringComparison.Ordinal);
         string sourceResource = missingResourcePath.Replace(toFamicom ? FamicomFileName : NesFileName, toFamicom ? NesFileName : FamicomFileName, StringComparison.Ordinal);
-        var palette = LuaColorPalette.Read(layer.Resolve(sourceResource) ?? throw new FileNotFoundException($"Neither the theme nor its base has {sourceResource}."));
+        var palette = LuaColorPalette.Read((fromBaseOnly ? layer.ResolveInBase(sourceResource) : layer.Resolve(sourceResource)) ?? throw new FileNotFoundException($"Neither the theme nor its base has {sourceResource}."));
         HashSet<string> present = palette.Colors.Select(color => color.Name).ToHashSet();
         foreach (PaletteColor color in (toFamicom ? FamicomColors : NesColors).Where(color => present.Contains(color.Name)))
         {

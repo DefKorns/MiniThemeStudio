@@ -15,7 +15,8 @@ using MiniThemeStudio.Core.Themes;
 
 namespace MiniThemeStudio.App.ViewModels;
 
-public sealed record PaletteColorRow(string Name, IBrush Swatch, string Hex, PaletteColor Color)
+// IsModified: some region's value of the colour is not the Base's
+public sealed record PaletteColorRow(string Name, IBrush Swatch, string Hex, PaletteColor Color, bool IsModified = false)
 {
     public string Title => PaletteColorNames.Title(Name);
 }
@@ -28,9 +29,12 @@ public sealed partial class ColorsViewModel : ViewModelBase
     private readonly IErrorHandler _errorHandler;
     private readonly ISceneEditor _sceneEditor;
     private readonly SceneImageLibrary _images;
+    private readonly PixelBackgroundViewModel _pixelBackground;
+    private HashSet<string> _modifiedNames = [];
 
-    public ColorsViewModel(ThemeSession session, IThemePaletteEditor paletteEditor, IErrorHandler errorHandler, ISceneEditor sceneEditor, SceneImageLibrary images)
+    public ColorsViewModel(ThemeSession session, IThemePaletteEditor paletteEditor, IErrorHandler errorHandler, ISceneEditor sceneEditor, SceneImageLibrary images, PixelBackgroundViewModel pixelBackground)
     {
+        _pixelBackground = pixelBackground;
         _session = session;
         _paletteEditor = paletteEditor;
         _errorHandler = errorHandler;
@@ -86,6 +90,14 @@ public sealed partial class ColorsViewModel : ViewModelBase
 
     public bool HasPreviewScenes => PreviewScenes.Count > 1;
 
+    public bool HasPreview => PreviewRoot is not null;
+
+    partial void OnPreviewRootChanged(SceneNode? value) => OnPropertyChanged(nameof(HasPreview));
+
+    public bool CanResetColor => SelectedPaletteColor is { IsModified: true };
+
+    public bool CanResetAllColors => _modifiedNames.Count > 0;
+
     partial void OnPreviewScenesChanged(IReadOnlyList<string> value) => OnPropertyChanged(nameof(HasPreviewScenes));
 
     partial void OnEditColorChanged(Color value) => UpdatePreviewColors();
@@ -132,13 +144,20 @@ public sealed partial class ColorsViewModel : ViewModelBase
         UpdatePreviewColors();
         var previous = SelectedPaletteColor?.Name;
         var used = _allColorUsages.Select(u => u.ColorName).ToHashSet();
-        PaletteColors = value?.Colors.Where(c => ShowUnusedColors || used.Contains(c.Name)).Select(ToRow).ToList() ?? [];
+        // the Wallpapers tab edits the background of the NES and Famicom UIs
+        PaletteColors = value?.Colors
+            .Where(c => ShowUnusedColors || used.Contains(c.Name))
+            .Where(c => !_pixelBackground.HasPixelBackground || !PixelBackgroundViewModel.IsBackgroundColor(c.Name))
+            .Select(c => ToRow(c) with { IsModified = _modifiedNames.Contains(c.Name) })
+            .ToList() ?? [];
         SelectedPaletteColor = PaletteColors.FirstOrDefault(row => row.Name == previous)
             ?? (PaletteColors.Count > 0 ? PaletteColors[0] : null);
     }
 
     partial void OnSelectedPaletteColorChanged(PaletteColorRow? value)
     {
+        OnPropertyChanged(nameof(CanResetColor));
+        ResetColorCommand.NotifyCanExecuteChanged();
         if (value is not null)
         {
             EditColor = ((ImmutableSolidColorBrush)value.Swatch).Color;
@@ -182,6 +201,30 @@ public sealed partial class ColorsViewModel : ViewModelBase
         }
     }
 
+    [RelayCommand(CanExecute = nameof(CanResetColor))]
+    private Task ResetColorAsync() => RestoreAsync(SelectedPaletteColor is { } row ? [row.Name] : [], SelectedPaletteColor?.Title);
+
+    [RelayCommand(CanExecute = nameof(CanResetAllColors))]
+    private Task ResetAllColorsAsync() => RestoreAsync(null, "Every colour");
+
+    private async Task RestoreAsync(IEnumerable<string>? names, string? what)
+    {
+        if (_session.Draft is not { } draft)
+        {
+            return;
+        }
+
+        if (await _errorHandler.TryRunAsync("Cannot restore the colours", () =>
+        {
+            _paletteEditor.RestoreDefaults(draft.DraftPath, _session.BaseUiPath, names);
+            return Task.CompletedTask;
+        }))
+        {
+            _session.NotifyContentChanged();
+            _session.Status = $"{what} back to the Base's {(names is null ? "colours" : "value")}.";
+        }
+    }
+
     private void Reload()
     {
         if (_session.Draft is null)
@@ -194,10 +237,26 @@ public sealed partial class ColorsViewModel : ViewModelBase
         string? previous = SelectedPalette?.RelativePath;
         PreviewImages = _images.Images;
         _allColorUsages = _paletteEditor.GetUsages(_session.Draft.DraftPath, _session.BaseUiPath);
+        UpdateModifiedNames();
         Palettes = _paletteEditor.GetPalettes(_session.Draft.DraftPath, _session.BaseUiPath);
         SelectedPalette = Palettes.FirstOrDefault(p => p.RelativePath.Equals(previous, StringComparison.OrdinalIgnoreCase))
             ?? (Palettes.Count > 0 ? Palettes[0] : null);
         LoadPreviewScene();
+    }
+
+    // the colours some region has at a value other than the Base's
+    private void UpdateModifiedNames()
+    {
+        Dictionary<(string Path, string Name), PaletteColor> defaults = _paletteEditor.GetDefaultPalettes(_session.Draft!.DraftPath, _session.BaseUiPath)
+            .SelectMany(palette => palette.Colors.Select(color => (Key: (palette.RelativePath, color.Name), Color: color)))
+            .ToDictionary(entry => entry.Key, entry => entry.Color);
+        _modifiedNames = _paletteEditor.GetPalettes(_session.Draft.DraftPath, _session.BaseUiPath)
+            .SelectMany(palette => palette.Colors.Select(color => (palette.RelativePath, color.Name, color)))
+            .Where(entry => defaults.TryGetValue((entry.RelativePath, entry.Name), out PaletteColor baseColor) && baseColor != entry.color)
+            .Select(entry => entry.Name)
+            .ToHashSet();
+        OnPropertyChanged(nameof(CanResetAllColors));
+        ResetAllColorsCommand.NotifyCanExecuteChanged();
     }
 
     private static PaletteColorRow ToRow(PaletteColor color)

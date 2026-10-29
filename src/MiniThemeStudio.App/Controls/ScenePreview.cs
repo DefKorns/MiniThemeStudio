@@ -48,6 +48,10 @@ public sealed class ScenePreview : Control
         AvaloniaProperty.Register<ScenePreview, string?>(nameof(HighlightColorName));
 
     // executed with a SceneNodeMove when a dragged node is dropped; nodes cannot be dragged without it
+    // the control is as tall as its width needs for the 16:9 screen, so the scene fills it with no empty sides
+    public static readonly StyledProperty<bool> FitWidthProperty =
+        AvaloniaProperty.Register<ScenePreview, bool>(nameof(FitWidth));
+
     public static readonly StyledProperty<ICommand?> MoveCommandProperty =
         AvaloniaProperty.Register<ScenePreview, ICommand?>(nameof(MoveCommand));
 
@@ -73,6 +77,7 @@ public sealed class ScenePreview : Control
 
     static ScenePreview()
     {
+        AffectsMeasure<ScenePreview>(FitWidthProperty);
         AffectsRender<ScenePreview>(RootProperty, SelectedPathProperty, BranchPathProperty, ShowHiddenProperty, ImagesProperty, ColorsProperty, HighlightColorNameProperty);
     }
 
@@ -118,11 +123,22 @@ public sealed class ScenePreview : Control
         set => SetValue(HighlightColorNameProperty, value);
     }
 
+    public bool FitWidth
+    {
+        get => GetValue(FitWidthProperty);
+        set => SetValue(FitWidthProperty, value);
+    }
+
     public ICommand? MoveCommand
     {
         get => GetValue(MoveCommandProperty);
         set => SetValue(MoveCommandProperty, value);
     }
+
+    protected override Size MeasureOverride(Size availableSize) =>
+        FitWidth && double.IsFinite(availableSize.Width)
+            ? new Size(availableSize.Width, availableSize.Width * ScreenHeight / ScreenWidth)
+            : base.MeasureOverride(availableSize);
 
     public override void Render(DrawingContext context)
     {

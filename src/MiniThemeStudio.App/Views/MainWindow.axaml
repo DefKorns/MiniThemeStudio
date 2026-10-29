@@ -959,81 +959,87 @@
       </TabItem>
 
       <TabItem Header="Colors">
-        <Grid RowDefinitions="Auto,*" Margin="16,12" DataContext="{Binding ColorsTab}" x:DataType="vm:ColorsViewModel">
-          <!-- where the selected colour is used: the scene drawn with the palette, the colour being edited live -->
-          <Border Height="340" Margin="0,0,0,12" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
-            <Grid RowDefinitions="*,Auto">
-              <controls:ScenePreview Margin="12,12,12,0"
-                                     Root="{Binding PreviewRoot}"
-                                     Images="{Binding PreviewImages}"
-                                     Colors="{Binding PreviewColors}"
-                                     HighlightColorName="{Binding SelectedPaletteColor.Name}" />
-              <Grid Grid.Row="1" Margin="12,8" ColumnDefinitions="*,Auto">
-                <TextBlock VerticalAlignment="Center" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
-                           Text="The dashed frames show where the selected colour is used, and it changes here before you apply it. Scripts can move or hide parts of the scene on the console." />
-                <ComboBox Grid.Column="1" Width="240" Margin="16,0,0,0" ItemsSource="{Binding PreviewScenes}" SelectedItem="{Binding SelectedPreviewScene}" IsVisible="{Binding HasPreviewScenes}" />
-              </Grid>
-            </Grid>
-          </Border>
-
-          <Grid Grid.Row="1" ColumnDefinitions="*,380">
-            <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
-              <Grid RowDefinitions="Auto,Auto,*">
-                <!-- a colour is written to every region; the tabs choose which region's values are listed -->
-                <Grid Margin="8,8,16,4" ColumnDefinitions="*,Auto">
-                  <ListBox ItemsSource="{Binding Palettes}" SelectedItem="{Binding SelectedPalette}" Background="Transparent">
-                    <ListBox.ItemsPanel>
-                      <ItemsPanelTemplate>
-                        <StackPanel Orientation="Horizontal" Spacing="4" />
-                      </ItemsPanelTemplate>
-                    </ListBox.ItemsPanel>
-                    <ListBox.Styles>
-                      <Style Selector="ListBoxItem">
-                        <Setter Property="Padding" Value="18,8" />
-                        <Setter Property="CornerRadius" Value="4" />
-                      </Style>
-                    </ListBox.Styles>
-                    <ListBox.ItemTemplate>
-                      <DataTemplate x:DataType="themes:ThemePalette">
-                        <TextBlock FontWeight="SemiBold" Text="{Binding Region, Converter={x:Static vm:PaletteRegionConverter.Instance}}" />
-                      </DataTemplate>
-                    </ListBox.ItemTemplate>
-                  </ListBox>
-                  <CheckBox Grid.Column="1" VerticalAlignment="Center" Content="Show unused" IsChecked="{Binding ShowUnusedColors}"
-                            ToolTip.Tip="Colours no scene or script of this UI names; they may be for other consoles or read by the engine itself" />
-                </Grid>
-                <Grid Grid.Row="1" Margin="20,6,24,4" ColumnDefinitions="64,*,110">
-                  <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Text="COLOUR" />
-                  <TextBlock Grid.Column="1" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Text="NAME" />
-                  <TextBlock Grid.Column="2" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Text="HEX" />
-                </Grid>
-                <ListBox Grid.Row="2" Margin="8,0,8,8" ItemsSource="{Binding PaletteColors}" SelectedItem="{Binding SelectedPaletteColor}">
+        <!-- spacing follows an 8 px grid: 8 inside a group, 16 between groups and as the padding of a panel -->
+        <Grid ColumnDefinitions="*,544" ColumnSpacing="16" Margin="16" DataContext="{Binding ColorsTab}" x:DataType="vm:ColorsViewModel">
+          <Border Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+            <Grid RowDefinitions="Auto,Auto,*">
+              <!-- a colour is written to every region; the tabs choose which region's values are listed -->
+              <Grid Margin="16,16,16,8" ColumnDefinitions="*,Auto">
+                <ListBox ItemsSource="{Binding Palettes}" SelectedItem="{Binding SelectedPalette}" Background="Transparent">
+                  <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Horizontal" Spacing="8" />
+                    </ItemsPanelTemplate>
+                  </ListBox.ItemsPanel>
+                  <ListBox.Styles>
+                    <Style Selector="ListBoxItem">
+                      <Setter Property="Padding" Value="16,8" />
+                      <Setter Property="CornerRadius" Value="8" />
+                    </Style>
+                  </ListBox.Styles>
                   <ListBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:PaletteColorRow">
-                      <Grid ColumnDefinitions="64,*,110" Margin="4,2">
-                        <Border Width="40" Height="24" HorizontalAlignment="Left" CornerRadius="4" Background="{Binding Swatch}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" />
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                          <TextBlock Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Title}" />
-                          <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Name}" />
-                        </StackPanel>
-                        <TextBlock Grid.Column="2" VerticalAlignment="Center" FontFamily="monospace" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Hex}" />
-                      </Grid>
+                    <DataTemplate x:DataType="themes:ThemePalette">
+                      <TextBlock FontWeight="SemiBold" Text="{Binding Region, Converter={x:Static vm:PaletteRegionConverter.Instance}}" />
                     </DataTemplate>
                   </ListBox.ItemTemplate>
                 </ListBox>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                  <CheckBox Content="Show unused" IsChecked="{Binding ShowUnusedColors}"
+                            ToolTip.Tip="Colours no scene or script of this UI names; they may be for other consoles or read by the engine itself" />
+                  <Button Padding="16,8" Command="{Binding ResetAllColorsCommand}" Content="Reset all" ToolTip.Tip="Put every colour back to the value of the Base" />
+                </StackPanel>
               </Grid>
-            </Border>
+              <Grid Grid.Row="1" Margin="24,8,32,8" ColumnDefinitions="64,*,112">
+                <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Text="COLOUR" />
+                <TextBlock Grid.Column="1" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Text="NAME" />
+                <TextBlock Grid.Column="2" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Text="HEX" />
+              </Grid>
+              <ListBox Grid.Row="2" Margin="8,0,8,8" ItemsSource="{Binding PaletteColors}" SelectedItem="{Binding SelectedPaletteColor}">
+                <ListBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:PaletteColorRow">
+                    <Grid ColumnDefinitions="64,*,112" Margin="8,4">
+                      <Border Width="40" Height="24" HorizontalAlignment="Left" CornerRadius="4" Background="{Binding Swatch}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" />
+                      <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <TextBlock Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Title}" />
+                          <TextBlock FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource AccentBrush}" Text="edited" IsVisible="{Binding IsModified}" />
+                        </StackPanel>
+                        <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Name}" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="2" VerticalAlignment="Center" FontFamily="monospace" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Hex}" />
+                    </Grid>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Grid>
+          </Border>
 
-            <Border Grid.Column="1" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
-              <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <StackPanel Margin="14" Spacing="10">
-                  <StackPanel>
-                    <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedPaletteColor.Title}" />
-                    <TextBlock FontFamily="monospace" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SelectedPaletteColor.Hex}" />
-                  </StackPanel>
-                  <ColorView Color="{Binding EditColor}" IsAlphaEnabled="True" IsColorPaletteVisible="False" />
-                  <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Classes="accent" Command="{Binding ApplyColorCommand}" Content="Apply" />
-                  <TextBlock Margin="0,8,0,0" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding ColorUsageSummary}" />
+          <Border Grid.Column="1" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <StackPanel Margin="16" Spacing="16">
+                <!-- where the selected colour is used: the scene drawn with the palette, the colour being edited live -->
+                <StackPanel Spacing="8" IsVisible="{Binding HasPreview}">
+                  <controls:ScenePreview FitWidth="True"
+                                         Root="{Binding PreviewRoot}"
+                                         Images="{Binding PreviewImages}"
+                                         Colors="{Binding PreviewColors}"
+                                         HighlightColorName="{Binding SelectedPaletteColor.Name}" />
+                  <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding PreviewScenes}" SelectedItem="{Binding SelectedPreviewScene}" IsVisible="{Binding HasPreviewScenes}" />
+                  <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
+                             Text="The dashed frames show where the colour is used, and it changes here before you apply it. Scripts can move or hide parts of the scene on the console." />
+                </StackPanel>
+                <StackPanel>
+                  <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedPaletteColor.Title}" />
+                  <TextBlock FontFamily="monospace" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SelectedPaletteColor.Hex}" />
+                </StackPanel>
+                <ColorView Color="{Binding EditColor}" IsAlphaEnabled="True" IsColorPaletteVisible="False" />
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                  <Button Height="40" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Classes="accent" Command="{Binding ApplyColorCommand}" Content="Apply" />
+                  <Button Grid.Column="1" Height="40" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Command="{Binding ResetColorCommand}" Content="Reset to default"
+                          ToolTip.Tip="Put this colour back to the value of the Base, in every region" />
+                </Grid>
+                <StackPanel Spacing="8">
+                  <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding ColorUsageSummary}" />
                   <ItemsControl ItemsSource="{Binding ColorUsages}">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate x:DataType="themes:PaletteColorUsage">
@@ -1046,9 +1052,9 @@
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
                 </StackPanel>
-              </ScrollViewer>
-            </Border>
-          </Grid>
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
         </Grid>
       </TabItem>
 

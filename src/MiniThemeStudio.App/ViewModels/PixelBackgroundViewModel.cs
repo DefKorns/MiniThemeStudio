@@ -53,6 +53,9 @@ public sealed partial class PixelBackgroundViewModel : ViewModelBase
         ("bg_luigi", "Luigi's colour"),
     ];
 
+    // the Wallpapers tab edits these, so the Colors tab leaves them out
+    public static bool IsBackgroundColor(string colorName) => BackgroundColors.Any(color => color.Name == colorName);
+
     private static readonly (string Name, string Label, string Description)[] BackgroundImages =
     [
         ("wallpaper-dots", "Dot", "The square the patterns are drawn with, one per pixel of the picture."),

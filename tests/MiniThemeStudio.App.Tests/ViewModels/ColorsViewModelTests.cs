@@ -78,4 +78,23 @@ public sealed class ColorsViewModelTests : IDisposable
 
         Assert.Equal(Color.FromArgb(255, 190, 0, 26), colors.PreviewColors["font_home_hud"]);
     }
+
+    [Fact]
+    public async Task ResettingAColourPutsItBackToTheBaseAndRemovesThePalettes()
+    {
+        ColorsViewModel colors = _app.Window.ColorsTab;
+        colors.EditColor = Color.FromArgb(255, 190, 0, 26);
+        await colors.ApplyColorCommand.ExecuteAsync(null);
+        Assert.True(colors.SelectedPaletteColor?.IsModified);
+        Assert.True(colors.ResetColorCommand.CanExecute(null));
+
+        await colors.ResetColorCommand.ExecuteAsync(null);
+
+        Assert.Empty(_app.Errors.Failures.Select(failure => $"{failure.Failure}: {failure.Exception.Message}"));
+        Assert.False(File.Exists(Path.Combine(DraftPath, Usa)));
+        Assert.False(File.Exists(Path.Combine(DraftPath, Jpn)));
+        Assert.False(colors.SelectedPaletteColor?.IsModified);
+        Assert.False(colors.ResetColorCommand.CanExecute(null));
+        Assert.False(colors.ResetAllColorsCommand.CanExecute(null));
+    }
 }

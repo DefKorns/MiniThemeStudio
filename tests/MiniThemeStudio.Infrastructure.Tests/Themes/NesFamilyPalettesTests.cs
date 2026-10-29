@@ -68,6 +68,35 @@ public sealed class NesFamilyPalettesTests : IDisposable
         Assert.Equal(["hvc"], _editor.GetPalettes(_draft, _baseUi).Select(p => p.Region));
     }
 
+    [Fact]
+    public void RestoringEveryColourRemovesThePalettesFromTheDraft()
+    {
+        Place(_baseUi, Nes);
+        _editor.SetColor(_draft, _baseUi, PaletteColor.FromBytes("font_resume_title", 10, 20, 30, 255), [Nes, Famicom]);
+
+        _editor.RestoreDefaults(_draft, _baseUi, null);
+
+        Assert.False(File.Exists(Path.Combine(_draft, Nes)));
+        Assert.False(File.Exists(Path.Combine(_draft, Famicom)));
+        Assert.Equal(
+            _editor.GetDefaultPalettes(_draft, _baseUi).SelectMany(p => p.Colors),
+            _editor.GetPalettes(_draft, _baseUi).SelectMany(p => p.Colors));
+    }
+
+    [Fact]
+    public void RestoringOneColourKeepsTheOthersEdited()
+    {
+        Place(_baseUi, Nes);
+        _editor.SetColor(_draft, _baseUi, PaletteColor.FromBytes("font_resume_title", 10, 20, 30, 255), [Nes, Famicom]);
+        _editor.SetColor(_draft, _baseUi, PaletteColor.FromBytes("font_home_hud", 1, 2, 3, 255), [Nes, Famicom]);
+
+        _editor.RestoreDefaults(_draft, _baseUi, ["font_resume_title"]);
+
+        ThemePalette famicom = _editor.GetPalettes(_draft, _baseUi).Single(p => p.Region == "hvc");
+        Assert.Equal(PaletteColor.FromBytes("font_home_hud", 1, 2, 3, 255), famicom.Colors.Single(c => c.Name == "font_home_hud"));
+        Assert.NotEqual(PaletteColor.FromBytes("font_resume_title", 10, 20, 30, 255), famicom.Colors.Single(c => c.Name == "font_resume_title"));
+    }
+
     private static void Place(string root, string relativePath)
     {
         string path = Path.Combine(root, relativePath);

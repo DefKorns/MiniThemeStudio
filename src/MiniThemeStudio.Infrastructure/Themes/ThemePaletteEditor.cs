@@ -32,6 +32,55 @@ public sealed class ThemePaletteEditor : IThemePaletteEditor
         return palettes;
     }
 
+    public IReadOnlyList<ThemePalette> GetDefaultPalettes(string themeDraftPath, string? baseUiPath = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
+
+        var layer = new ThemeLayer(themeDraftPath, baseUiPath);
+        var palettes = new List<ThemePalette>();
+        foreach (ThemePalette palette in GetPalettes(themeDraftPath, baseUiPath))
+        {
+            if (DefaultBytes(layer, ToResourcePath(palette.RelativePath)) is { } bytes)
+            {
+                palettes.Add(palette with { FilePath = "", IsFromBaseUi = true, Colors = LuaColorPalette.Read(bytes).Colors });
+            }
+        }
+
+        return palettes;
+    }
+
+    public void RestoreDefaults(string themeDraftPath, string? baseUiPath, IEnumerable<string>? colorNames)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
+
+        var layer = new ThemeLayer(themeDraftPath, baseUiPath);
+        List<string>? names = colorNames?.ToList();
+        foreach (ThemePalette palette in GetPalettes(themeDraftPath, baseUiPath))
+        {
+            string resourcePath = ToResourcePath(palette.RelativePath);
+            if (layer.ResolveInTheme(resourcePath) is not { } draftFile || DefaultBytes(layer, resourcePath) is not { } defaultBytes)
+            {
+                continue;
+            }
+
+            var defaults = LuaColorPalette.Read(defaultBytes);
+            var edited = LuaColorPalette.Read(draftFile);
+            foreach (PaletteColor color in defaults.Colors.Where(color => names is null || names.Contains(color.Name)))
+            {
+                edited.SetColor(color);
+            }
+
+            if (edited.ToBytes().AsSpan().SequenceEqual(defaultBytes))
+            {
+                File.Delete(draftFile);
+            }
+            else
+            {
+                edited.Write(draftFile);
+            }
+        }
+    }
+
     public IReadOnlyList<PaletteColorUsage> GetUsages(string themeDraftPath, string? baseUiPath = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(themeDraftPath);
@@ -83,6 +132,19 @@ public sealed class ThemePaletteEditor : IThemePaletteEditor
     // palettes and usages name files relative to the theme root ("resources/scripts/colors_usa.lua")
     private static IEnumerable<string> RelativePaths(ThemeLayer layer, string folder, string pattern) =>
         layer.EnumerateResources(folder, pattern).Select(resourcePath => ResourcesFolder + resourcePath);
+
+    // the palette as the Base has it: its own file, or the one generated for the other NES-family console
+    private static byte[]? DefaultBytes(ThemeLayer layer, string resourcePath)
+    {
+        if (layer.ResolveInBase(resourcePath) is { } baseFile)
+        {
+            return File.ReadAllBytes(baseFile);
+        }
+
+        return NesFamilyPalettes.MissingPaletteResource(layer, inBaseOnly: true) == resourcePath
+            ? NesFamilyPalettes.Generate(layer, resourcePath, fromBaseOnly: true)
+            : null;
+    }
 
     private static LuaColorPalette ReadForEditing(ThemeLayer layer, string relativePath)
     {

@@ -60,6 +60,11 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      # the first dotnet command runs the CLI's first-use setup (the NuGet migrations, which take a named mutex);
+      # doing it once here keeps the hooks, which start several dotnet processes, from racing to do it
+      - name: Prepare the .NET CLI
+        run: dotnet nuget --help > /dev/null
+
       - uses: actions/setup-python@v7
         with:
           python-version: "3.x"

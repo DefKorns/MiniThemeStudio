@@ -959,7 +959,23 @@
       </TabItem>
 
       <TabItem Header="Colors">
-        <Grid ColumnDefinitions="280,*,400" Margin="16,12" DataContext="{Binding ColorsTab}" x:DataType="vm:ColorsViewModel">
+        <Grid RowDefinitions="Auto,*" Margin="16,12" DataContext="{Binding ColorsTab}" x:DataType="vm:ColorsViewModel">
+          <Border Height="300" Margin="0,0,0,12" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+            <Grid RowDefinitions="Auto,*,Auto">
+              <Grid Margin="12,8" ColumnDefinitions="Auto,*">
+                <TextBlock VerticalAlignment="Center" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedPaletteColor.Title, StringFormat='Where it is used: {0}'}" />
+                <ComboBox Grid.Column="1" Width="260" Margin="16,0,0,0" HorizontalAlignment="Left" ItemsSource="{Binding PreviewScenes}" SelectedItem="{Binding SelectedPreviewScene}" IsVisible="{Binding HasPreviewScenes}" />
+              </Grid>
+              <controls:ScenePreview Grid.Row="1" Margin="12,0"
+                                     Root="{Binding PreviewRoot}"
+                                     Images="{Binding PreviewImages}"
+                                     Colors="{Binding PreviewColors}"
+                                     HighlightColorName="{Binding SelectedPaletteColor.Name}" />
+              <TextBlock Grid.Row="2" Margin="12,8" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
+                         Text="The dashed frames show where the selected colour is used, and it changes here before you apply it. The scene is shown as it is laid out; scripts can move or hide parts on the console." />
+            </Grid>
+          </Border>
+          <Grid Grid.Row="1" ColumnDefinitions="280,*,400">
           <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid RowDefinitions="Auto,*">
               <TextBlock Margin="16,12" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Regions" />
@@ -1019,14 +1035,6 @@
             <StackPanel Margin="14" Spacing="12">
               <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedPaletteColor.Title}" />
               <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SelectedPaletteColor.Name}" />
-              <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding PreviewScenes}" SelectedItem="{Binding SelectedPreviewScene}" IsVisible="{Binding HasPreviewScenes}" />
-              <controls:ScenePreview Height="200"
-                                     Root="{Binding PreviewRoot}"
-                                     Images="{Binding PreviewImages}"
-                                     Colors="{Binding PreviewColors}"
-                                     HighlightColorName="{Binding SelectedPaletteColor.Name}" />
-              <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
-                         Text="The dashed frames show where this colour is used. It shows the scene as it is laid out; scripts can move or hide parts on the console." />
               <ColorView Color="{Binding EditColor}" IsAlphaEnabled="True" IsColorPaletteVisible="False" />
               <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Classes="accent" Command="{Binding ApplyColorCommand}" Content="Apply" />
               <TextBlock Margin="0,8,0,0" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding ColorUsageSummary}" />
@@ -1044,6 +1052,7 @@
             </StackPanel>
             </ScrollViewer>
           </Border>
+          </Grid>
         </Grid>
       </TabItem>
 

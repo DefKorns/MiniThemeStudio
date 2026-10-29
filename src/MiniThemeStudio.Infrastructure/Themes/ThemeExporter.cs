@@ -135,8 +135,28 @@ public sealed partial class ThemeExporter(IFFmpegAudioConverter? ffmpegAudioConv
             files.Add(relativePath);
         }
 
+        // a theme has no region: once a colour changed it ships every colour palette, and the console's theme selector picks the one to mount
+        if (baseUiPath is not null && files.Any(IsColorPalette))
+        {
+            foreach (string palettePath in Directory.EnumerateFiles(baseUiPath, "colors_*.lua", SearchOption.AllDirectories))
+            {
+                string relativePath = ToArchivePath(baseUiPath, palettePath);
+                if (!files.Contains(relativePath))
+                {
+                    files.Add(relativePath);
+                    sources[relativePath] = palettePath;
+                }
+            }
+        }
+
         files.Sort(StringComparer.Ordinal);
         return (files, sources, skipped);
+    }
+
+    private static bool IsColorPalette(string relativePath)
+    {
+        string fileName = Path.GetFileName(relativePath);
+        return fileName.StartsWith("colors_", StringComparison.OrdinalIgnoreCase) && fileName.EndsWith(".lua", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsUnchanged(string themeFile, string baseFile)

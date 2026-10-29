@@ -21,6 +21,14 @@ public sealed class ThemePaletteEditor : IThemePaletteEditor
             palettes.Add(new ThemePalette(region, relativePath, filePath, fromBase, LuaColorPalette.Read(filePath).Colors));
         }
 
+        // the palette of the other NES-family console, which the Base lacks, is generated (FilePath is empty until it is written)
+        if (NesFamilyPalettes.MissingPaletteResource(layer) is { } missing)
+        {
+            string relativePath = ResourcesFolder + missing;
+            string region = Path.GetFileNameWithoutExtension(relativePath)["colors_".Length..];
+            palettes.Add(new ThemePalette(region, relativePath, "", true, LuaColorPalette.Read(NesFamilyPalettes.Generate(layer, missing)).Colors));
+        }
+
         return palettes;
     }
 
@@ -63,8 +71,7 @@ public sealed class ThemePaletteEditor : IThemePaletteEditor
         var layer = new ThemeLayer(themeDraftPath, baseUiPath);
         foreach (string relativePath in relativePaths)
         {
-            (string? sourcePath, bool _) = Resolve(layer, relativePath);
-            var palette = LuaColorPalette.Read(sourcePath);
+            LuaColorPalette palette = ReadForEditing(layer, relativePath);
             palette.SetColor(color);
 
             string targetPath = layer.ThemeResourceFile(ToResourcePath(relativePath));
@@ -76,6 +83,16 @@ public sealed class ThemePaletteEditor : IThemePaletteEditor
     // palettes and usages name files relative to the theme root ("resources/scripts/colors_usa.lua")
     private static IEnumerable<string> RelativePaths(ThemeLayer layer, string folder, string pattern) =>
         layer.EnumerateResources(folder, pattern).Select(resourcePath => ResourcesFolder + resourcePath);
+
+    private static LuaColorPalette ReadForEditing(ThemeLayer layer, string relativePath)
+    {
+        string resourcePath = ToResourcePath(relativePath);
+        return layer.Resolve(resourcePath) is { } existing
+            ? LuaColorPalette.Read(existing)
+            : NesFamilyPalettes.MissingPaletteResource(layer) == resourcePath
+                ? LuaColorPalette.Read(NesFamilyPalettes.Generate(layer, resourcePath))
+                : throw new FileNotFoundException($"Neither the theme nor its base has {relativePath}.");
+    }
 
     private static (string FilePath, bool FromBase) Resolve(ThemeLayer layer, string relativePath)
     {

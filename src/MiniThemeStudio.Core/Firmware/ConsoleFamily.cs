@@ -26,7 +26,7 @@ public static class ConsoleFamilies
     public static string DisplayName(ConsoleFamily family) => family switch
     {
         ConsoleFamily.NesFamicom => "NES / Famicom",
-        ConsoleFamily.Snes => "SNES",
+        ConsoleFamily.Snes => "SNES / Super Famicom",
         ConsoleFamily.Shonen => "Shonen Jump",
         _ => family.ToString(),
     };

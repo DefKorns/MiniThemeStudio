@@ -17,7 +17,7 @@ public sealed class ConsoleFamiliesTests
     [Fact]
     public void ShortLabelShowsFamilyRegionAndVersion()
     {
-        Assert.Equal("SNES · EUR · v2.0.13", ConsoleFamilies.ShortLabel(Definition("snes", "eur", "2.0.13")));
+        Assert.Equal("SNES / Super Famicom · EUR · v2.0.13", ConsoleFamilies.ShortLabel(Definition("snes", "eur", "2.0.13")));
     }
 
     private static FirmwareDefinition Definition(string console, string region, string version)

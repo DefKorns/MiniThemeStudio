@@ -97,7 +97,7 @@
         </Grid>
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" IsVisible="{Binding IsThemeOpen}">
           <ToggleSwitch VerticalAlignment="Center" IsChecked="{Binding Mode.IsAdvanced}" OnContent="Advanced" OffContent="Simple"
-                        ToolTip.Tip="Simple: sprites, wallpapers, character frames, fonts and music. Advanced adds scenes, colours, scrolling layers and character animations" />
+                        ToolTip.Tip="Simple: sprites, wallpapers, colours, character frames, fonts and music. Advanced adds scenes, scrolling layers and character animations" />
           <Button Padding="12,6" Background="Transparent" Command="{Binding RunValidationCommand}" ToolTip.Tip="Validate theme integrity">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <lucide:LucideIcon Kind="Check" Size="16" />
@@ -958,11 +958,11 @@
         </Grid>
       </TabItem>
 
-      <TabItem Header="Colors" IsVisible="{Binding Mode.IsAdvanced}">
+      <TabItem Header="Colors">
         <Grid ColumnDefinitions="280,*,400" Margin="16,12" DataContext="{Binding ColorsTab}" x:DataType="vm:ColorsViewModel">
           <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid RowDefinitions="Auto,*">
-              <TextBlock Margin="16,12" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Palettes (colors_*.lua)" />
+              <TextBlock Margin="16,12" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Regions" />
               <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding Palettes}" SelectedItem="{Binding SelectedPalette}">
                 <ListBox.Styles>
                   <Style Selector="ListBoxItem">
@@ -977,7 +977,7 @@
                         <lucide:LucideIcon Kind="Palette" Size="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
                       </Border>
                       <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                        <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Region}" />
+                        <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Region, Converter={x:Static vm:PaletteRegionConverter.Instance}}" />
                         <StackPanel Orientation="Horizontal" Spacing="6">
                           <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Colors.Count, StringFormat='{}{0} colours'}" />
                           <TextBlock FontSize="11" Foreground="{DynamicResource AccentBrush}" Text="(From Base)" IsVisible="{Binding IsFromBaseUi}" />
@@ -993,7 +993,7 @@
           <Border Grid.Column="1" Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid RowDefinitions="Auto,*">
               <Grid Margin="16,8" ColumnDefinitions="*,Auto">
-                <TextBlock VerticalAlignment="Center" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedPalette.RelativePath}" />
+                <TextBlock VerticalAlignment="Center" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedPalette.Region, Converter={x:Static vm:PaletteRegionConverter.Instance}, StringFormat='{}{0} colours (a change applies to every region)'}" />
                 <CheckBox Grid.Column="1" Content="Show unused" IsChecked="{Binding ShowUnusedColors}"
                           ToolTip.Tip="Colours no scene or script of this UI names; they may be for other consoles or read by the engine itself" />
               </Grid>
@@ -1002,7 +1002,10 @@
                   <DataTemplate x:DataType="vm:PaletteColorRow">
                     <Grid ColumnDefinitions="Auto,*,Auto" Margin="4,2">
                       <Border Width="40" Height="24" CornerRadius="4" Margin="0,0,12,0" Background="{Binding Swatch}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" />
-                      <TextBlock Grid.Column="1" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Name}" />
+                      <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Title}" />
+                        <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Name}" />
+                      </StackPanel>
                       <TextBlock Grid.Column="2" VerticalAlignment="Center" FontFamily="monospace" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Hex}" />
                     </Grid>
                   </DataTemplate>
@@ -1014,9 +1017,17 @@
           <Border Grid.Column="2" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="14" Spacing="12">
-              <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedPaletteColor.Name}" />
+              <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedPaletteColor.Title}" />
+              <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SelectedPaletteColor.Name}" />
+              <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding PreviewScenes}" SelectedItem="{Binding SelectedPreviewScene}" IsVisible="{Binding HasPreviewScenes}" />
+              <controls:ScenePreview Height="200"
+                                     Root="{Binding PreviewRoot}"
+                                     Images="{Binding PreviewImages}"
+                                     Colors="{Binding PreviewColors}"
+                                     HighlightColorName="{Binding SelectedPaletteColor.Name}" />
+              <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
+                         Text="The dashed frames show where this colour is used. It shows the scene as it is laid out; scripts can move or hide parts on the console." />
               <ColorView Color="{Binding EditColor}" IsAlphaEnabled="True" IsColorPaletteVisible="False" />
-              <CheckBox IsChecked="{Binding ApplyColorToAllRegions}" Content="Apply to all regions" />
               <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Classes="accent" Command="{Binding ApplyColorCommand}" Content="Apply" />
               <TextBlock Margin="0,8,0,0" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding ColorUsageSummary}" />
               <ItemsControl ItemsSource="{Binding ColorUsages}">

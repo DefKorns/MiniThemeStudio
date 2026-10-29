@@ -39,6 +39,14 @@ public sealed class ScenePreview : Control
     public static readonly StyledProperty<SceneImageSource?> ImagesProperty =
         AvaloniaProperty.Register<ScenePreview, SceneImageSource?>(nameof(Images));
 
+    // the colour each palette colour name has; a label named by one is drawn with it, white otherwise
+    public static readonly StyledProperty<IReadOnlyDictionary<string, Color>?> ColorsProperty =
+        AvaloniaProperty.Register<ScenePreview, IReadOnlyDictionary<string, Color>?>(nameof(Colors));
+
+    // the labels drawn with this palette colour get a frame
+    public static readonly StyledProperty<string?> HighlightColorNameProperty =
+        AvaloniaProperty.Register<ScenePreview, string?>(nameof(HighlightColorName));
+
     // executed with a SceneNodeMove when a dragged node is dropped; nodes cannot be dragged without it
     public static readonly StyledProperty<ICommand?> MoveCommandProperty =
         AvaloniaProperty.Register<ScenePreview, ICommand?>(nameof(MoveCommand));
@@ -52,6 +60,7 @@ public sealed class ScenePreview : Control
     private static readonly IPen MissingPen = new Pen(new SolidColorBrush(Color.FromArgb(160, 255, 80, 80)), 1, DashStyle.Dash);
     private static readonly IPen SelectionPen = new Pen(new SolidColorBrush(Color.FromRgb(255, 170, 0)), 2);
     private static readonly IPen GroupPen = new Pen(new SolidColorBrush(Color.FromArgb(200, 255, 170, 0)), 1, DashStyle.Dash);
+    private static readonly IPen ColorPen = new Pen(new SolidColorBrush(Color.FromRgb(255, 170, 0)), 2, DashStyle.Dash);
     private static readonly IPen HoverPen = new Pen(new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)), 1);
     private static readonly Typeface LabelTypeface = new(FontFamily.Default, FontStyle.Normal, FontWeight.SemiBold);
 
@@ -64,7 +73,7 @@ public sealed class ScenePreview : Control
 
     static ScenePreview()
     {
-        AffectsRender<ScenePreview>(RootProperty, SelectedPathProperty, BranchPathProperty, ShowHiddenProperty, ImagesProperty);
+        AffectsRender<ScenePreview>(RootProperty, SelectedPathProperty, BranchPathProperty, ShowHiddenProperty, ImagesProperty, ColorsProperty, HighlightColorNameProperty);
     }
 
     public SceneNode? Root
@@ -95,6 +104,18 @@ public sealed class ScenePreview : Control
     {
         get => GetValue(ImagesProperty);
         set => SetValue(ImagesProperty, value);
+    }
+
+    public IReadOnlyDictionary<string, Color>? Colors
+    {
+        get => GetValue(ColorsProperty);
+        set => SetValue(ColorsProperty, value);
+    }
+
+    public string? HighlightColorName
+    {
+        get => GetValue(HighlightColorNameProperty);
+        set => SetValue(HighlightColorNameProperty, value);
     }
 
     public ICommand? MoveCommand
@@ -135,6 +156,14 @@ public sealed class ScenePreview : Control
         if (_hoveredPath != SelectedPath && _items.FirstOrDefault(item => item.Node.Path == _hoveredPath) is { } hovered)
         {
             DrawOutline(context, Corners(hovered), HoverPen);
+        }
+
+        if (HighlightColorName is { Length: > 0 } highlighted)
+        {
+            foreach (DrawItem item in _items.Where(item => item.Visual.ColorName == highlighted))
+            {
+                DrawOutline(context, Corners(item), ColorPen);
+            }
         }
 
         DrawSelection(context);
@@ -301,6 +330,9 @@ public sealed class ScenePreview : Control
         }
     }
 
+    private IBrush LabelBrush(SceneVisual visual) =>
+        visual.ColorName is { } name && Colors?.TryGetValue(name, out Color color) == true ? new SolidColorBrush(color) : Brushes.White;
+
     private DrawItem? CreateItem(SceneNode node, SceneVisual visual, Matrix world, bool hidden, double alpha)
     {
         FormattedText? text = null;
@@ -313,7 +345,7 @@ public sealed class ScenePreview : Control
                 return null;
             }
 
-            text = new FormattedText(visual.Text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, LabelTypeface, 22, Brushes.White);
+            text = new FormattedText(visual.Text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, LabelTypeface, 22, LabelBrush(visual));
             (width, height) = (text.Width, text.Height);
         }
         else

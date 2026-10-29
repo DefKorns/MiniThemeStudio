@@ -15,7 +15,8 @@ public enum SceneVisualKind
 }
 
 // what a node draws: a whole texture (TextureComponent), an atlas sprite (SpriteComponent) or text (LabelComponent);
-// OffsetX slides the texture inside the node, in widths of the node (uvOffset, which scrolling backgrounds animate)
+// OffsetX slides the texture inside the node, in widths of the node (uvOffset, which scrolling backgrounds animate);
+// ColorName is the palette colour a label is drawn with
 public sealed record SceneVisual(
     SceneVisualKind Kind,
     string? TextureId,
@@ -29,7 +30,8 @@ public sealed record SceneVisual(
     double RepeatY,
     bool HorizontalFlip,
     double Opacity,
-    double OffsetX = 0)
+    double OffsetX = 0,
+    string? ColorName = null)
 {
     public bool HasSize => Width > 0 && Height > 0;
 }

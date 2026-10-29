@@ -60,21 +60,22 @@ public sealed class ColorsViewModelTests : IDisposable
         Assert.Equal(PaletteFixtures.SampleEditedBytes, File.ReadAllBytes(Path.Combine(DraftPath, Usa)));
         Assert.Equal(PaletteFixtures.SampleEditedBytes, File.ReadAllBytes(Path.Combine(DraftPath, Jpn)));
         Assert.Equal("#BE001A", colors.SelectedPaletteColor?.Hex);
-        Assert.Equal("font_home_hud: #BE001A in colors_jpn, colors_usa.", _app.Window.Status);
+        Assert.Equal("Home: info text: #BE001A in Japan, USA.", _app.Window.Status);
         Assert.True(_app.Window.HasUnsavedChanges);
     }
 
     [Fact]
-    public async Task ApplyingToOneRegionLeavesTheOthersOnTheBase()
+    public void PreviewsTheSceneThatUsesTheSelectedColourWithTheEditedValue()
     {
         ColorsViewModel colors = _app.Window.ColorsTab;
-        colors.ApplyColorToAllRegions = false;
+
+        Assert.Equal(["resources/prefab/title.scn"], colors.PreviewScenes);
+        Assert.NotNull(colors.PreviewRoot);
+        var label = colors.PreviewRoot.SelfAndDescendants().Single(node => node.Visual?.ColorName == "font_home_hud");
+        Assert.Equal("Home", label.Visual?.Text);
+
         colors.EditColor = Color.FromArgb(255, 190, 0, 26);
 
-        await colors.ApplyColorCommand.ExecuteAsync(null);
-
-        Assert.True(File.Exists(Path.Combine(DraftPath, Jpn)));
-        Assert.False(File.Exists(Path.Combine(DraftPath, Usa)));
-        Assert.True(colors.Palettes.Single(palette => palette.Region == "usa").IsFromBaseUi);
+        Assert.Equal(Color.FromArgb(255, 190, 0, 26), colors.PreviewColors["font_home_hud"]);
     }
 }

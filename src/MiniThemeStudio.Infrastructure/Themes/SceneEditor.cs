@@ -376,7 +376,8 @@ public sealed class SceneEditor : ISceneEditor
                 repeat?.Second ?? 1,
                 Bool(component["hFlip"]) ?? false,
                 color is { Count: 4 } ? Double(color[3]) ?? 1 : 1,
-                Pair(component["uvOffset"])?.First ?? 0);
+                Pair(component["uvOffset"])?.First ?? 0,
+                String(component["properties"]?["colorName"]));
         }
 
         return null;

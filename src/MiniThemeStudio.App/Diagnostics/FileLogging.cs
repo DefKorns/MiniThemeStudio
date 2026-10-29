@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using Microsoft.Extensions.Logging;
 using Serilog;
+using Serilog.Core;
 
 namespace MiniThemeStudio.App.Diagnostics;
 
@@ -16,7 +17,7 @@ public static class FileLogging
     // one file per day (minithemestudio-YYYYMMDD.log), the last two weeks are kept
     public static ILoggingBuilder AddFileLogging(this ILoggingBuilder builder)
     {
-        var logger = new LoggerConfiguration()
+        Logger logger = new LoggerConfiguration()
             .MinimumLevel.Information()
             .WriteTo.File(
                 Path.Combine(LogsDirectory, "minithemestudio-.log"),

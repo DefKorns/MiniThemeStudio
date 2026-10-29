@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -7,6 +8,7 @@ using Avalonia;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MiniThemeStudio.App.Controls;
+using MiniThemeStudio.App.Dialogs;
 using MiniThemeStudio.App.Errors;
 using MiniThemeStudio.App.Services;
 using MiniThemeStudio.Core.Scenes;
@@ -42,28 +44,40 @@ public sealed partial class ScenesViewModel : ViewModelBase
     private readonly ThemeSession _session;
     private readonly ISceneEditor _sceneEditor;
     private readonly IThemeAssetManager _assetManager;
-    private readonly ITextureAtlasReader _atlasReader;
+    private readonly SceneImageLibrary _images;
     private readonly IFileDialogService _fileDialogs;
+    private readonly IDialogService _dialogs;
     private readonly IErrorHandler _errorHandler;
     private IReadOnlyList<SceneTreeRow> _allSceneRows = [];
-    private Dictionary<string, string> _textureImagePaths = new(StringComparer.Ordinal);
 
     public ScenesViewModel(
         ThemeSession session,
         ISceneEditor sceneEditor,
         IThemeAssetManager assetManager,
-        ITextureAtlasReader atlasReader,
+        SceneImageLibrary images,
         IFileDialogService fileDialogs,
+        IDialogService dialogs,
         IErrorHandler errorHandler)
     {
         _session = session;
         _sceneEditor = sceneEditor;
         _assetManager = assetManager;
-        _atlasReader = atlasReader;
+        _images = images;
         _fileDialogs = fileDialogs;
+        _dialogs = dialogs;
         _errorHandler = errorHandler;
         _session.Reloaded += (_, _) => Reload();
+        Clock.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(AnimationClock.Time))
+            {
+                UpdatePreviewRoot();
+            }
+        };
     }
+
+    // the time of the selected animation in the preview
+    public AnimationClock Clock { get; } = new();
 
     // "Edit sprite in Sprites tab": the window selects the sprite and switches tab
     public event EventHandler<SceneSpriteRequest>? SpriteRequested;
@@ -75,7 +89,20 @@ public sealed partial class ScenesViewModel : ViewModelBase
     private string? selectedSceneResource;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(AddImageCommand))]
     private SceneDocument? currentScene;
+
+    // what the preview draws: the saved scene, or the scene as the selected animation shows it at AnimationTime
+    [ObservableProperty]
+    private SceneNode? previewRoot;
+
+    [ObservableProperty]
+    private IReadOnlyList<SceneAnimationBinding> sceneAnimations = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAnimation))]
+    [NotifyCanExecuteChangedFor(nameof(StopAnimationCommand))]
+    private SceneAnimationBinding? selectedAnimation;
 
     [ObservableProperty]
     private IReadOnlyList<SceneTreeRow> sceneRows = [];
@@ -91,6 +118,7 @@ public sealed partial class ScenesViewModel : ViewModelBase
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelectedSceneNode), nameof(SelectedNodeDrawsImage), nameof(SelectedNodeIsTexture), nameof(SelectedNodeIsSprite), nameof(SelectedSceneNodeSummary))]
+    [NotifyCanExecuteChangedFor(nameof(DuplicateNodeCommand), nameof(DeleteNodeCommand))]
     private SceneNode? selectedSceneNode;
 
     [ObservableProperty]
@@ -135,6 +163,8 @@ public sealed partial class ScenesViewModel : ViewModelBase
 
     public bool HasSelectedSceneNode => SelectedSceneNode is not null;
 
+    public bool HasAnimation => SelectedAnimation is not null;
+
     public bool SelectedNodeDrawsImage => SelectedSceneNode?.Visual is { Kind: SceneVisualKind.Texture or SceneVisualKind.Sprite };
 
     public bool SelectedNodeIsTexture => SelectedSceneNode?.Visual is { Kind: SceneVisualKind.Texture };
@@ -151,6 +181,114 @@ public sealed partial class ScenesViewModel : ViewModelBase
         var node => node.ComponentTypes.Count > 0 ? $"Components: {node.ComponentsText}." : "Empty node.",
     };
 
+    private bool HasScene => CurrentScene is not null;
+
+    // the root holds the whole scene: it is never copied or removed
+    private bool CanCopyOrDeleteNode => CurrentScene is not null && SelectedSceneNode is { Path.Length: > 0 };
+
+    // new images go inside the selected group, next to the selected image, or at the top of the scene
+    private string NewNodeParentPath => SelectedSceneNode switch
+    {
+        null => "",
+        { Visual: null } group => group.Path,
+        { Path: var path } => path.LastIndexOf('/') is var slash and >= 0 ? path[..slash] : "",
+    };
+
+    // a PNG from disk becomes a texture of the theme and a node that draws it
+    [RelayCommand(CanExecute = nameof(HasScene))]
+    private async Task AddImageAsync()
+    {
+        if (_session.Draft is null
+            || CurrentScene is not { } scene
+            || await _fileDialogs.OpenFileAsync("Select the PNG to add to the scene", new FileType("PNG image", "*.png")) is not { } imagePath)
+        {
+            return;
+        }
+
+        string draftPath = _session.Draft.DraftPath;
+        string parentPath = NewNodeParentPath;
+        string name = Path.GetFileNameWithoutExtension(imagePath);
+        string? nodePath = null;
+        if (await _errorHandler.TryRunAsync($"Cannot add {Path.GetFileName(imagePath)}", () =>
+        {
+            string textureId = _sceneEditor.ImportTexture(draftPath, _session.BaseUiPath, imagePath);
+            nodePath = _sceneEditor.AddImageNode(draftPath, _session.BaseUiPath, scene.ResourcePath, parentPath, textureId, name);
+            return Task.CompletedTask;
+        }))
+        {
+            ShowEditedNode(nodePath, $"{scene.FileName}: added {name}.");
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCopyOrDeleteNode))]
+    private async Task DuplicateNodeAsync()
+    {
+        if (_session.Draft is null || CurrentScene is not { } scene || SelectedSceneNode is not { } node)
+        {
+            return;
+        }
+
+        string draftPath = _session.Draft.DraftPath;
+        string? copyPath = null;
+        if (await _errorHandler.TryRunAsync($"Cannot duplicate {node.Name}", () =>
+        {
+            copyPath = _sceneEditor.DuplicateNode(draftPath, _session.BaseUiPath, scene.ResourcePath, node.Path);
+            return Task.CompletedTask;
+        }))
+        {
+            ShowEditedNode(copyPath, $"{scene.FileName}: duplicated {node.Name}.");
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanCopyOrDeleteNode))]
+    private async Task DeleteNodeAsync()
+    {
+        if (_session.Draft is null || CurrentScene is not { } scene || SelectedSceneNode is not { } node)
+        {
+            return;
+        }
+
+        int descendants = node.SelfAndDescendants().Count() - 1;
+        string message = descendants == 0
+            ? $"Delete {node.Name} from {scene.FileName}?"
+            : $"Delete {node.Name} and the {descendants} node{(descendants == 1 ? "" : "s")} inside it from {scene.FileName}?";
+        if (!await _dialogs.ShowConfirmationAsync("Delete node", message + " Only this theme's copy of the scene changes.", acceptButtonText: "Delete", isDestructive: true))
+        {
+            return;
+        }
+
+        string draftPath = _session.Draft.DraftPath;
+        string parentPath = node.Path.LastIndexOf('/') is var slash and >= 0 ? node.Path[..slash] : "";
+        if (await _errorHandler.TryRunAsync($"Cannot delete {node.Name}", () =>
+        {
+            _sceneEditor.DeleteNode(draftPath, _session.BaseUiPath, scene.ResourcePath, node.Path);
+            return Task.CompletedTask;
+        }))
+        {
+            ShowEditedNode(parentPath, $"{scene.FileName}: deleted {node.Name}.");
+        }
+    }
+
+    // a node dragged in the preview
+    [RelayCommand]
+    private async Task MoveNodeAsync(SceneNodeMove? move)
+    {
+        if (_session.Draft is null || CurrentScene is not { } scene || move is null || scene.Find(move.Path) is not { } node)
+        {
+            return;
+        }
+
+        string draftPath = _session.Draft.DraftPath;
+        if (await _errorHandler.TryRunAsync($"Cannot move {node.Name}", () =>
+        {
+            _sceneEditor.EditNode(draftPath, _session.BaseUiPath, scene.ResourcePath, node.Path, new SceneNodeEdit(X: move.X, Y: move.Y));
+            return Task.CompletedTask;
+        }))
+        {
+            ShowEditedNode(node.Path, string.Create(CultureInfo.InvariantCulture, $"{scene.FileName}: moved {node.Name} to {move.X:0.##}, {move.Y:0.##}."));
+        }
+    }
+
     [RelayCommand]
     private async Task ApplyNodeChangesAsync()
     {
@@ -159,7 +297,7 @@ public sealed partial class ScenesViewModel : ViewModelBase
             return;
         }
 
-        var visual = node.Visual;
+        SceneVisual? visual = node.Visual;
         var edit = new SceneNodeEdit(
             Name: SceneNodeName != node.Name ? SceneNodeName : null,
             X: Changed(SceneNodeX, node.Transform.X),
@@ -175,8 +313,8 @@ public sealed partial class ScenesViewModel : ViewModelBase
             return;
         }
 
-        var draftPath = _session.Draft.DraftPath;
-        var name = SceneNodeName;
+        string draftPath = _session.Draft.DraftPath;
+        string name = SceneNodeName;
         if (await _errorHandler.TryRunAsync($"Cannot change {node.Name}", () =>
         {
             _sceneEditor.EditNode(draftPath, _session.BaseUiPath, scene.ResourcePath, node.Path, edit);
@@ -188,10 +326,17 @@ public sealed partial class ScenesViewModel : ViewModelBase
         }
     }
 
+    // back to the scene as it is saved
+    [RelayCommand(CanExecute = nameof(HasAnimation))]
+    private void StopAnimation()
+    {
+        SelectedAnimation = null;
+    }
+
     [RelayCommand]
     private void ResetSceneNodeFields()
     {
-        var node = SelectedSceneNode;
+        SceneNode? node = SelectedSceneNode;
         SceneNodeName = node?.Name ?? "";
         SceneNodeVisible = node?.Visible ?? false;
         SceneNodeX = node is null ? null : (decimal)node.Transform.X;
@@ -216,11 +361,11 @@ public sealed partial class ScenesViewModel : ViewModelBase
             return;
         }
 
-        var draftPath = _session.Draft.DraftPath;
+        string draftPath = _session.Draft.DraftPath;
         if (await _errorHandler.TryRunAsync($"Cannot replace {texture.Name}", () =>
         {
-            var target = Path.Combine(draftPath, "resources", texture.RelativePath);
-            var definition = new[] { draftPath, _session.BaseUiPath }
+            string target = Path.Combine(draftPath, "resources", texture.RelativePath);
+            string? definition = new[] { draftPath, _session.BaseUiPath }
                 .Where(root => root is not null)
                 .Select(root => Path.Combine(root!, "resources", Path.ChangeExtension(texture.RelativePath, ".json")))
                 .FirstOrDefault(File.Exists);
@@ -239,49 +384,33 @@ public sealed partial class ScenesViewModel : ViewModelBase
         // spriteId is "<atlas texture id>.<sprite name>"
         if (SelectedSceneNode?.Visual is { Kind: SceneVisualKind.Sprite, SpriteId: { } spriteId } && spriteId.IndexOf('.') is var dot and > 0)
         {
-            var textureId = spriteId[..dot];
-            SpriteRequested?.Invoke(this, new SceneSpriteRequest(textureId, spriteId[(dot + 1)..], _textureImagePaths.GetValueOrDefault(textureId)));
+            string textureId = spriteId[..dot];
+            SpriteRequested?.Invoke(this, new SceneSpriteRequest(textureId, spriteId[(dot + 1)..], _images.TextureImagePaths.GetValueOrDefault(textureId)));
         }
+    }
+
+    // the scene was written: the session reloads every tab, then the edited node is selected again
+    private void ShowEditedNode(string? nodePath, string status)
+    {
+        _session.NotifyContentChanged();
+        SelectedScenePath = nodePath is not null && CurrentScene?.Find(nodePath) is not null ? nodePath : null;
+        _session.Status = status;
     }
 
     private void Reload()
     {
-        var previousImages = SceneImages;
+        SceneTextureChoices = _images.TextureChoices;
+        SceneImages = _images.Images;
         if (_session.Draft is null)
         {
             SceneResources = [];
             CurrentScene = null;
-            SceneTextureChoices = [];
-            _textureImagePaths = new Dictionary<string, string>(StringComparer.Ordinal);
-            SceneImages = SceneImageSource.Empty;
-            DisposeSceneImages(previousImages);
             return;
         }
 
-        var draftPath = _session.Draft.DraftPath;
-        _textureImagePaths = new Dictionary<string, string>(StringComparer.Ordinal);
-        var choices = new List<SceneTextureChoice>();
-        foreach (var (relativePath, textureId) in _session.Report.TextureIdsByImagePath)
-        {
-            var imagePath = new[] { draftPath, _session.BaseUiPath }
-                .Where(root => root is not null)
-                .Select(root => Path.Combine(root!, "resources", relativePath))
-                .FirstOrDefault(File.Exists);
-            if (imagePath is null)
-            {
-                continue;
-            }
-
-            _textureImagePaths.TryAdd(textureId, imagePath);
-            choices.Add(new SceneTextureChoice(textureId, Path.GetFileNameWithoutExtension(relativePath), relativePath));
-        }
-
-        SceneTextureChoices = choices.OrderBy(choice => choice.Name, StringComparer.OrdinalIgnoreCase).ToList();
-        SceneImages = new SceneImageSource(_textureImagePaths, _atlasReader.ReadAll(draftPath, _session.BaseUiPath));
-        DisposeSceneImages(previousImages);
-
-        var previousScene = SelectedSceneResource;
-        var previousPath = SelectedScenePath;
+        string draftPath = _session.Draft.DraftPath;
+        string? previousScene = SelectedSceneResource;
+        string? previousPath = SelectedScenePath;
         SceneResources = _sceneEditor.GetScenes(draftPath, _session.BaseUiPath);
         SelectedSceneResource = null;
         SelectedSceneResource = previousScene is not null && SceneResources.Contains(previousScene)
@@ -321,8 +450,38 @@ public sealed partial class ScenesViewModel : ViewModelBase
             AddRows(scene.Root, 0, rows);
         }
 
+        // the animation keeps playing over the reloaded scene when the scene still has it
+        var previousAnimation = SelectedAnimation?.Clip.ResourcePath;
+        SceneAnimations = CurrentScene is { } loaded ? _sceneEditor.GetAnimations(_session.Draft.DraftPath, _session.BaseUiPath, loaded) : [];
+        SelectedAnimation = SceneAnimations.FirstOrDefault(binding => binding.Clip.ResourcePath == previousAnimation);
+
         _allSceneRows = rows;
         ApplySceneSearch();
+    }
+
+    partial void OnCurrentSceneChanged(SceneDocument? value) => UpdatePreviewRoot();
+
+    partial void OnSelectedAnimationChanged(SceneAnimationBinding? oldValue, SceneAnimationBinding? newValue)
+    {
+        if (newValue is null)
+        {
+            Clock.Reset(0);
+        }
+        else if (oldValue?.Clip.ResourcePath != newValue.Clip.ResourcePath)
+        {
+            // a new animation starts from the beginning, with the node that plays it selected so its branch shows
+            Clock.Reset(newValue.Clip.Duration);
+            SelectedScenePath = newValue.AnimatorPath;
+        }
+
+        UpdatePreviewRoot();
+    }
+
+    private void UpdatePreviewRoot()
+    {
+        PreviewRoot = CurrentScene?.Root is { } root && SelectedAnimation is { } animation
+            ? SceneAnimationEvaluator.Apply(root, animation, Clock.Time)
+            : CurrentScene?.Root;
     }
 
     partial void OnSceneSearchTextChanged(string value)
@@ -375,7 +534,7 @@ public sealed partial class ScenesViewModel : ViewModelBase
     private static void AddRows(SceneNode node, int depth, List<SceneTreeRow> rows)
     {
         rows.Add(new SceneTreeRow(node, depth));
-        foreach (var child in node.Children)
+        foreach (SceneNode child in node.Children)
         {
             AddRows(child, depth + 1, rows);
         }
@@ -389,13 +548,5 @@ public sealed partial class ScenesViewModel : ViewModelBase
     private static string SpriteName(string? spriteId)
     {
         return spriteId is null ? "" : spriteId[(spriteId.IndexOf('.') + 1)..];
-    }
-
-    private static void DisposeSceneImages(SceneImageSource images)
-    {
-        if (!ReferenceEquals(images, SceneImageSource.Empty))
-        {
-            images.Dispose();
-        }
     }
 }

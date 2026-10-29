@@ -1,6 +1,7 @@
 using System.Formats.Tar;
 using System.IO.Compression;
 using DiscUtils.SquashFs;
+using DiscUtils.Streams;
 using SharpCompress.Compressors.Xz;
 
 namespace MiniThemeStudio.Infrastructure.Firmware;
@@ -24,9 +25,9 @@ public static class FirmwareSourceReader
 
     public static FirmwareSourceFormat Detect(string filePath)
     {
-        using var stream = File.OpenRead(filePath);
-        var header = new byte[262];
-        var length = stream.ReadAtLeast(header, header.Length, throwOnEndOfStream: false);
+        using FileStream stream = File.OpenRead(filePath);
+        byte[] header = new byte[262];
+        int length = stream.ReadAtLeast(header, header.Length, throwOnEndOfStream: false);
 
         return header.AsSpan(0, length) switch
         {
@@ -52,7 +53,7 @@ public static class FirmwareSourceReader
         string destinationPath,
         CancellationToken cancellationToken = default)
     {
-        var prefix = directoryInSource.Trim('/') + "/";
+        string prefix = directoryInSource.Trim('/') + "/";
         Directory.CreateDirectory(destinationPath);
 
         return format switch
@@ -69,25 +70,25 @@ public static class FirmwareSourceReader
         string destinationPath,
         CancellationToken cancellationToken)
     {
-        using var stream = File.OpenRead(sourcePath);
+        using FileStream stream = File.OpenRead(sourcePath);
         using var fileSystem = new SquashFileSystemReader(stream, SquashFsOptions);
-        var nativeRoot = ToNative(prefix.TrimEnd('/'));
+        string nativeRoot = ToNative(prefix.TrimEnd('/'));
         if (!fileSystem.DirectoryExists(nativeRoot))
         {
             return 0;
         }
 
-        var count = 0;
-        foreach (var file in fileSystem.GetFiles(nativeRoot, "*.*", SearchOption.AllDirectories))
+        int count = 0;
+        foreach (string file in fileSystem.GetFiles(nativeRoot, "*.*", SearchOption.AllDirectories))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var relativePath = file.Replace('\\', '/')[prefix.Length..];
+            string relativePath = file.Replace('\\', '/')[prefix.Length..];
             if (UiTreeHash.IsIgnored(relativePath))
             {
                 continue;
             }
 
-            using var input = fileSystem.OpenFile(file, FileMode.Open);
+            using SparseStream input = fileSystem.OpenFile(file, FileMode.Open);
             WriteFile(destinationPath, relativePath, input);
             count++;
         }
@@ -102,13 +103,13 @@ public static class FirmwareSourceReader
         string destinationPath,
         CancellationToken cancellationToken)
     {
-        using var fileStream = File.OpenRead(sourcePath);
-        using var tarStream = format == FirmwareSourceFormat.TarGz
+        using FileStream fileStream = File.OpenRead(sourcePath);
+        using Stream tarStream = format == FirmwareSourceFormat.TarGz
             ? new GZipStream(fileStream, CompressionMode.Decompress)
             : (Stream)fileStream;
         using var reader = new TarReader(tarStream);
 
-        var count = 0;
+        int count = 0;
         while (reader.GetNextEntry() is { } entry)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -118,13 +119,13 @@ public static class FirmwareSourceReader
                 continue;
             }
 
-            var entryName = entry.Name.Replace('\\', '/').TrimStart('.', '/');
+            string entryName = entry.Name.Replace('\\', '/').TrimStart('.', '/');
             if (!entryName.StartsWith(prefix, StringComparison.Ordinal))
             {
                 continue;
             }
 
-            var relativePath = entryName[prefix.Length..];
+            string relativePath = entryName[prefix.Length..];
             if (UiTreeHash.IsIgnored(relativePath))
             {
                 continue;
@@ -139,15 +140,15 @@ public static class FirmwareSourceReader
 
     private static void WriteFile(string destinationRoot, string relativePath, Stream content)
     {
-        var fullRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(destinationRoot)) + Path.DirectorySeparatorChar;
-        var targetPath = Path.GetFullPath(Path.Combine(fullRoot, relativePath));
+        string fullRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(destinationRoot)) + Path.DirectorySeparatorChar;
+        string targetPath = Path.GetFullPath(Path.Combine(fullRoot, relativePath));
         if (!targetPath.StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException($"Unsafe path in firmware source: {relativePath}");
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-        using var output = File.Create(targetPath);
+        using FileStream output = File.Create(targetPath);
         content.CopyTo(output);
     }
 

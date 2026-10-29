@@ -35,9 +35,9 @@ public sealed class ThemeResourceIndexer : IThemeResourceIndexer
             .ToDictionary(group => group.Key, group => group.First().Path!);
 
         var references = new List<TextureReference>();
-        foreach (var scene in resources.Where(resource => resource.Type is DependencyManifest.Scene or DependencyManifest.SceneAnimation && resource.Path is not null))
+        foreach (ManifestResource? scene in resources.Where(resource => resource.Type is DependencyManifest.Scene or DependencyManifest.SceneAnimation && resource.Path is not null))
         {
-            var scenePath = resolver.Resolve(scene.Path!);
+            string? scenePath = resolver.Resolve(scene.Path!);
             if (scenePath is null)
             {
                 issues.Add(new ThemeValidationIssue($"Scene file missing: resources{scene.Path}", true));
@@ -61,7 +61,7 @@ public sealed class ThemeResourceIndexer : IThemeResourceIndexer
                 group => group.Key,
                 group => (IReadOnlyList<string>)group.Select(reference => reference.Scene).Distinct().Order(StringComparer.Ordinal).ToList());
 
-        foreach (var unregistered in usage.Keys.Where(id => !resourcesById.ContainsKey(id)).Order(StringComparer.Ordinal))
+        foreach (string? unregistered in usage.Keys.Where(id => !resourcesById.ContainsKey(id)).Order(StringComparer.Ordinal))
         {
             issues.Add(new ThemeValidationIssue(
                 $"Texture {unregistered} used by {string.Join(", ", usage[unregistered])} is not registered in dependencies.json.",
@@ -69,15 +69,15 @@ public sealed class ThemeResourceIndexer : IThemeResourceIndexer
         }
 
         var missing = new List<MissingTexture>();
-        foreach (var texture in resources.Where(resource => resource.Type == DependencyManifest.TextureResource && resource.Path is not null))
+        foreach (ManifestResource? texture in resources.Where(resource => resource.Type == DependencyManifest.TextureResource && resource.Path is not null))
         {
             if (resolver.Resolve(texture.Path!) is not null)
             {
                 continue;
             }
 
-            var usedBy = usage.TryGetValue(texture.Id, out var scenes) ? scenes : [];
-            var definitionPath = sheetsByTextureId.TryGetValue(texture.Id, out var sheetPath)
+            IReadOnlyList<string> usedBy = usage.TryGetValue(texture.Id, out IReadOnlyList<string>? scenes) ? scenes : [];
+            string definitionPath = sheetsByTextureId.TryGetValue(texture.Id, out string? sheetPath)
                 ? sheetPath
                 : Path.ChangeExtension(texture.Path!, ".json");
             missing.Add(new MissingTexture(texture.Id, ToRelative(texture.Path!), ToRelative(definitionPath), usedBy));
@@ -89,7 +89,7 @@ public sealed class ThemeResourceIndexer : IThemeResourceIndexer
         CheckNodeSizes(references, sheetsByTextureId, resolver, issues);
 
         var textureIdsByImagePath = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var texture in resources.Where(resource => resource.Type == DependencyManifest.TextureResource && resource.Path is not null))
+        foreach (ManifestResource? texture in resources.Where(resource => resource.Type == DependencyManifest.TextureResource && resource.Path is not null))
         {
             textureIdsByImagePath.TryAdd(texture.Path!.TrimStart('/'), texture.Id);
         }
@@ -103,9 +103,9 @@ public sealed class ThemeResourceIndexer : IThemeResourceIndexer
         ThemeLayer resolver,
         List<ThemeValidationIssue> issues)
     {
-        foreach (var reference in references.Where(candidate => candidate.NodeSize is not null).DistinctBy(candidate => (candidate.TextureId, candidate.Scene, candidate.NodeSize)))
+        foreach (TextureReference? reference in references.Where(candidate => candidate.NodeSize is not null).DistinctBy(candidate => (candidate.TextureId, candidate.Scene, candidate.NodeSize)))
         {
-            if (!sheetsByTextureId.TryGetValue(reference.TextureId, out var sheetPath)
+            if (!sheetsByTextureId.TryGetValue(reference.TextureId, out string? sheetPath)
                 || resolver.ResolveInTheme(sheetPath) is not { } themeSheet
                 || ReadTextureSize(themeSheet) is not { } themeSize)
             {
@@ -133,8 +133,8 @@ public sealed class ThemeResourceIndexer : IThemeResourceIndexer
             return false;
         }
 
-        var horizontal = (double)node.Width / texture.Width;
-        var vertical = (double)node.Height / texture.Height;
+        double horizontal = (double)node.Width / texture.Width;
+        double vertical = (double)node.Height / texture.Height;
         return Math.Abs(horizontal - vertical) <= 0.02 * Math.Max(horizontal, vertical);
     }
 
@@ -144,7 +144,7 @@ public sealed class ThemeResourceIndexer : IThemeResourceIndexer
         {
             case JsonValueKind.Object:
                 if (IsString(element, "type", "TextureComponent")
-                    && element.TryGetProperty("textureId", out var textureId)
+                    && element.TryGetProperty("textureId", out JsonElement textureId)
                     && textureId.ValueKind == JsonValueKind.String
                     && textureId.GetString() is { Length: > 0 } id)
                 {
@@ -153,26 +153,26 @@ public sealed class ThemeResourceIndexer : IThemeResourceIndexer
 
                 if (IsString(element, "componentType", "TextureComponent")
                     && IsString(element, "propertyId", "Texture")
-                    && element.TryGetProperty("keyCurves", out var curves)
+                    && element.TryGetProperty("keyCurves", out JsonElement curves)
                     && curves.ValueKind == JsonValueKind.Array)
                 {
-                    foreach (var key in curves.EnumerateArray())
+                    foreach (JsonElement key in curves.EnumerateArray())
                     {
-                        if (key.TryGetProperty("value", out var value) && value.ValueKind == JsonValueKind.String && value.GetString() is { Length: > 0 } animatedId)
+                        if (key.TryGetProperty("value", out JsonElement value) && value.ValueKind == JsonValueKind.String && value.GetString() is { Length: > 0 } animatedId)
                         {
                             references.Add(new TextureReference(animatedId, scene, null));
                         }
                     }
                 }
 
-                foreach (var property in element.EnumerateObject())
+                foreach (JsonProperty property in element.EnumerateObject())
                 {
                     CollectReferences(property.Value, scene, references);
                 }
 
                 break;
             case JsonValueKind.Array:
-                foreach (var item in element.EnumerateArray())
+                foreach (JsonElement item in element.EnumerateArray())
                 {
                     CollectReferences(item, scene, references);
                 }
@@ -183,14 +183,14 @@ public sealed class ThemeResourceIndexer : IThemeResourceIndexer
 
     private static bool IsString(JsonElement element, string propertyName, string expected)
     {
-        return element.TryGetProperty(propertyName, out var value)
+        return element.TryGetProperty(propertyName, out JsonElement value)
             && value.ValueKind == JsonValueKind.String
             && value.GetString() == expected;
     }
 
     private static (int Width, int Height)? ReadSize(JsonElement component)
     {
-        if (component.TryGetProperty("size", out var size) && size.ValueKind == JsonValueKind.Array && size.GetArrayLength() == 2)
+        if (component.TryGetProperty("size", out JsonElement size) && size.ValueKind == JsonValueKind.Array && size.GetArrayLength() == 2)
         {
             return ((int)Math.Round(size[0].GetDouble()), (int)Math.Round(size[1].GetDouble()));
         }
@@ -203,7 +203,7 @@ public sealed class ThemeResourceIndexer : IThemeResourceIndexer
         try
         {
             using var document = JsonDocument.Parse(File.ReadAllText(sheetPath));
-            var texture = document.RootElement.GetProperty("texture");
+            JsonElement texture = document.RootElement.GetProperty("texture");
             return (texture.GetProperty("width").GetInt32(), texture.GetProperty("height").GetInt32());
         }
         catch (Exception exception) when (exception is JsonException or KeyNotFoundException or InvalidOperationException or IOException)

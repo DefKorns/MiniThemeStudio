@@ -19,7 +19,7 @@ public sealed class ErrorHandlerTests
     {
         await _handler.HandleAsync(new IOException("The file is in use."), "Cannot save theme");
 
-        var (title, message) = Assert.Single(_dialogs.Shown);
+        (string? title, string? message) = Assert.Single(_dialogs.Shown);
         Assert.Equal("Cannot save theme", title);
         Assert.Equal("The file is in use.", message);
     }
@@ -29,7 +29,7 @@ public sealed class ErrorHandlerTests
     {
         await _handler.HandleAsync(new FormatException("Unexpected token."), "Cannot open theme");
 
-        var (_, message) = Assert.Single(_dialogs.Shown);
+        (string _, string? message) = Assert.Single(_dialogs.Shown);
         Assert.StartsWith("Unexpected token.", message);
         Assert.Contains("not expected", message);
         Assert.Contains("log", message);
@@ -38,7 +38,7 @@ public sealed class ErrorHandlerTests
     [Fact]
     public async Task TryRunReportsTheFailureAndReturnsFalse()
     {
-        var succeeded = await _handler.TryRunAsync("Cannot export package", () => throw new OperationFailedException("Fix 1 validation error(s)."));
+        bool succeeded = await _handler.TryRunAsync("Cannot export package", () => throw new OperationFailedException("Fix 1 validation error(s)."));
 
         Assert.False(succeeded);
         Assert.Equal(("Cannot export package", "Fix 1 validation error(s)."), Assert.Single(_dialogs.Shown));
@@ -47,9 +47,9 @@ public sealed class ErrorHandlerTests
     [Fact]
     public async Task TryRunReturnsTrueWhenNothingFails()
     {
-        var ran = false;
+        bool ran = false;
 
-        var succeeded = await _handler.TryRunAsync("Cannot do it", () =>
+        bool succeeded = await _handler.TryRunAsync("Cannot do it", () =>
         {
             ran = true;
             return Task.CompletedTask;

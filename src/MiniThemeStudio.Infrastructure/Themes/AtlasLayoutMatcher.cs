@@ -15,31 +15,31 @@ public sealed class AtlasLayoutMatcher(ITextureAtlasReader? atlasReader = null) 
         ArgumentException.ThrowIfNullOrWhiteSpace(imagePath);
         ArgumentNullException.ThrowIfNull(bases);
 
-        using var bitmap = SKBitmap.Decode(imagePath)
+        using SKBitmap bitmap = SKBitmap.Decode(imagePath)
             ?? throw new InvalidDataException("The atlas source is not a valid PNG image.");
-        var visible = ReadVisibility(bitmap);
-        var visibleCount = visible.Count(isVisible => isVisible);
+        bool[] visible = ReadVisibility(bitmap);
+        int visibleCount = visible.Count(isVisible => isVisible);
 
         var matches = new List<AtlasLayoutMatch>();
-        foreach (var installedBase in bases)
+        foreach (InstalledBaseInfo installedBase in bases)
         {
-            var atlas = _atlasReader.Read(installedBase.LocalPath);
+            TextureAtlas? atlas = _atlasReader.Read(installedBase.LocalPath);
             if (atlas is null || atlas.Size.Width != bitmap.Width || atlas.Size.Height != bitmap.Height)
             {
                 continue;
             }
 
-            var covered = new bool[visible.Length];
-            var framesWithContent = 0;
-            foreach (var sprite in atlas.Sprites)
+            bool[] covered = new bool[visible.Length];
+            int framesWithContent = 0;
+            foreach (SpriteRegion sprite in atlas.Sprites)
             {
-                var hasContent = false;
-                var frame = sprite.Frame;
-                for (var y = Math.Max(0, frame.Y); y < Math.Min(bitmap.Height, frame.Y + frame.Height); y++)
+                bool hasContent = false;
+                AtlasRectangle frame = sprite.Frame;
+                for (int y = Math.Max(0, frame.Y); y < Math.Min(bitmap.Height, frame.Y + frame.Height); y++)
                 {
-                    for (var x = Math.Max(0, frame.X); x < Math.Min(bitmap.Width, frame.X + frame.Width); x++)
+                    for (int x = Math.Max(0, frame.X); x < Math.Min(bitmap.Width, frame.X + frame.Width); x++)
                     {
-                        var index = (y * bitmap.Width) + x;
+                        int index = (y * bitmap.Width) + x;
                         covered[index] = true;
                         hasContent |= visible[index];
                     }
@@ -51,8 +51,8 @@ public sealed class AtlasLayoutMatcher(ITextureAtlasReader? atlasReader = null) 
                 }
             }
 
-            var visibleInside = 0;
-            for (var index = 0; index < visible.Length; index++)
+            int visibleInside = 0;
+            for (int index = 0; index < visible.Length; index++)
             {
                 if (visible[index] && covered[index])
                 {
@@ -60,23 +60,23 @@ public sealed class AtlasLayoutMatcher(ITextureAtlasReader? atlasReader = null) 
                 }
             }
 
-            var coverage = visibleCount == 0 ? 0 : 100.0 * visibleInside / visibleCount;
+            double coverage = visibleCount == 0 ? 0 : 100.0 * visibleInside / visibleCount;
             matches.Add(new AtlasLayoutMatch(installedBase, atlas.Name, coverage, framesWithContent, atlas.Sprites.Count));
         }
 
         return matches
             .OrderByDescending(match => Math.Round(match.CoveragePercent, 1))
             .ThenByDescending(match => match.FramesWithContent)
-            .ThenByDescending(match => Version.TryParse(match.Base.Definition.Version, out var version) ? version : new Version())
+            .ThenByDescending(match => Version.TryParse(match.Base.Definition.Version, out Version? version) ? version : new Version())
             .ToList();
     }
 
     private static bool[] ReadVisibility(SKBitmap bitmap)
     {
-        var visible = new bool[bitmap.Width * bitmap.Height];
-        for (var y = 0; y < bitmap.Height; y++)
+        bool[] visible = new bool[bitmap.Width * bitmap.Height];
+        for (int y = 0; y < bitmap.Height; y++)
         {
-            for (var x = 0; x < bitmap.Width; x++)
+            for (int x = 0; x < bitmap.Width; x++)
             {
                 visible[(y * bitmap.Width) + x] = bitmap.GetPixel(x, y).Alpha > VisibleAlpha;
             }

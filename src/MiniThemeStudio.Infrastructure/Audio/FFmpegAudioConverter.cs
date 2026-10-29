@@ -20,7 +20,7 @@ public sealed class FFmpegAudioConverter : IFFmpegAudioConverter
             return FFmpegStatus.NotConfigured;
         }
 
-        var fullPath = Path.GetFullPath(ffmpegPath.Trim());
+        string fullPath = Path.GetFullPath(ffmpegPath.Trim());
         if (!File.Exists(fullPath))
         {
             return FFmpegStatus.NotFound(fullPath);
@@ -28,16 +28,16 @@ public sealed class FFmpegAudioConverter : IFFmpegAudioConverter
 
         try
         {
-            var result = await _processRunner.RunAsync(fullPath, ["-version"], cancellationToken).ConfigureAwait(false);
+            ProcessResult result = await _processRunner.RunAsync(fullPath, ["-version"], cancellationToken).ConfigureAwait(false);
             if (result.ExitCode != 0)
             {
-                var error = string.IsNullOrWhiteSpace(result.StandardError) ? result.StandardOutput : result.StandardError;
+                string error = string.IsNullOrWhiteSpace(result.StandardError) ? result.StandardOutput : result.StandardError;
                 return new FFmpegStatus(false, null, $"FFmpeg exited with code {result.ExitCode}: {error.Trim()}");
             }
 
-            var output = string.IsNullOrWhiteSpace(result.StandardOutput) ? result.StandardError : result.StandardOutput;
-            var match = VersionRegex.Match(output);
-            var version = match.Success ? match.Groups[1].Value : "Unknown version";
+            string output = string.IsNullOrWhiteSpace(result.StandardOutput) ? result.StandardError : result.StandardOutput;
+            Match match = VersionRegex.Match(output);
+            string version = match.Success ? match.Groups[1].Value : "Unknown version";
             return FFmpegStatus.Available(version);
         }
         catch (Exception ex)
@@ -57,30 +57,30 @@ public sealed class FFmpegAudioConverter : IFFmpegAudioConverter
         ArgumentException.ThrowIfNullOrWhiteSpace(inputPath);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
 
-        var ffmpegFullPath = Path.GetFullPath(ffmpegPath.Trim());
+        string ffmpegFullPath = Path.GetFullPath(ffmpegPath.Trim());
         if (!File.Exists(ffmpegFullPath))
         {
             return AudioConversionResult.Failed(outputPath, $"FFmpeg executable not found at '{ffmpegFullPath}'.");
         }
 
-        var inputFullPath = Path.GetFullPath(inputPath.Trim());
+        string inputFullPath = Path.GetFullPath(inputPath.Trim());
         if (!File.Exists(inputFullPath))
         {
             return AudioConversionResult.Failed(outputPath, $"Input audio file not found at '{inputFullPath}'.");
         }
 
-        var outputFullPath = Path.GetFullPath(outputPath.Trim());
-        var outputDir = Path.GetDirectoryName(outputFullPath);
+        string outputFullPath = Path.GetFullPath(outputPath.Trim());
+        string? outputDir = Path.GetDirectoryName(outputFullPath);
         if (!string.IsNullOrEmpty(outputDir))
         {
             Directory.CreateDirectory(outputDir);
         }
 
-        var tempOutputPath = Path.Combine(Path.GetTempPath(), $"mts_bgm_{Guid.NewGuid():N}.wav");
+        string tempOutputPath = Path.Combine(Path.GetTempPath(), $"mts_bgm_{Guid.NewGuid():N}.wav");
 
         try
         {
-            var channelCount = channels == BgmAudioChannels.Mono ? "1" : "2";
+            string channelCount = channels == BgmAudioChannels.Mono ? "1" : "2";
             var arguments = new List<string>
             {
                 "-y",
@@ -96,11 +96,11 @@ public sealed class FFmpegAudioConverter : IFFmpegAudioConverter
                 tempOutputPath,
             };
 
-            var result = await _processRunner.RunAsync(ffmpegFullPath, arguments, cancellationToken).ConfigureAwait(false);
+            ProcessResult result = await _processRunner.RunAsync(ffmpegFullPath, arguments, cancellationToken).ConfigureAwait(false);
 
             if (result.ExitCode != 0)
             {
-                var error = string.IsNullOrWhiteSpace(result.StandardError) ? result.StandardOutput : result.StandardError;
+                string error = string.IsNullOrWhiteSpace(result.StandardError) ? result.StandardOutput : result.StandardError;
                 return AudioConversionResult.Failed(outputFullPath, $"FFmpeg conversion failed (exit code {result.ExitCode}): {error.Trim()}");
             }
 
@@ -109,13 +109,13 @@ public sealed class FFmpegAudioConverter : IFFmpegAudioConverter
                 return AudioConversionResult.Failed(outputFullPath, "FFmpeg completed without creating the output WAV file.");
             }
 
-            var audioInfo = WavAudioReader.Read(tempOutputPath);
+            WavAudioInfo audioInfo = WavAudioReader.Read(tempOutputPath);
             if (!audioInfo.IsValidWav || !audioInfo.IsConsoleStandard)
             {
                 return AudioConversionResult.Failed(outputFullPath, $"Converted file is not valid console audio: {audioInfo.FormatDescription}");
             }
 
-            var expectedChannels = channels == BgmAudioChannels.Mono ? 1 : 2;
+            int expectedChannels = channels == BgmAudioChannels.Mono ? 1 : 2;
             if (audioInfo.Channels != expectedChannels)
             {
                 return AudioConversionResult.Failed(outputFullPath, $"Converted file channels mismatch: expected {expectedChannels}, got {audioInfo.Channels}.");

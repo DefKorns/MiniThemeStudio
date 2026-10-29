@@ -29,7 +29,7 @@ public sealed partial class BaseSelector : UserControl
             .ToList();
         FamilyComboBox.ItemsSource = families;
 
-        var preferredChoice = choices.FirstOrDefault(choice => choice.Base.LocalPath == preferred?.LocalPath)
+        BaseChoice? preferredChoice = choices.FirstOrDefault(choice => choice.Base.LocalPath == preferred?.LocalPath)
             ?? (choices.Count > 0 ? choices[0] : null);
         FamilyComboBox.SelectedItem = families.FirstOrDefault(family => family.Family == preferredChoice?.Family)
             ?? families[0];

@@ -8,11 +8,11 @@ public static class ThemeDirectoryName
     public static string FromDisplayName(string displayName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
-        var normalizedName = displayName.Normalize(NormalizationForm.FormD);
+        string normalizedName = displayName.Normalize(NormalizationForm.FormD);
         var result = new StringBuilder(normalizedName.Length);
-        var separatorPending = false;
+        bool separatorPending = false;
 
-        foreach (var character in normalizedName)
+        foreach (char character in normalizedName)
         {
             if (CharUnicodeInfo.GetUnicodeCategory(character) == UnicodeCategory.NonSpacingMark)
             {

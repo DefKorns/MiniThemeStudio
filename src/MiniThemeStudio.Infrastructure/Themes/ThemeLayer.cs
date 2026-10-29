@@ -39,7 +39,7 @@ internal sealed class ThemeLayer
 
     public void WriteThemeResource(string resourcePath, string content)
     {
-        var path = ThemeResourceFile(resourcePath);
+        string path = ThemeResourceFile(resourcePath);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         EngineJson.WriteAtomically(path, content);
     }
@@ -53,11 +53,11 @@ internal sealed class ThemeLayer
     // the files under a folder of resources found in the theme or the Base, each once, the theme's copy first
     public IReadOnlyList<LayeredFile> ListFiles(string folder, string searchPattern, bool recursive = true)
     {
-        var inBase = FindIn(BaseUiPath, folder, searchPattern, recursive);
-        var inTheme = FindIn(ThemePath, folder, searchPattern, recursive);
+        Dictionary<string, string> inBase = FindIn(BaseUiPath, folder, searchPattern, recursive);
+        Dictionary<string, string> inTheme = FindIn(ThemePath, folder, searchPattern, recursive);
         return inBase.Keys.Union(inTheme.Keys, StringComparer.OrdinalIgnoreCase)
             .Order(StringComparer.OrdinalIgnoreCase)
-            .Select(resourcePath => inTheme.TryGetValue(resourcePath, out var themeFile)
+            .Select(resourcePath => inTheme.TryGetValue(resourcePath, out string? themeFile)
                 ? new LayeredFile(resourcePath, themeFile, false, inBase.ContainsKey(resourcePath))
                 : new LayeredFile(resourcePath, inBase[resourcePath], true, false))
             .ToList();
@@ -88,8 +88,8 @@ internal sealed class ThemeLayer
         ArgumentException.ThrowIfNullOrWhiteSpace(root);
         ArgumentNullException.ThrowIfNull(relativePath);
 
-        var rootPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
-        var path = Path.GetFullPath(Path.Combine(rootPath, relativePath.Replace('/', Path.DirectorySeparatorChar)));
+        string rootPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
+        string path = Path.GetFullPath(Path.Combine(rootPath, relativePath.Replace('/', Path.DirectorySeparatorChar)));
         if (!path.StartsWith(rootPath + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
         {
             throw new ArgumentException($"The path must stay inside {rootPath}: {relativePath}", nameof(relativePath));
@@ -107,14 +107,14 @@ internal sealed class ThemeLayer
             return files;
         }
 
-        var resources = Path.Combine(root, "resources");
-        var directory = Path.Combine(resources, folder.Replace('/', Path.DirectorySeparatorChar));
+        string resources = Path.Combine(root, "resources");
+        string directory = Path.Combine(resources, folder.Replace('/', Path.DirectorySeparatorChar));
         if (!Directory.Exists(directory))
         {
             return files;
         }
 
-        foreach (var file in Directory.EnumerateFiles(directory, searchPattern, recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly))
+        foreach (string file in Directory.EnumerateFiles(directory, searchPattern, recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly))
         {
             files["/" + Path.GetRelativePath(resources, file).Replace('\\', '/')] = file;
         }

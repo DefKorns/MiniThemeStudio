@@ -22,7 +22,7 @@ public static class FontValidator
     public static FontValidationResult Validate(MiniFont font)
     {
         var missingAlphaNumeric = new List<char>();
-        foreach (var c in AlphaNumericChars)
+        foreach (char c in AlphaNumericChars)
         {
             if (!font.HasGlyph(c))
             {
@@ -31,7 +31,7 @@ public static class FontValidator
         }
 
         var missingAscii = new List<char>();
-        for (var c = ' '; c <= '~'; c++)
+        for (char c = ' '; c <= '~'; c++)
         {
             if (!font.HasGlyph(c))
             {
@@ -40,7 +40,7 @@ public static class FontValidator
         }
 
         var missingAccents = new List<char>();
-        foreach (var c in EssentialAccents)
+        foreach (char c in EssentialAccents)
         {
             if (!font.HasGlyph(c))
             {

@@ -31,7 +31,7 @@ public sealed class FirmwareRegistryTests
     {
         var registry = new FirmwareRegistry([CreateDefinition("snes-eur-2.0.13", new string('a', 64), new string('b', 64))]);
 
-        var match = registry.FindBySourceSha256(new string('B', 64));
+        (FirmwareDefinition Definition, FirmwareSource Source)? match = registry.FindBySourceSha256(new string('B', 64));
 
         Assert.NotNull(match);
         Assert.Equal("snes-eur-2.0.13", match.Value.Definition.Id);
@@ -41,8 +41,8 @@ public sealed class FirmwareRegistryTests
     [Fact]
     public void UserDefinitionsAddAndOverrideBuiltInBases()
     {
-        var rootPath = Directory.CreateTempSubdirectory().FullName;
-        var userPath = Path.Combine(rootPath, "firmwares.json");
+        string rootPath = Directory.CreateTempSubdirectory().FullName;
+        string userPath = Path.Combine(rootPath, "firmwares.json");
         File.WriteAllText(userPath, $$"""
             {
               "schemaVersion": 1,

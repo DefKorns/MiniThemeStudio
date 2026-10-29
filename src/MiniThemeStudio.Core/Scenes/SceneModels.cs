@@ -14,7 +14,11 @@ public enum SceneVisualKind
     Label,
 }
 
-// what a node draws: a whole texture (TextureComponent), an atlas sprite (SpriteComponent) or text (LabelComponent)
+// what a node draws: a whole texture (TextureComponent), an atlas sprite (SpriteComponent) or text (LabelComponent);
+// OffsetX slides the texture inside the node, in widths of the node (uvOffset, which scrolling backgrounds animate);
+// ColorName is the palette colour a label is drawn with, and Alignment how its lines sit in it (Left, Center or Right;
+// a label's pivot comes from its anchors, so a title anchored to the left starts at the node); Fill is the colour of a sprite with no picture, which the
+// console draws as a plain rectangle of the node's size (the black of a balloon)
 public sealed record SceneVisual(
     SceneVisualKind Kind,
     string? TextureId,
@@ -27,11 +31,19 @@ public sealed record SceneVisual(
     double RepeatX,
     double RepeatY,
     bool HorizontalFlip,
-    double Opacity)
+    double Opacity,
+    double OffsetX = 0,
+    string? ColorName = null,
+    SceneFill? Fill = null,
+    string? Alignment = null)
 {
     public bool HasSize => Width > 0 && Height > 0;
 }
 
+// channels from 0 to 1
+public sealed record SceneFill(double Red, double Green, double Blue);
+
+// Alpha is the node's own opacity, which its children inherit
 public sealed record SceneNode(
     string Path,
     string Name,
@@ -41,14 +53,15 @@ public sealed record SceneNode(
     bool Enabled,
     IReadOnlyList<string> ComponentTypes,
     SceneVisual? Visual,
-    IReadOnlyList<SceneNode> Children)
+    IReadOnlyList<SceneNode> Children,
+    double Alpha = 1)
 {
     public string ComponentsText => ComponentTypes.Count == 0 ? "" : string.Join(", ", ComponentTypes.Select(type => type.Replace("Component", "", StringComparison.Ordinal)));
 
     public IEnumerable<SceneNode> SelfAndDescendants()
     {
         yield return this;
-        foreach (var descendant in Children.SelectMany(child => child.SelfAndDescendants()))
+        foreach (SceneNode? descendant in Children.SelectMany(child => child.SelfAndDescendants()))
         {
             yield return descendant;
         }
@@ -82,4 +95,19 @@ public interface ISceneEditor
 
     // the node is addressed by its child indexes from the root ("" is the root, "2/0" the first child of the third child)
     void EditNode(string themeDraftPath, string? baseUiPath, string sceneResourcePath, string nodePath, SceneNodeEdit edit);
+
+    // the .sceneanimation files whose tracks all name nodes of the scene, with the node that plays each one
+    IReadOnlyList<SceneAnimationBinding> GetAnimations(string themePath, string? baseUiPath, SceneDocument scene);
+
+    // registers a PNG as a new texture of the theme and returns its texture id
+    string ImportTexture(string themeDraftPath, string? baseUiPath, string sourceImagePath);
+
+    // adds a node drawing the whole texture at its own size, as the top child of parentPath; returns the new node's path
+    string AddImageNode(string themeDraftPath, string? baseUiPath, string sceneResourcePath, string parentPath, string textureId, string name);
+
+    // copies the node and its children next to it, slightly offset so the copy shows; returns the copy's path
+    string DuplicateNode(string themeDraftPath, string? baseUiPath, string sceneResourcePath, string nodePath);
+
+    // removes the node and its children; a node other nodes of the scene link to is kept
+    void DeleteNode(string themeDraftPath, string? baseUiPath, string sceneResourcePath, string nodePath);
 }

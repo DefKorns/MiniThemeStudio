@@ -1,4 +1,5 @@
 using MiniThemeStudio.App.Tests.TestDoubles;
+using MiniThemeStudio.App.ViewModels;
 
 namespace MiniThemeStudio.App.Tests;
 
@@ -11,7 +12,7 @@ public sealed class CompositionTests : IDisposable
     [Fact]
     public void TheServiceContainerBuildsTheWindowAndItsTabs()
     {
-        var window = _app.Window;
+        MainWindowViewModel window = _app.Window;
 
         Assert.NotNull(window.ScenesTab);
         Assert.NotNull(window.SpritesTab);

@@ -10,7 +10,7 @@ public static class MiniFontReader
     public static MiniFont Read(string filePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(filePath);
-        using var stream = File.OpenRead(filePath);
+        using FileStream stream = File.OpenRead(filePath);
         return Read(stream);
     }
 
@@ -27,17 +27,17 @@ public static class MiniFontReader
         using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
 
         // 9-byte container header
-        var formatType = reader.ReadByte();
-        var bmfLength = reader.ReadUInt32();
-        var textureLength = reader.ReadUInt32();
+        byte formatType = reader.ReadByte();
+        uint bmfLength = reader.ReadUInt32();
+        uint textureLength = reader.ReadUInt32();
 
-        var bmfBytes = reader.ReadBytes((int)bmfLength);
+        byte[] bmfBytes = reader.ReadBytes((int)bmfLength);
         if (bmfBytes.Length != (int)bmfLength)
         {
             throw new InvalidDataException($"Expected {bmfLength} bytes for BMF block, got {bmfBytes.Length}.");
         }
 
-        var texturePngBytes = reader.ReadBytes((int)textureLength);
+        byte[] texturePngBytes = reader.ReadBytes((int)textureLength);
         if (texturePngBytes.Length != (int)textureLength)
         {
             throw new InvalidDataException($"Expected {textureLength} bytes for PNG texture, got {texturePngBytes.Length}.");
@@ -74,9 +74,9 @@ public static class MiniFontReader
                 break;
             }
 
-            var blockId = reader.ReadByte();
-            var blockSize = reader.ReadUInt32();
-            var blockEnd = ms.Position + blockSize;
+            byte blockId = reader.ReadByte();
+            uint blockSize = reader.ReadUInt32();
+            long blockEnd = ms.Position + blockSize;
 
             if (blockEnd > ms.Length)
             {
@@ -156,22 +156,22 @@ public static class MiniFontReader
 
     private static FontInfo ReadInfoBlock(BinaryReader reader, uint blockSize)
     {
-        var fontSize = reader.ReadInt16();
-        var bitField = reader.ReadByte();
-        var charset = reader.ReadByte();
-        var stretchH = reader.ReadUInt16();
-        var aa = reader.ReadByte();
-        var paddingUp = reader.ReadByte();
-        var paddingRight = reader.ReadByte();
-        var paddingDown = reader.ReadByte();
-        var paddingLeft = reader.ReadByte();
-        var spacingHoriz = reader.ReadByte();
-        var spacingVert = reader.ReadByte();
-        var outline = reader.ReadByte();
+        short fontSize = reader.ReadInt16();
+        byte bitField = reader.ReadByte();
+        byte charset = reader.ReadByte();
+        ushort stretchH = reader.ReadUInt16();
+        byte aa = reader.ReadByte();
+        byte paddingUp = reader.ReadByte();
+        byte paddingRight = reader.ReadByte();
+        byte paddingDown = reader.ReadByte();
+        byte paddingLeft = reader.ReadByte();
+        byte spacingHoriz = reader.ReadByte();
+        byte spacingVert = reader.ReadByte();
+        byte outline = reader.ReadByte();
 
-        var nameBytesCount = (int)(blockSize - 14);
-        var nameBytes = reader.ReadBytes(nameBytesCount);
-        var fontName = ReadNullTerminatedString(nameBytes);
+        int nameBytesCount = (int)(blockSize - 14);
+        byte[] nameBytes = reader.ReadBytes(nameBytesCount);
+        string fontName = ReadNullTerminatedString(nameBytes);
 
         return new FontInfo(
             FontName: fontName,
@@ -194,16 +194,16 @@ public static class MiniFontReader
 
     private static FontCommon ReadCommonBlock(BinaryReader reader)
     {
-        var lineHeight = reader.ReadUInt16();
-        var baseOffset = reader.ReadUInt16();
-        var scaleW = reader.ReadUInt16();
-        var scaleH = reader.ReadUInt16();
-        var pages = reader.ReadUInt16();
-        var bitField = reader.ReadByte();
-        var alphaChnl = reader.ReadByte();
-        var redChnl = reader.ReadByte();
-        var greenChnl = reader.ReadByte();
-        var blueChnl = reader.ReadByte();
+        ushort lineHeight = reader.ReadUInt16();
+        ushort baseOffset = reader.ReadUInt16();
+        ushort scaleW = reader.ReadUInt16();
+        ushort scaleH = reader.ReadUInt16();
+        ushort pages = reader.ReadUInt16();
+        byte bitField = reader.ReadByte();
+        byte alphaChnl = reader.ReadByte();
+        byte redChnl = reader.ReadByte();
+        byte greenChnl = reader.ReadByte();
+        byte blueChnl = reader.ReadByte();
 
         return new FontCommon(
             LineHeight: lineHeight,
@@ -220,13 +220,13 @@ public static class MiniFontReader
 
     private static void ReadPagesBlock(BinaryReader reader, uint blockSize, List<string> pageNames)
     {
-        var bytes = reader.ReadBytes((int)blockSize);
-        var start = 0;
-        for (var i = 0; i < bytes.Length; i++)
+        byte[] bytes = reader.ReadBytes((int)blockSize);
+        int start = 0;
+        for (int i = 0; i < bytes.Length; i++)
         {
             if (bytes[i] == 0)
             {
-                var length = i - start;
+                int length = i - start;
                 if (length > 0)
                 {
                     pageNames.Add(Encoding.UTF8.GetString(bytes, start, length));
@@ -238,19 +238,19 @@ public static class MiniFontReader
 
     private static void ReadCharsBlock(BinaryReader reader, uint blockSize, List<FontGlyph> glyphs)
     {
-        var count = blockSize / 20;
-        for (var i = 0; i < count; i++)
+        uint count = blockSize / 20;
+        for (int i = 0; i < count; i++)
         {
-            var id = reader.ReadUInt32();
-            var x = reader.ReadUInt16();
-            var y = reader.ReadUInt16();
-            var width = reader.ReadUInt16();
-            var height = reader.ReadUInt16();
-            var xOffset = reader.ReadInt16();
-            var yOffset = reader.ReadInt16();
-            var xAdvance = reader.ReadInt16();
-            var page = reader.ReadByte();
-            var channel = reader.ReadByte();
+            uint id = reader.ReadUInt32();
+            ushort x = reader.ReadUInt16();
+            ushort y = reader.ReadUInt16();
+            ushort width = reader.ReadUInt16();
+            ushort height = reader.ReadUInt16();
+            short xOffset = reader.ReadInt16();
+            short yOffset = reader.ReadInt16();
+            short xAdvance = reader.ReadInt16();
+            byte page = reader.ReadByte();
+            byte channel = reader.ReadByte();
 
             glyphs.Add(new FontGlyph(
                 Id: id,
@@ -268,12 +268,12 @@ public static class MiniFontReader
 
     private static void ReadKerningBlock(BinaryReader reader, uint blockSize, List<FontKerningPair> kerningPairs)
     {
-        var count = blockSize / 10;
-        for (var i = 0; i < count; i++)
+        uint count = blockSize / 10;
+        for (int i = 0; i < count; i++)
         {
-            var first = reader.ReadUInt32();
-            var second = reader.ReadUInt32();
-            var amount = reader.ReadInt16();
+            uint first = reader.ReadUInt32();
+            uint second = reader.ReadUInt32();
+            short amount = reader.ReadInt16();
 
             kerningPairs.Add(new FontKerningPair(
                 First: first,
@@ -284,7 +284,7 @@ public static class MiniFontReader
 
     private static string ReadNullTerminatedString(byte[] bytes)
     {
-        var length = 0;
+        int length = 0;
         while (length < bytes.Length && bytes[length] != 0)
         {
             length++;

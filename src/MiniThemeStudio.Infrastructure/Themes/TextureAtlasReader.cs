@@ -9,7 +9,7 @@ public sealed class TextureAtlasReader : ITextureAtlasReader
 
     public TextureAtlas? Read(string themeRootPath, string? definitionRootPath = null)
     {
-        var atlases = ReadAll(themeRootPath, definitionRootPath);
+        IReadOnlyList<TextureAtlas> atlases = ReadAll(themeRootPath, definitionRootPath);
         return atlases.Count > 0 ? atlases[0] : null;
     }
 
@@ -17,23 +17,23 @@ public sealed class TextureAtlasReader : ITextureAtlasReader
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(themeRootPath);
 
-        var themeSpritesPath = Path.Combine(themeRootPath, "resources", "sprites");
-        var baseSpritesPath = definitionRootPath is null ? null : Path.Combine(definitionRootPath, "resources", "sprites");
-        var names = new[] { themeSpritesPath, baseSpritesPath }
+        string themeSpritesPath = Path.Combine(themeRootPath, "resources", "sprites");
+        string? baseSpritesPath = definitionRootPath is null ? null : Path.Combine(definitionRootPath, "resources", "sprites");
+        IEnumerable<string?> names = new[] { themeSpritesPath, baseSpritesPath }
             .Where(Directory.Exists)
             .SelectMany(directory => Directory.EnumerateFiles(directory!, "*.json"))
             .Select(Path.GetFileNameWithoutExtension)
             .Distinct(StringComparer.OrdinalIgnoreCase);
 
         var atlases = new List<TextureAtlas>();
-        foreach (var name in names)
+        foreach (string? name in names)
         {
-            var themeDefinitionPath = Path.Combine(themeSpritesPath, $"{name}.json");
-            var definitionPath = File.Exists(themeDefinitionPath)
+            string themeDefinitionPath = Path.Combine(themeSpritesPath, $"{name}.json");
+            string definitionPath = File.Exists(themeDefinitionPath)
                 ? themeDefinitionPath
                 : Path.Combine(baseSpritesPath!, $"{name}.json");
-            var themeImagePath = Path.Combine(themeSpritesPath, $"{name}.png");
-            var imagePath = File.Exists(themeImagePath)
+            string themeImagePath = Path.Combine(themeSpritesPath, $"{name}.png");
+            string imagePath = File.Exists(themeImagePath)
                 ? themeImagePath
                 : Path.ChangeExtension(definitionPath, ".png");
 
@@ -53,7 +53,7 @@ public sealed class TextureAtlasReader : ITextureAtlasReader
             }
         }
 
-        var frameOverrides = ReadDependencyFrames(themeRootPath, definitionRootPath);
+        Dictionary<string, Dictionary<string, (AtlasRectangle Frame, AtlasPoint? Pivot)>> frameOverrides = ReadDependencyFrames(themeRootPath, definitionRootPath);
         return atlases
             .Select(atlas => ApplyDependencyFrames(atlas, frameOverrides))
             .OrderBy(atlas => IsPrimaryAtlasName(atlas.Name) ? 0 : 1)
@@ -65,13 +65,13 @@ public sealed class TextureAtlasReader : ITextureAtlasReader
         TextureAtlas atlas,
         Dictionary<string, Dictionary<string, (AtlasRectangle Frame, AtlasPoint? Pivot)>> frameOverrides)
     {
-        if (!frameOverrides.TryGetValue(atlas.TextureId, out var overrides))
+        if (!frameOverrides.TryGetValue(atlas.TextureId, out Dictionary<string, (AtlasRectangle Frame, AtlasPoint? Pivot)>? overrides))
         {
             return atlas;
         }
 
         var sprites = atlas.Sprites
-            .Select(sprite => overrides.TryGetValue(sprite.Name, out var value)
+            .Select(sprite => overrides.TryGetValue(sprite.Name, out (AtlasRectangle Frame, AtlasPoint? Pivot) value)
                 ? sprite with { Frame = value.Frame, Pivot = value.Pivot ?? sprite.Pivot }
                 : sprite)
             .ToList();
@@ -96,8 +96,8 @@ public sealed class TextureAtlasReader : ITextureAtlasReader
         try
         {
             // SpriteResource entries carry their frame inline, as JSON text in "content"
-            var spriteResources = DependencyManifest.TryLoad(new ThemeLayer(themeRootPath, definitionRootPath))?.OfType("SpriteResource") ?? [];
-            foreach (var resource in spriteResources)
+            IEnumerable<ManifestResource> spriteResources = DependencyManifest.TryLoad(new ThemeLayer(themeRootPath, definitionRootPath))?.OfType("SpriteResource") ?? [];
+            foreach (ManifestResource resource in spriteResources)
             {
                 if (resource.Content is not { } contentText)
                 {
@@ -105,18 +105,18 @@ public sealed class TextureAtlasReader : ITextureAtlasReader
                 }
 
                 using var content = JsonDocument.Parse(contentText);
-                var textureId = content.RootElement.GetProperty("textureId").GetString() ?? "";
-                var id = resource.Id;
+                string textureId = content.RootElement.GetProperty("textureId").GetString() ?? "";
+                string id = resource.Id;
                 if (!id.StartsWith(textureId + ".", StringComparison.Ordinal))
                 {
                     continue;
                 }
 
-                var frame = ReadIntegerVector(content.RootElement, "textureFrame", 4);
+                int[] frame = ReadIntegerVector(content.RootElement, "textureFrame", 4);
                 AtlasPoint? pivot = content.RootElement.TryGetProperty("pivot", out _)
                     ? ReadNumberVector(content.RootElement, "pivot", 2) is var values ? new AtlasPoint(values[0], values[1]) : null
                     : null;
-                if (!result.TryGetValue(textureId, out var sprites))
+                if (!result.TryGetValue(textureId, out Dictionary<string, (AtlasRectangle, AtlasPoint?)>? sprites))
                 {
                     sprites = new Dictionary<string, (AtlasRectangle, AtlasPoint?)>(StringComparer.Ordinal);
                     result[textureId] = sprites;
@@ -142,9 +142,9 @@ public sealed class TextureAtlasReader : ITextureAtlasReader
 
         try
         {
-            using var stream = File.OpenRead(definitionPath);
+            using FileStream stream = File.OpenRead(definitionPath);
             using var document = JsonDocument.Parse(stream);
-            return document.RootElement.TryGetProperty("sprites", out var sprites)
+            return document.RootElement.TryGetProperty("sprites", out JsonElement sprites)
                 && sprites.ValueKind == JsonValueKind.Object
                 && sprites.EnumerateObject().Skip(1).Any();
         }
@@ -163,11 +163,11 @@ public sealed class TextureAtlasReader : ITextureAtlasReader
     {
         try
         {
-            using var stream = File.OpenRead(definitionPath);
+            using FileStream stream = File.OpenRead(definitionPath);
             using var document = JsonDocument.Parse(stream);
-            var root = document.RootElement;
-            var texture = root.GetProperty("texture");
-            var sprites = ReadSprites(root.GetProperty("sprites"));
+            JsonElement root = document.RootElement;
+            JsonElement texture = root.GetProperty("texture");
+            List<SpriteRegion> sprites = ReadSprites(root.GetProperty("sprites"));
 
             return new TextureAtlas(
                 definitionPath,
@@ -193,17 +193,17 @@ public sealed class TextureAtlasReader : ITextureAtlasReader
     {
         var sprites = new List<SpriteRegion>();
 
-        foreach (var spriteProperty in spritesElement.EnumerateObject())
+        foreach (JsonProperty spriteProperty in spritesElement.EnumerateObject())
         {
-            var sprite = spriteProperty.Value;
-            var frame = ReadIntegerVector(sprite, "textureFrame", 4);
-            var pivot = sprite.TryGetProperty("pivot", out _)
+            JsonElement sprite = spriteProperty.Value;
+            int[] frame = ReadIntegerVector(sprite, "textureFrame", 4);
+            double[] pivot = sprite.TryGetProperty("pivot", out _)
                 ? ReadNumberVector(sprite, "pivot", 2)
                 : [frame[2] / 2.0, frame[3] / 2.0];
-            var sourceSize = sprite.TryGetProperty("sourceSize", out _)
+            int[] sourceSize = sprite.TryGetProperty("sourceSize", out _)
                 ? ReadIntegerVector(sprite, "sourceSize", 2)
                 : [frame[2], frame[3]];
-            var sourceOffset = sprite.TryGetProperty("sourceOffset", out _)
+            double[] sourceOffset = sprite.TryGetProperty("sourceOffset", out _)
                 ? ReadNumberVector(sprite, "sourceOffset", 2)
                 : [0.0, 0.0];
 
@@ -223,7 +223,7 @@ public sealed class TextureAtlasReader : ITextureAtlasReader
         string propertyName,
         int expectedLength)
     {
-        var values = owner.GetProperty(propertyName)
+        int[] values = owner.GetProperty(propertyName)
             .EnumerateArray()
             .Select(value => value.GetInt32())
             .ToArray();
@@ -242,7 +242,7 @@ public sealed class TextureAtlasReader : ITextureAtlasReader
         string propertyName,
         int expectedLength)
     {
-        var values = owner.GetProperty(propertyName)
+        double[] values = owner.GetProperty(propertyName)
             .EnumerateArray()
             .Select(value => value.GetDouble())
             .ToArray();

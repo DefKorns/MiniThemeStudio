@@ -17,7 +17,7 @@ public static class BgmAudioValidator
 
     public static bool IsSupportedAudioFile(string filePath)
     {
-        var ext = Path.GetExtension(filePath);
+        string ext = Path.GetExtension(filePath);
         return !string.IsNullOrEmpty(ext) && SupportedInputExtensions.Contains(ext);
     }
 
@@ -34,8 +34,8 @@ public static class BgmAudioValidator
             return new BgmValidationResult(false, null, errors, warnings);
         }
 
-        var fileName = Path.GetFileName(audioFilePath);
-        var ext = Path.GetExtension(audioFilePath);
+        string fileName = Path.GetFileName(audioFilePath);
+        string ext = Path.GetExtension(audioFilePath);
 
         if (!ext.Equals(".wav", StringComparison.OrdinalIgnoreCase))
         {
@@ -49,7 +49,7 @@ public static class BgmAudioValidator
             return new BgmValidationResult(false, null, errors, warnings);
         }
 
-        var info = WavAudioReader.Read(audioFilePath);
+        WavAudioInfo info = WavAudioReader.Read(audioFilePath);
         if (!info.IsValidWav)
         {
             errors.Add($"'{fileName}' is corrupt or not a valid WAV file: {info.ErrorMessage}");
@@ -77,7 +77,7 @@ public static class BgmAudioValidator
         }
         else if (preferredChannels.HasValue)
         {
-            var expected = preferredChannels.Value == BgmAudioChannels.Mono ? 1 : 2;
+            int expected = preferredChannels.Value == BgmAudioChannels.Mono ? 1 : 2;
             if (info.Channels != expected)
             {
                 warnings.Add($"'{fileName}' is {(info.Channels == 1 ? "mono" : "stereo")}, but preferred export channel layout is {(expected == 1 ? "mono" : "stereo")}.");
@@ -94,7 +94,7 @@ public static class BgmAudioValidator
             warnings.Add($"'{fileName}' size ({info.DataSizeBytes / 1024.0 / 1024.0:F1} MB) is large and may risk memory limits on the console.");
         }
 
-        var isValid = errors.Count == 0;
+        bool isValid = errors.Count == 0;
         return new BgmValidationResult(isValid, info, errors, warnings);
     }
 
@@ -107,21 +107,21 @@ public static class BgmAudioValidator
 
         try
         {
-            using var stream = File.OpenRead(filePath);
+            using FileStream stream = File.OpenRead(filePath);
             using var reader = new BinaryReader(stream);
             if (stream.Length < 44)
             {
                 return false;
             }
 
-            var riff = reader.ReadBytes(4);
+            byte[] riff = reader.ReadBytes(4);
             if (!riff.SequenceEqual("RIFF"u8))
             {
                 return false;
             }
 
             _ = reader.ReadInt32();
-            var wave = reader.ReadBytes(4);
+            byte[] wave = reader.ReadBytes(4);
             if (!wave.SequenceEqual("WAVE"u8))
             {
                 return false;
@@ -129,8 +129,8 @@ public static class BgmAudioValidator
 
             while (stream.Position + 8 <= stream.Length)
             {
-                var chunkId = reader.ReadBytes(4);
-                var chunkSize = reader.ReadInt32();
+                byte[] chunkId = reader.ReadBytes(4);
+                int chunkSize = reader.ReadInt32();
                 if (chunkId.SequenceEqual("data"u8))
                 {
                     if (chunkSize <= 0)
@@ -138,9 +138,9 @@ public static class BgmAudioValidator
                         return false;
                     }
 
-                    var bytesToCheck = Math.Min(chunkSize, 65536);
-                    var buffer = reader.ReadBytes(bytesToCheck);
-                    foreach (var b in buffer)
+                    int bytesToCheck = Math.Min(chunkSize, 65536);
+                    byte[] buffer = reader.ReadBytes(bytesToCheck);
+                    foreach (byte b in buffer)
                     {
                         if (b != 0)
                         {

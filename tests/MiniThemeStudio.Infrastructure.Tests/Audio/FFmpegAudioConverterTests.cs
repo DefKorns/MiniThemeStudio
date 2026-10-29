@@ -13,7 +13,7 @@ public sealed class FFmpegAudioConverterTests
         public Task<ProcessResult> RunAsync(string executablePath, IReadOnlyList<string> arguments, CancellationToken cancellationToken = default)
         {
             Executions.Add((executablePath, arguments));
-            var result = Handler != null
+            ProcessResult result = Handler != null
                 ? Handler(executablePath, arguments)
                 : new ProcessResult(0, "ffmpeg version 6.1.1-full_build Copyright", "");
             return Task.FromResult(result);
@@ -24,7 +24,7 @@ public sealed class FFmpegAudioConverterTests
     public async Task GetStatusReturnsNotConfiguredWhenEmpty()
     {
         var converter = new FFmpegAudioConverter(new MockProcessRunner());
-        var status = await converter.GetStatusAsync("");
+        FFmpegStatus status = await converter.GetStatusAsync("");
 
         Assert.False(status.IsAvailable);
         Assert.Contains("not configured", status.ErrorMessage, StringComparison.OrdinalIgnoreCase);
@@ -34,9 +34,9 @@ public sealed class FFmpegAudioConverterTests
     public async Task GetStatusReturnsNotFoundWhenFileDoesNotExist()
     {
         var converter = new FFmpegAudioConverter(new MockProcessRunner());
-        var nonExistentPath = Path.Combine(Path.GetTempPath(), $"missing_ffmpeg_{Guid.NewGuid():N}.exe");
+        string nonExistentPath = Path.Combine(Path.GetTempPath(), $"missing_ffmpeg_{Guid.NewGuid():N}.exe");
 
-        var status = await converter.GetStatusAsync(nonExistentPath);
+        FFmpegStatus status = await converter.GetStatusAsync(nonExistentPath);
 
         Assert.False(status.IsAvailable);
         Assert.Contains("not found", status.ErrorMessage, StringComparison.OrdinalIgnoreCase);
@@ -45,7 +45,7 @@ public sealed class FFmpegAudioConverterTests
     [Fact]
     public async Task GetStatusParsesVersionOutputSuccessfully()
     {
-        var tempFile = Path.GetTempFileName();
+        string tempFile = Path.GetTempFileName();
         try
         {
             var mock = new MockProcessRunner
@@ -54,7 +54,7 @@ public sealed class FFmpegAudioConverterTests
             };
 
             var converter = new FFmpegAudioConverter(mock);
-            var status = await converter.GetStatusAsync(tempFile);
+            FFmpegStatus status = await converter.GetStatusAsync(tempFile);
 
             Assert.True(status.IsAvailable);
             Assert.Equal("7.0.2-static", status.Version);
@@ -70,24 +70,24 @@ public sealed class FFmpegAudioConverterTests
     [Fact]
     public async Task ConvertsToMonoWavWithExpectedArgumentsAndPreservesSource()
     {
-        var tempDir = Directory.CreateTempSubdirectory().FullName;
+        string tempDir = Directory.CreateTempSubdirectory().FullName;
         try
         {
-            var ffmpegExe = Path.Combine(tempDir, "ffmpeg.exe");
+            string ffmpegExe = Path.Combine(tempDir, "ffmpeg.exe");
             File.WriteAllText(ffmpegExe, "stub");
 
-            var inputFile = Path.Combine(tempDir, "source_track.mp3");
-            var originalContent = "source-mp3-bytes-that-must-be-preserved"u8.ToArray();
+            string inputFile = Path.Combine(tempDir, "source_track.mp3");
+            byte[] originalContent = "source-mp3-bytes-that-must-be-preserved"u8.ToArray();
             File.WriteAllBytes(inputFile, originalContent);
 
-            var outputFile = Path.Combine(tempDir, "bgm_home.wav");
+            string outputFile = Path.Combine(tempDir, "bgm_home.wav");
 
             var mock = new MockProcessRunner
             {
                 Handler = (_, args) =>
                 {
                     // The last argument is the temporary output path
-                    var tempOut = args[^1];
+                    string tempOut = args[^1];
                     // Write valid 44.1 kHz 16-bit mono WAV to simulate successful FFmpeg output
                     File.WriteAllBytes(tempOut, WavAudioReader.CreateMinimalPcm16Wav(44100, 1, 44100));
                     return new ProcessResult(0, "", "");
@@ -95,7 +95,7 @@ public sealed class FFmpegAudioConverterTests
             };
 
             var converter = new FFmpegAudioConverter(mock);
-            var result = await converter.ConvertToConsoleWavAsync(ffmpegExe, inputFile, outputFile, BgmAudioChannels.Mono);
+            AudioConversionResult result = await converter.ConvertToConsoleWavAsync(ffmpegExe, inputFile, outputFile, BgmAudioChannels.Mono);
 
             Assert.True(result.Success);
             Assert.True(File.Exists(outputFile));
@@ -103,7 +103,7 @@ public sealed class FFmpegAudioConverterTests
             Assert.Equal(originalContent, File.ReadAllBytes(inputFile));
 
             // Verify arguments passed to FFmpeg
-            var executedArgs = mock.Executions[0].Arguments;
+            IReadOnlyList<string> executedArgs = mock.Executions[0].Arguments;
             Assert.Contains("-y", executedArgs);
             Assert.Contains("-i", executedArgs);
             Assert.Contains(inputFile, executedArgs);
@@ -115,7 +115,7 @@ public sealed class FFmpegAudioConverterTests
             Assert.Contains("-ac", executedArgs);
             Assert.Contains("1", executedArgs); // Mono
 
-            var outInfo = WavAudioReader.Read(outputFile);
+            WavAudioInfo outInfo = WavAudioReader.Read(outputFile);
             Assert.True(outInfo.IsConsoleStandard);
             Assert.Equal(1, outInfo.Channels);
         }
@@ -128,38 +128,38 @@ public sealed class FFmpegAudioConverterTests
     [Fact]
     public async Task ConvertsToStereoWavWithExpectedArguments()
     {
-        var tempDir = Directory.CreateTempSubdirectory().FullName;
+        string tempDir = Directory.CreateTempSubdirectory().FullName;
         try
         {
-            var ffmpegExe = Path.Combine(tempDir, "ffmpeg.exe");
+            string ffmpegExe = Path.Combine(tempDir, "ffmpeg.exe");
             File.WriteAllText(ffmpegExe, "stub");
 
-            var inputFile = Path.Combine(tempDir, "source_track.ogg");
+            string inputFile = Path.Combine(tempDir, "source_track.ogg");
             File.WriteAllText(inputFile, "ogg data");
 
-            var outputFile = Path.Combine(tempDir, "bgm_boot.wav");
+            string outputFile = Path.Combine(tempDir, "bgm_boot.wav");
 
             var mock = new MockProcessRunner
             {
                 Handler = (_, args) =>
                 {
-                    var tempOut = args[^1];
+                    string tempOut = args[^1];
                     File.WriteAllBytes(tempOut, WavAudioReader.CreateMinimalPcm16Wav(44100, 2, 44100));
                     return new ProcessResult(0, "", "");
                 }
             };
 
             var converter = new FFmpegAudioConverter(mock);
-            var result = await converter.ConvertToConsoleWavAsync(ffmpegExe, inputFile, outputFile, BgmAudioChannels.Stereo);
+            AudioConversionResult result = await converter.ConvertToConsoleWavAsync(ffmpegExe, inputFile, outputFile, BgmAudioChannels.Stereo);
 
             Assert.True(result.Success);
             Assert.True(File.Exists(outputFile));
 
-            var executedArgs = mock.Executions[0].Arguments;
+            IReadOnlyList<string> executedArgs = mock.Executions[0].Arguments;
             Assert.Contains("-ac", executedArgs);
             Assert.Contains("2", executedArgs); // Stereo
 
-            var outInfo = WavAudioReader.Read(outputFile);
+            WavAudioInfo outInfo = WavAudioReader.Read(outputFile);
             Assert.True(outInfo.IsConsoleStandard);
             Assert.Equal(2, outInfo.Channels);
         }
@@ -172,16 +172,16 @@ public sealed class FFmpegAudioConverterTests
     [Fact]
     public async Task HandlesFFmpegFailureGracefully()
     {
-        var tempDir = Directory.CreateTempSubdirectory().FullName;
+        string tempDir = Directory.CreateTempSubdirectory().FullName;
         try
         {
-            var ffmpegExe = Path.Combine(tempDir, "ffmpeg.exe");
+            string ffmpegExe = Path.Combine(tempDir, "ffmpeg.exe");
             File.WriteAllText(ffmpegExe, "stub");
 
-            var inputFile = Path.Combine(tempDir, "corrupted.mp3");
+            string inputFile = Path.Combine(tempDir, "corrupted.mp3");
             File.WriteAllText(inputFile, "bad data");
 
-            var outputFile = Path.Combine(tempDir, "bgm_home.wav");
+            string outputFile = Path.Combine(tempDir, "bgm_home.wav");
 
             var mock = new MockProcessRunner
             {
@@ -189,7 +189,7 @@ public sealed class FFmpegAudioConverterTests
             };
 
             var converter = new FFmpegAudioConverter(mock);
-            var result = await converter.ConvertToConsoleWavAsync(ffmpegExe, inputFile, outputFile, BgmAudioChannels.Stereo);
+            AudioConversionResult result = await converter.ConvertToConsoleWavAsync(ffmpegExe, inputFile, outputFile, BgmAudioChannels.Stereo);
 
             Assert.False(result.Success);
             Assert.Contains("Invalid data found", result.ErrorMessage);

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using MiniThemeStudio.Core.Fonts;
 using SkiaSharp;
 
@@ -27,47 +28,73 @@ public static class MiniFontCompleter
     /// <param name="font">the console font to complete</param>
     /// <param name="scripts">the scripts to add besides the missing Latin characters</param>
     /// <param name="fillFontPath">the user's own font file, tried before the system's and the built-in ones</param>
-    public static MiniFont Complete(MiniFont font, ExtraScripts scripts, string? fillFontPath = null)
+    /// <param name="redrawText">draws every character of the sets again, not only the missing ones, so the text is
+    /// one typeface: Yu Gothic UI, the letter of Font Remount's title.fnt, at the font's own size and weight. The
+    /// glyphs outside the sets (the button icons of some console fonts) are kept.</param>
+    public static MiniFont Complete(MiniFont font, ExtraScripts scripts, string? fillFontPath = null, bool redrawText = false)
     {
         ArgumentNullException.ThrowIfNull(font);
 
         var kept = font.Glyphs.Where(g => IsWanted(g.Id, scripts)).ToList();
+
+        // the text the font has beyond the character sets (kanji of the Famicom fonts, for one) is redrawn too,
+        // where the fill typefaces have it; where they do not, the font's own glyph stays
+        var ownText = new Dictionary<uint, FontGlyph>();
+        if (redrawText)
+        {
+            HashSet<uint> redrawn = FontCharsets.Build(scripts).Where(c => c != ' ').Select(c => (uint)c).ToHashSet();
+            foreach (FontGlyph glyph in kept.Where(glyph => !redrawn.Contains(glyph.Id) && IsText((char)glyph.Id)))
+            {
+                ownText[glyph.Id] = glyph;
+            }
+
+            kept = kept.Where(glyph => !redrawn.Contains(glyph.Id) && !ownText.ContainsKey(glyph.Id)).ToList();
+        }
+
         var have = kept.Select(g => g.Id).ToHashSet();
-        var missing = FontCharsets.Build(scripts).Where(c => c != ' ' && !have.Contains(c)).ToList();
-        if (missing.Count == 0 && kept.Count == font.Glyphs.Count)
+        var missing = FontCharsets.Build(scripts).Where(c => c != ' ' && !have.Contains(c))
+            .Concat(ownText.Keys.Select(id => (char)id))
+            .Distinct()
+            .ToList();
+        if (!redrawText && missing.Count == 0 && kept.Count == font.Glyphs.Count)
         {
             return font;
         }
 
-        var (textSize, baseline) = Fit(font);
+        (float textSize, int baseline) = Fit(font);
         using var decoded = SKBitmap.Decode(font.TexturePngBytes);
-        using var fontAtlas = decoded.ColorType == SKColorType.Rgba8888 || decoded.ColorType == SKColorType.Bgra8888
+        using SKBitmap fontAtlas = decoded.ColorType == SKColorType.Rgba8888 || decoded.ColorType == SKColorType.Bgra8888
             ? decoded.Copy()
             : decoded.Copy(SKColorType.Rgba8888);
-        var latinWeight = MatchWeight(font, fontAtlas, textSize, japanese: false);
-        var japaneseWeight = MatchWeight(font, fontAtlas, textSize, japanese: true);
-        var latin = Face(latinWeight ?? japaneseWeight ?? DefaultWeight).Latin;
-        var japanese = Face(japaneseWeight ?? latinWeight ?? DefaultWeight).Japanese;
-        var smooth = IsSmooth(font, fontAtlas);
-        using var userPaint = UserFace(fillFontPath) is { } user ? Paint(user, textSize, smooth) : null;
-        using var latinPaint = Paint(latin, textSize, smooth);
-        using var japanesePaint = Paint(japanese, textSize, smooth);
-        using var notoLatinPaint = Paint(NotoFace(latinWeight ?? japaneseWeight ?? DefaultWeight).Latin, textSize, smooth);
-        using var notoJapanesePaint = Paint(NotoFace(japaneseWeight ?? latinWeight ?? DefaultWeight).Japanese, textSize, smooth);
+        int? latinWeight = MatchWeight(font, fontAtlas, textSize, japanese: false);
+        int? japaneseWeight = MatchWeight(font, fontAtlas, textSize, japanese: true);
+        SKTypeface latin = Face(latinWeight ?? japaneseWeight ?? DefaultWeight).Latin;
+        SKTypeface japanese = Face(japaneseWeight ?? latinWeight ?? DefaultWeight).Japanese;
+        bool smooth = IsSmooth(font, fontAtlas);
+        using SKPaint? userPaint = UserFace(fillFontPath) is { } user ? Paint(user, textSize, smooth) : null;
+        using SKPaint latinPaint = Paint(latin, textSize, smooth);
+        using SKPaint japanesePaint = Paint(japanese, textSize, smooth);
+        using SKPaint notoLatinPaint = Paint(NotoFace(latinWeight ?? japaneseWeight ?? DefaultWeight).Latin, textSize, smooth);
+        using SKPaint notoJapanesePaint = Paint(NotoFace(japaneseWeight ?? latinWeight ?? DefaultWeight).Japanese, textSize, smooth);
 
         var drawn = new List<(FontGlyph Glyph, SKBitmap? Bitmap)>();
-        foreach (var c in missing)
+        foreach (char c in missing)
         {
-            var paint = new[] { userPaint, latinPaint, japanesePaint, notoLatinPaint, notoJapanesePaint }.FirstOrDefault(p => p?.Typeface.ContainsGlyph(c) == true);
+            SKPaint? paint = new[] { userPaint, latinPaint, japanesePaint, notoLatinPaint, notoJapanesePaint }.FirstOrDefault(p => p?.Typeface.ContainsGlyph(c) == true);
             if (paint is null)
             {
+                if (ownText.TryGetValue(c, out FontGlyph? own))
+                {
+                    kept.Add(own);
+                }
+
                 continue;
             }
 
-            var bounds = InkBounds(paint, c);
-            var advance = paint.MeasureText(c.ToString());
-            var width = (int)Math.Ceiling(bounds.Width);
-            var height = (int)Math.Ceiling(bounds.Height);
+            SKRect bounds = InkBounds(paint, c);
+            float advance = paint.MeasureText(c.ToString());
+            int width = (int)Math.Ceiling(bounds.Width);
+            int height = (int)Math.Ceiling(bounds.Height);
             SKBitmap? bitmap = null;
             if (width > 0 && height > 0)
             {
@@ -87,12 +114,24 @@ public static class MiniFontCompleter
         }
         finally
         {
-            foreach (var (_, bitmap) in drawn)
+            foreach ((FontGlyph _, SKBitmap? bitmap) in drawn)
             {
                 bitmap?.Dispose();
             }
         }
     }
+
+    // letters, digits and punctuation in any script, kana and kanji included; symbols and the private use area
+    // (where console fonts keep their button icons) are not text
+    private static bool IsText(char c) => CharUnicodeInfo.GetUnicodeCategory(c) switch
+    {
+        UnicodeCategory.UppercaseLetter or UnicodeCategory.LowercaseLetter or UnicodeCategory.TitlecaseLetter
+            or UnicodeCategory.ModifierLetter or UnicodeCategory.OtherLetter or UnicodeCategory.DecimalDigitNumber => true,
+        UnicodeCategory.ConnectorPunctuation or UnicodeCategory.DashPunctuation or UnicodeCategory.OpenPunctuation
+            or UnicodeCategory.ClosePunctuation or UnicodeCategory.InitialQuotePunctuation or UnicodeCategory.FinalQuotePunctuation
+            or UnicodeCategory.OtherPunctuation => true,
+        _ => false,
+    };
 
     public static bool IsWanted(uint id, ExtraScripts scripts)
     {
@@ -101,7 +140,7 @@ public static class MiniFontCompleter
             return false;
         }
 
-        var c = (char)id;
+        char c = (char)id;
         return (scripts.HasFlag(ExtraScripts.Japanese) || !IsJapanese(c))
             && (scripts.HasFlag(ExtraScripts.Cyrillic) || !IsCyrillic(c))
             && (scripts.HasFlag(ExtraScripts.Greek) || !IsGreek(c));
@@ -119,12 +158,12 @@ public static class MiniFontCompleter
     // a font without enough capitals or digits falls back to its line height and base
     private static (float TextSize, int Baseline) Fit(MiniFont font)
     {
-        using var measure = Paint(Face(DefaultWeight).Latin, MeasureSize, false);
+        using SKPaint measure = Paint(Face(DefaultWeight).Latin, MeasureSize, false);
         var ratios = new List<double>();
         var bottoms = new List<double>();
-        foreach (var glyph in font.Glyphs.Where(g => g.Height > 0 && g.Id is (>= 'A' and <= 'Z') or (>= '0' and <= '9')))
+        foreach (FontGlyph? glyph in font.Glyphs.Where(g => g.Height > 0 && g.Id is (>= 'A' and <= 'Z') or (>= '0' and <= '9')))
         {
-            var bounds = InkBounds(measure, (char)glyph.Id);
+            SKRect bounds = InkBounds(measure, (char)glyph.Id);
             if (bounds.Height > 0)
             {
                 ratios.Add(glyph.Height / bounds.Height);
@@ -137,8 +176,8 @@ public static class MiniFontCompleter
             return ((float)(MeasureSize * Median(ratios)), (int)Math.Round(Median(bottoms)));
         }
 
-        measure.GetFontMetrics(out var metrics);
-        var lineHeight = metrics.Descent - metrics.Ascent;
+        measure.GetFontMetrics(out SKFontMetrics metrics);
+        float lineHeight = metrics.Descent - metrics.Ascent;
         return (lineHeight > 0 ? MeasureSize * font.Common.LineHeight / lineHeight : font.Common.LineHeight, font.Common.Base);
     }
 
@@ -156,11 +195,11 @@ public static class MiniFontCompleter
             return null;
         }
 
-        var target = Median(samples.Select(g => Coverage(atlas, new SKRectI(g.X, g.Y, g.X + g.Width, g.Y + g.Height))).ToList());
+        double target = Median(samples.Select(g => Coverage(atlas, new SKRectI(g.X, g.Y, g.X + g.Width, g.Y + g.Height))).ToList());
         return Weights.MinBy(weight =>
         {
-            var face = japanese ? Face(weight).Japanese : Face(weight).Latin;
-            using var paint = Paint(face, textSize, true);
+            SKTypeface face = japanese ? Face(weight).Japanese : Face(weight).Latin;
+            using SKPaint paint = Paint(face, textSize, true);
             var coverages = samples.Select(g => RenderedCoverage(paint, (char)g.Id)).Where(c => c > 0).ToList();
             return coverages.Count == 0 ? double.MaxValue : Math.Abs(Median(coverages) - target);
         });
@@ -169,15 +208,17 @@ public static class MiniFontCompleter
     // the header's smooth flag is often wrong: the font is smooth when its glyphs' edges are partly transparent
     private static bool IsSmooth(MiniFont font, SKBitmap atlas)
     {
-        var pixels = atlas.GetPixelSpan();
+        ReadOnlySpan<byte> pixels = atlas.GetPixelSpan();
         long inked = 0, partial = 0;
-        foreach (var glyph in font.Glyphs.Where(g => g.Width > 0 && g.Height > 0).Take(40))
+        foreach (FontGlyph? glyph in font.Glyphs.Where(g => g.Width > 0 && g.Height > 0).Take(40))
         {
-            for (var y = glyph.Y; y < glyph.Y + glyph.Height; y++)
+            // a glyph outside the texture (the 1 x 1 placeholder fonts of some UIs) has no pixels to tell
+            SKRectI box = Inside(atlas, new SKRectI(glyph.X, glyph.Y, glyph.X + glyph.Width, glyph.Y + glyph.Height));
+            for (int y = box.Top; y < box.Bottom; y++)
             {
-                for (var x = glyph.X; x < glyph.X + glyph.Width; x++)
+                for (int x = box.Left; x < box.Right; x++)
                 {
-                    var alpha = pixels[y * atlas.RowBytes + x * 4 + 3];
+                    byte alpha = pixels[y * atlas.RowBytes + x * 4 + 3];
                     inked += alpha > 0 ? 1 : 0;
                     partial += alpha is > 0 and < 255 ? 1 : 0;
                 }
@@ -187,11 +228,18 @@ public static class MiniFontCompleter
         return inked == 0 ? font.Info.Smooth : partial > inked / 5;
     }
 
+    // the part of the box that lies on the bitmap
+    private static SKRectI Inside(SKBitmap bitmap, SKRectI box) => new(
+        Math.Clamp(box.Left, 0, bitmap.Width),
+        Math.Clamp(box.Top, 0, bitmap.Height),
+        Math.Clamp(box.Right, 0, bitmap.Width),
+        Math.Clamp(box.Bottom, 0, bitmap.Height));
+
     private static double RenderedCoverage(SKPaint paint, char c)
     {
-        var bounds = InkBounds(paint, c);
-        var width = (int)Math.Ceiling(bounds.Width);
-        var height = (int)Math.Ceiling(bounds.Height);
+        SKRect bounds = InkBounds(paint, c);
+        int width = (int)Math.Ceiling(bounds.Width);
+        int height = (int)Math.Ceiling(bounds.Height);
         if (width <= 0 || height <= 0)
         {
             return 0;
@@ -207,13 +255,19 @@ public static class MiniFontCompleter
     // the share of the box the glyph's ink covers; alpha is the 4th byte in both RGBA and BGRA
     private static double Coverage(SKBitmap bitmap, SKRectI box)
     {
-        var pixels = bitmap.GetPixelSpan();
-        var rowBytes = bitmap.RowBytes;
-        long alpha = 0;
-        for (var y = box.Top; y < box.Bottom; y++)
+        box = Inside(bitmap, box);
+        if (box.Width <= 0 || box.Height <= 0)
         {
-            var row = y * rowBytes;
-            for (var x = box.Left; x < box.Right; x++)
+            return 0;
+        }
+
+        ReadOnlySpan<byte> pixels = bitmap.GetPixelSpan();
+        int rowBytes = bitmap.RowBytes;
+        long alpha = 0;
+        for (int y = box.Top; y < box.Bottom; y++)
+        {
+            int row = y * rowBytes;
+            for (int x = box.Left; x < box.Right; x++)
             {
                 alpha += pixels[row + x * 4 + 3];
             }
@@ -229,30 +283,29 @@ public static class MiniFontCompleter
             .OrderBy(p => p.Glyph.Id)
             .ToList();
 
-        var atlasWidth = Math.Max(font.Common.ScaleW, 64);
-        var placed = new List<(FontGlyph Glyph, SKBitmap? Bitmap, SKRectI Source)>();
-        int x = Padding, y = Padding, rowHeight = 0;
-        foreach (var piece in pieces)
+        // the narrowest power of two that keeps the atlas no taller than it is wide: a font that started from a
+        // placeholder 1 x 1 texture would otherwise become a strip thousands of pixels tall
+        int atlasWidth = NextPowerOfTwo(Math.Max(font.Common.ScaleW, 64));
+        List<(FontGlyph Glyph, SKBitmap? Bitmap, SKRectI Source)> placed;
+        int used;
+        while (true)
         {
-            if (x + piece.Glyph.Width + Padding > atlasWidth)
+            (placed, used) = Shelve(pieces, atlasWidth);
+            if (used <= atlasWidth || atlasWidth >= 4096)
             {
-                x = Padding;
-                y += rowHeight + Padding;
-                rowHeight = 0;
+                break;
             }
 
-            placed.Add((piece.Glyph with { X = x, Y = y, Page = 0 }, piece.Bitmap, piece.Source));
-            x += piece.Glyph.Width + Padding;
-            rowHeight = Math.Max(rowHeight, piece.Glyph.Height);
+            atlasWidth *= 2;
         }
 
-        var atlasHeight = NextPowerOfTwo(y + rowHeight + Padding);
+        int atlasHeight = NextPowerOfTwo(used);
         using var surface = SKSurface.Create(new SKImageInfo(atlasWidth, atlasHeight, SKColorType.Rgba8888, SKAlphaType.Premul));
-        var canvas = surface.Canvas;
+        SKCanvas canvas = surface.Canvas;
         canvas.Clear(SKColors.Transparent);
         // DrawBitmap turns the whole bitmap into an image on every call; the atlas is converted once
         using var atlasImage = SKImage.FromBitmap(fontAtlas);
-        foreach (var (glyph, bitmap, source) in placed)
+        foreach ((FontGlyph? glyph, SKBitmap? bitmap, SKRectI source) in placed)
         {
             if (glyph.Width <= 0 || glyph.Height <= 0)
             {
@@ -270,8 +323,8 @@ public static class MiniFontCompleter
             }
         }
 
-        using var snapshot = surface.Snapshot();
-        using var png = snapshot.Encode(SKEncodedImageFormat.Png, 100);
+        using SKImage snapshot = surface.Snapshot();
+        using SKData png = snapshot.Encode(SKEncodedImageFormat.Png, 100);
         return new MiniFont(
             formatType: font.FormatType,
             info: font.Info,
@@ -286,7 +339,7 @@ public static class MiniFontCompleter
     // for antialiasing), which would make the filled glyphs taller there than on Windows and Linux
     private static SKRect InkBounds(SKPaint paint, char c)
     {
-        using var path = paint.GetTextPath(c.ToString(), 0, 0);
+        using SKPath path = paint.GetTextPath(c.ToString(), 0, 0);
         return path.TightBounds;
     }
 
@@ -314,7 +367,7 @@ public static class MiniFontCompleter
 
     private static SKTypeface LoadTypeface(string resource)
     {
-        using var stream = typeof(MiniFontCompleter).Assembly.GetManifestResourceStream($"MiniThemeStudio.Fonts.Resources.{resource}")
+        using Stream stream = typeof(MiniFontCompleter).Assembly.GetManifestResourceStream($"MiniThemeStudio.Fonts.Resources.{resource}")
             ?? throw new InvalidOperationException($"The embedded font {resource} is missing.");
         using var copy = new MemoryStream();
         stream.CopyTo(copy);
@@ -328,9 +381,32 @@ public static class MiniFontCompleter
         return values.Count % 2 == 1 ? values[values.Count / 2] : (values[values.Count / 2 - 1] + values[values.Count / 2]) / 2;
     }
 
+    // rows of glyphs across the width; returns where they went and the height they take
+    private static (List<(FontGlyph Glyph, SKBitmap? Bitmap, SKRectI Source)> Placed, int Height) Shelve(
+        List<(FontGlyph Glyph, SKBitmap? Bitmap, SKRectI Source)> pieces, int width)
+    {
+        var placed = new List<(FontGlyph Glyph, SKBitmap? Bitmap, SKRectI Source)>();
+        int x = Padding, y = Padding, rowHeight = 0;
+        foreach ((FontGlyph Glyph, SKBitmap? Bitmap, SKRectI Source) piece in pieces)
+        {
+            if (x + piece.Glyph.Width + Padding > width)
+            {
+                x = Padding;
+                y += rowHeight + Padding;
+                rowHeight = 0;
+            }
+
+            placed.Add((piece.Glyph with { X = x, Y = y, Page = 0 }, piece.Bitmap, piece.Source));
+            x += piece.Glyph.Width + Padding;
+            rowHeight = Math.Max(rowHeight, piece.Glyph.Height);
+        }
+
+        return (placed, y + rowHeight + Padding);
+    }
+
     private static int NextPowerOfTwo(int value)
     {
-        var power = 64;
+        int power = 64;
         while (power < value && power < 4096)
         {
             power *= 2;

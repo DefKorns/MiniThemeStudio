@@ -1,14 +1,17 @@
 using System.Formats.Tar;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
+using MiniThemeStudio.Core.Audio;
 using MiniThemeStudio.Core.Themes;
+using MiniThemeStudio.Infrastructure.Audio;
 using MiniThemeStudio.Infrastructure.Firmware;
+using MiniThemeStudio.Infrastructure.Fonts;
 
 namespace MiniThemeStudio.Infrastructure.Themes;
 
-public sealed partial class ThemeExporter(MiniThemeStudio.Core.Audio.IFFmpegAudioConverter? ffmpegAudioConverter = null) : IThemeExporter
+public sealed partial class ThemeExporter(IFFmpegAudioConverter? ffmpegAudioConverter = null) : IThemeExporter
 {
-    private readonly MiniThemeStudio.Core.Audio.IFFmpegAudioConverter _ffmpegAudioConverter = ffmpegAudioConverter ?? new MiniThemeStudio.Infrastructure.Audio.FFmpegAudioConverter();
+    private readonly IFFmpegAudioConverter _ffmpegAudioConverter = ffmpegAudioConverter ?? new FFmpegAudioConverter();
 
     private static readonly string[] PackagingOnlyFiles = ["info", "author.txt", "title.txt", "note.txt"];
 
@@ -29,28 +32,28 @@ public sealed partial class ThemeExporter(MiniThemeStudio.Core.Audio.IFFmpegAudi
 
         Directory.CreateDirectory(outputDirectory);
 
-        var packagePath = Path.Combine(outputDirectory, $"{system.ToUpperInvariant()}.{name}.tar.gz");
-        var temporaryPath = $"{packagePath}.{Guid.NewGuid():N}.tmp";
-        var includesPreview = previewPath is not null && File.Exists(previewPath);
-        var (files, skipped) = SelectFiles(themePath, baseUiPath, options);
-        var needsOverlay = baseUiPath is not null
+        string packagePath = Path.Combine(outputDirectory, $"{system.ToUpperInvariant()}.{name}.tar.gz");
+        string temporaryPath = $"{packagePath}.{Guid.NewGuid():N}.tmp";
+        bool includesPreview = previewPath is not null && File.Exists(previewPath);
+        (List<string>? files, Dictionary<string, string>? sources, int skipped) = SelectFiles(themePath, baseUiPath, options);
+        bool needsOverlay = baseUiPath is not null
             && !files.Contains("needs_overlay")
             && files.Any(relativePath => !File.Exists(Path.Combine(baseUiPath, relativePath)) && relativePath.StartsWith("resources/", StringComparison.Ordinal));
         try
         {
-            using (var output = File.Create(temporaryPath))
+            using (FileStream output = File.Create(temporaryPath))
             using (var gzip = new GZipStream(output, CompressionLevel.Optimal))
             using (var writer = new TarWriter(gzip, TarEntryFormat.Gnu))
             {
                 writer.WriteEntry(new GnuTarEntry(TarEntryType.Directory, $"{name}/") { Mode = DirectoryMode });
-                foreach (var directory in ParentDirectories(files))
+                foreach (string directory in ParentDirectories(files))
                 {
                     writer.WriteEntry(new GnuTarEntry(TarEntryType.Directory, $"{name}/{directory}/") { Mode = DirectoryMode });
                 }
 
-                foreach (var relativePath in files)
+                foreach (string relativePath in files)
                 {
-                    WriteFile(writer, Path.Combine(themePath, relativePath), $"{name}/{relativePath}");
+                    WriteFile(writer, Path.Combine(themePath, sources.GetValueOrDefault(relativePath, relativePath)), $"{name}/{relativePath}");
                 }
 
                 if (needsOverlay)
@@ -76,20 +79,22 @@ public sealed partial class ThemeExporter(MiniThemeStudio.Core.Audio.IFFmpegAudi
         }
     }
 
-    private static (List<string> Files, int Skipped) SelectFiles(string themePath, string? baseUiPath, ThemeExportOptions options)
+    // the files of the package, and for the ones that move, where they are in the draft
+    private static (List<string> Files, Dictionary<string, string> Sources, int Skipped) SelectFiles(string themePath, string? baseUiPath, ThemeExportOptions options)
     {
         var files = new List<string>();
-        var skipped = 0;
-        foreach (var filePath in Directory.EnumerateFiles(themePath, "*", SearchOption.AllDirectories))
+        var sources = new Dictionary<string, string>(StringComparer.Ordinal);
+        int skipped = 0;
+        foreach (string filePath in Directory.EnumerateFiles(themePath, "*", SearchOption.AllDirectories))
         {
-            var relativePath = ToArchivePath(themePath, filePath);
+            string relativePath = ToArchivePath(themePath, filePath);
             if (UiTreeHash.IsIgnored(relativePath)
                 || PackagingOnlyFiles.Contains(relativePath, StringComparer.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            var isBgm = relativePath.StartsWith("resources/sounds/", StringComparison.OrdinalIgnoreCase)
+            bool isBgm = relativePath.StartsWith("resources/sounds/", StringComparison.OrdinalIgnoreCase)
                 && Path.GetFileName(relativePath).StartsWith("bgm_", StringComparison.OrdinalIgnoreCase);
 
             if (!options.IncludeBgm && isBgm)
@@ -100,7 +105,7 @@ public sealed partial class ThemeExporter(MiniThemeStudio.Core.Audio.IFFmpegAudi
 
             if (options.ConvertBgmAudio && relativePath.StartsWith("resources/sounds/", StringComparison.OrdinalIgnoreCase))
             {
-                var ext = Path.GetExtension(filePath);
+                string ext = Path.GetExtension(filePath);
                 if (!ext.Equals(".wav", StringComparison.OrdinalIgnoreCase) && File.Exists(Path.ChangeExtension(filePath, ".wav")))
                 {
                     continue;
@@ -113,11 +118,45 @@ public sealed partial class ThemeExporter(MiniThemeStudio.Core.Audio.IFFmpegAudi
                 continue;
             }
 
+            // theme fonts live in fonts/ beside resources, named as Font Remount reads them; one in resources/fonts
+            // (where older drafts kept them) moves there, unless the theme already has it in fonts/
+            if (relativePath.StartsWith("resources/fonts/", StringComparison.OrdinalIgnoreCase) && ThemeFonts.IsFontFile(relativePath))
+            {
+                string fontPath = ThemeFonts.RelativePath(Path.GetFileNameWithoutExtension(relativePath), Path.GetExtension(relativePath));
+                if (File.Exists(Path.Combine(themePath, fontPath)) || sources.ContainsKey(fontPath))
+                {
+                    continue;
+                }
+
+                sources[fontPath] = relativePath;
+                relativePath = fontPath;
+            }
+
             files.Add(relativePath);
         }
 
+        // a theme has no region: once a colour changed it ships every colour palette, and the console's theme selector picks the one to mount
+        if (baseUiPath is not null && files.Any(IsColorPalette))
+        {
+            foreach (string palettePath in Directory.EnumerateFiles(baseUiPath, "colors_*.lua", SearchOption.AllDirectories))
+            {
+                string relativePath = ToArchivePath(baseUiPath, palettePath);
+                if (!files.Contains(relativePath))
+                {
+                    files.Add(relativePath);
+                    sources[relativePath] = palettePath;
+                }
+            }
+        }
+
         files.Sort(StringComparer.Ordinal);
-        return (files, skipped);
+        return (files, sources, skipped);
+    }
+
+    private static bool IsColorPalette(string relativePath)
+    {
+        string fileName = Path.GetFileName(relativePath);
+        return fileName.StartsWith("colors_", StringComparison.OrdinalIgnoreCase) && fileName.EndsWith(".lua", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsUnchanged(string themeFile, string baseFile)
@@ -137,7 +176,7 @@ public sealed partial class ThemeExporter(MiniThemeStudio.Core.Audio.IFFmpegAudi
             return;
         }
 
-        var soundsDir = Path.Combine(themePath, "resources", "sounds");
+        string soundsDir = Path.Combine(themePath, "resources", "sounds");
         if (!Directory.Exists(soundsDir))
         {
             return;
@@ -157,31 +196,31 @@ public sealed partial class ThemeExporter(MiniThemeStudio.Core.Audio.IFFmpegAudi
             throw new FileNotFoundException("Convert BGM audio is enabled, but the FFmpeg executable path is not configured or does not exist.", options.FFmpegPath);
         }
 
-        foreach (var audioFile in audioFiles)
+        foreach (string? audioFile in audioFiles)
         {
             if (baseUiPath is not null)
             {
-                var relativePath = ToArchivePath(themePath, audioFile);
-                var baseFile = Path.Combine(baseUiPath, relativePath);
+                string relativePath = ToArchivePath(themePath, audioFile);
+                string baseFile = Path.Combine(baseUiPath, relativePath);
                 if (IsUnchanged(audioFile, baseFile))
                 {
                     // Untouched base file: do not convert so delta export can omit it
                     continue;
                 }
             }
-            var ext = Path.GetExtension(audioFile);
-            var isWav = ext.Equals(".wav", StringComparison.OrdinalIgnoreCase);
-            var targetWavPath = isWav ? audioFile : Path.ChangeExtension(audioFile, ".wav");
+            string ext = Path.GetExtension(audioFile);
+            bool isWav = ext.Equals(".wav", StringComparison.OrdinalIgnoreCase);
+            string targetWavPath = isWav ? audioFile : Path.ChangeExtension(audioFile, ".wav");
 
-            var needsConversion = false;
+            bool needsConversion = false;
             if (!isWav)
             {
                 needsConversion = true;
             }
             else
             {
-                var info = Audio.WavAudioReader.Read(audioFile);
-                var expectedChannels = options.BgmChannels == Core.Audio.BgmAudioChannels.Mono ? 1 : 2;
+                WavAudioInfo info = WavAudioReader.Read(audioFile);
+                int expectedChannels = options.BgmChannels == Core.Audio.BgmAudioChannels.Mono ? 1 : 2;
                 if (!info.IsValidWav || !info.IsConsoleStandard || info.Channels != expectedChannels)
                 {
                     needsConversion = true;
@@ -190,7 +229,7 @@ public sealed partial class ThemeExporter(MiniThemeStudio.Core.Audio.IFFmpegAudi
 
             if (needsConversion)
             {
-                var result = _ffmpegAudioConverter.ConvertToConsoleWavAsync(
+                AudioConversionResult result = _ffmpegAudioConverter.ConvertToConsoleWavAsync(
                     options.FFmpegPath,
                     audioFile,
                     targetWavPath,
@@ -207,9 +246,9 @@ public sealed partial class ThemeExporter(MiniThemeStudio.Core.Audio.IFFmpegAudi
     private static SortedSet<string> ParentDirectories(IEnumerable<string> files)
     {
         var directories = new SortedSet<string>(StringComparer.Ordinal);
-        foreach (var file in files)
+        foreach (string file in files)
         {
-            var separator = file.LastIndexOf('/');
+            int separator = file.LastIndexOf('/');
             while (separator > 0)
             {
                 directories.Add(file[..separator]);
@@ -222,7 +261,7 @@ public sealed partial class ThemeExporter(MiniThemeStudio.Core.Audio.IFFmpegAudi
 
     private static void WriteFile(TarWriter writer, string filePath, string entryName)
     {
-        using var content = File.OpenRead(filePath);
+        using FileStream content = File.OpenRead(filePath);
         writer.WriteEntry(new GnuTarEntry(TarEntryType.RegularFile, entryName)
         {
             Mode = FileMode,

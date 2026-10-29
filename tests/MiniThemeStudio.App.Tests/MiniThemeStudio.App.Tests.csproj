@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Avalonia.Headless" Version="11.3.22" />
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
@@ -16,6 +17,12 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- the compiled LuaJIT palettes the Infrastructure tests use, shared instead of copied -->
+    <Compile Include="..\MiniThemeStudio.Infrastructure.Tests\Themes\PaletteFixtures.cs" Link="TestDoubles\PaletteFixtures.cs" />
+    <Compile Include="..\MiniThemeStudio.Infrastructure.Tests\Themes\CharacterPatternFixtures.cs" Link="TestDoubles\CharacterPatternFixtures.cs" />
   </ItemGroup>
 
   <ItemGroup>

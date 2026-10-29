@@ -17,7 +17,7 @@ public sealed partial class SingleInstance : IDisposable
     private SingleInstance(string name)
     {
         // Local\ keeps the instance per user session (other users on the machine run their own)
-        _mutex = new Mutex(true, $@"Local\{name}", out var isFirst);
+        _mutex = new Mutex(true, $@"Local\{name}", out bool isFirst);
         IsFirst = isFirst;
 
         // named events exist on Windows only; elsewhere a second start just exits

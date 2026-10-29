@@ -27,7 +27,7 @@ public sealed class ThemePaletteEditorTests : IDisposable
     [Fact]
     public void ThemeWithoutPalettesShowsTheBaseOnes()
     {
-        var palettes = _editor.GetPalettes(_draft, _baseUi);
+        IReadOnlyList<ThemePalette> palettes = _editor.GetPalettes(_draft, _baseUi);
 
         Assert.Equal(["jpn", "usa"], palettes.Select(p => p.Region));
         Assert.All(palettes, p => Assert.True(p.IsFromBaseUi));
@@ -39,9 +39,9 @@ public sealed class ThemePaletteEditorTests : IDisposable
     {
         Place(_draft, Usa, PaletteFixtures.SampleEditedBytes);
 
-        var palettes = _editor.GetPalettes(_draft, _baseUi);
+        IReadOnlyList<ThemePalette> palettes = _editor.GetPalettes(_draft, _baseUi);
 
-        var usa = palettes.Single(p => p.Region == "usa");
+        ThemePalette usa = palettes.Single(p => p.Region == "usa");
         Assert.False(usa.IsFromBaseUi);
         Assert.Equal(PaletteColor.FromBytes("font_home_hud", 190, 0, 26, 255), usa.Colors.Single(c => c.Name == "font_home_hud"));
         Assert.True(palettes.Single(p => p.Region == "jpn").IsFromBaseUi);
@@ -77,7 +77,7 @@ public sealed class ThemePaletteEditorTests : IDisposable
         Place(_baseUi, "resources/prefab/dialog.scn", Scene("font_dialog_text", null));
         Place(_draft, scene, Scene("font_resume_title", "@sys_resume_Title"));
 
-        var usages = _editor.GetUsages(_draft, _baseUi);
+        IReadOnlyList<PaletteColorUsage> usages = _editor.GetUsages(_draft, _baseUi);
 
         Assert.Equal(
             [
@@ -88,11 +88,25 @@ public sealed class ThemePaletteEditorTests : IDisposable
     }
 
     [Fact]
+    public void UsagesCarryTheWordsTheConsoleShows()
+    {
+        Place(_baseUi, "resources/defaultscene.scn", Scene("font_home_hud", "@sys_hud_Menu"));
+        Place(_baseUi, "resources/prefab/other.scn", Scene("font_home_gametitle", "GameTitle"));
+        Place(_baseUi, "resources/strings/usa_en/strings.lng", System.Text.Encoding.UTF8.GetBytes("""{"strings":{"sys_hud_Menu":"Menu"}}"""));
+        Place(_baseUi, "resources/strings/eur_de/strings.lng", System.Text.Encoding.UTF8.GetBytes("""{"strings":{"sys_hud_Menu":"Menue"}}"""));
+
+        IReadOnlyList<PaletteColorUsage> usages = _editor.GetUsages(_draft, _baseUi);
+
+        Assert.Equal("Menu", usages.Single(usage => usage.ColorName == "font_home_hud").Text);
+        Assert.Equal("GameTitle", usages.Single(usage => usage.ColorName == "font_home_gametitle").Text);
+    }
+
+    [Fact]
     public void AColourNamedInAScriptCountsAsUsed()
     {
         Place(_baseUi, "resources/scripts/home.lua", System.Text.Encoding.UTF8.GetBytes("LJ...bg_base..."));
 
-        var usages = _editor.GetUsages(_draft, _baseUi);
+        IReadOnlyList<PaletteColorUsage> usages = _editor.GetUsages(_draft, _baseUi);
 
         Assert.Equal([new PaletteColorUsage("bg_base", "resources/scripts/home.lua", "(Lua script)", null)], usages);
     }
@@ -103,7 +117,7 @@ public sealed class ThemePaletteEditorTests : IDisposable
 
     private static void Place(string root, string relativePath, byte[] bytes)
     {
-        var path = Path.Combine(root, relativePath);
+        string path = Path.Combine(root, relativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllBytes(path, bytes);
     }

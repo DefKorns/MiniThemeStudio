@@ -9,7 +9,7 @@ internal sealed class SshConsoleDirectoryClient(
 {
     public async Task ConnectAsync(CancellationToken cancellationToken)
     {
-        var result = await RunCommandAsync("true", cancellationToken);
+        CommandResult result = await RunCommandAsync("true", cancellationToken);
         EnsureSuccess(result, "SSH connection failed");
     }
 
@@ -17,7 +17,7 @@ internal sealed class SshConsoleDirectoryClient(
         string remotePath,
         CancellationToken cancellationToken)
     {
-        var result = await RunCommandAsync(
+        CommandResult result = await RunCommandAsync(
             $"test -d {QuoteShellArgument(remotePath)}",
             cancellationToken);
         return result.ExitCode == 0;
@@ -29,9 +29,9 @@ internal sealed class SshConsoleDirectoryClient(
         CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(localPath);
-        using var process = StartProcess(
+        using Process process = StartProcess(
             $"tar -C {QuoteShellArgument(remotePath)} -cf - .");
-        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        Task<string> errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
 
         await TarFile.ExtractToDirectoryAsync(
             process.StandardOutput.BaseStream,
@@ -39,7 +39,7 @@ internal sealed class SshConsoleDirectoryClient(
             false,
             cancellationToken);
         await process.WaitForExitAsync(cancellationToken);
-        var error = await errorTask;
+        string error = await errorTask;
 
         if (process.ExitCode != 0)
         {
@@ -57,9 +57,9 @@ internal sealed class SshConsoleDirectoryClient(
         string command,
         CancellationToken cancellationToken)
     {
-        using var process = StartProcess(command);
-        var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        using Process process = StartProcess(command);
+        Task<string> outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        Task<string> errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
         await process.WaitForExitAsync(cancellationToken);
 
         return new CommandResult(

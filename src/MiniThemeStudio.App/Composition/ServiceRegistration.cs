@@ -55,6 +55,8 @@ public static class ServiceRegistration
         services.AddSingleton<ICharacterAnimationEditor, CharacterAnimationEditor>();
         services.AddSingleton<IThemePaletteEditor, ThemePaletteEditor>();
         services.AddSingleton<ISceneEditor, SceneEditor>();
+        services.AddSingleton<IParallaxEditor, ParallaxEditor>();
+        services.AddSingleton<ICharacterSheetEditor, CharacterSheetEditor>();
 
         // audio
         services.AddSingleton<IProcessRunner, DefaultProcessRunner>();
@@ -68,8 +70,12 @@ public static class ServiceRegistration
         services.AddSingleton<IErrorHandler, ErrorHandler>();
         services.AddSingleton<GlobalExceptionHandler>();
         services.AddSingleton<ThemeSession>();
+        services.AddSingleton<EditingMode>();
+        services.AddSingleton<SceneImageLibrary>();
         services.AddSingleton<ScenesViewModel>();
         services.AddSingleton<SpritesViewModel>();
+        services.AddSingleton<ParallaxViewModel>();
+        services.AddSingleton<PixelBackgroundViewModel>();
         services.AddSingleton<WallpapersViewModel>();
         services.AddSingleton<CharactersViewModel>();
         services.AddSingleton<FontsViewModel>();

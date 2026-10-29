@@ -28,7 +28,7 @@ public sealed class ThemeProjectCreator : IThemeProjectCreator
         _baseUiValidator.Validate(request.BaseThemePath);
 
         var source = new DirectoryInfo(request.BaseThemePath);
-        var baseAtlas = request.AtlasImagePath is null ? null : ReadReplacementAtlas(request);
+        TextureAtlas? baseAtlas = request.AtlasImagePath is null ? null : ReadReplacementAtlas(request);
 
         var destination = new DirectoryInfo(request.DestinationPath);
         if (!destination.Exists)
@@ -61,9 +61,9 @@ public sealed class ThemeProjectCreator : IThemeProjectCreator
 
     private static TextureAtlas ReadReplacementAtlas(NewThemeRequest request)
     {
-        var atlas = new TextureAtlasReader().Read(request.BaseThemePath)
+        TextureAtlas atlas = new TextureAtlasReader().Read(request.BaseThemePath)
             ?? throw new InvalidDataException("The selected Base has no sprite atlas to replace.");
-        using var bitmap = SKBitmap.Decode(request.AtlasImagePath)
+        using SKBitmap bitmap = SKBitmap.Decode(request.AtlasImagePath)
             ?? throw new InvalidDataException("The atlas source is not a valid PNG image.");
         if (bitmap.Width != atlas.Size.Width || bitmap.Height != atlas.Size.Height)
         {
@@ -76,21 +76,21 @@ public sealed class ThemeProjectCreator : IThemeProjectCreator
 
     private static void CopyDirectory(DirectoryInfo source, DirectoryInfo destination)
     {
-        foreach (var directory in source.EnumerateDirectories("*", SearchOption.AllDirectories))
+        foreach (DirectoryInfo directory in source.EnumerateDirectories("*", SearchOption.AllDirectories))
         {
-            var relativePath = Path.GetRelativePath(source.FullName, directory.FullName);
+            string relativePath = Path.GetRelativePath(source.FullName, directory.FullName);
             Directory.CreateDirectory(Path.Combine(destination.FullName, relativePath));
         }
 
-        foreach (var file in source.EnumerateFiles("*", SearchOption.AllDirectories))
+        foreach (FileInfo file in source.EnumerateFiles("*", SearchOption.AllDirectories))
         {
-            var relativePath = Path.GetRelativePath(source.FullName, file.FullName);
+            string relativePath = Path.GetRelativePath(source.FullName, file.FullName);
             if (UiTreeHash.IsIgnored(relativePath))
             {
                 continue;
             }
 
-            var destinationPath = Path.Combine(destination.FullName, relativePath);
+            string destinationPath = Path.Combine(destination.FullName, relativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
             file.CopyTo(destinationPath);
         }

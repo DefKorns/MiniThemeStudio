@@ -50,8 +50,19 @@ public partial class MainWindowViewModel : ViewModelBase
         FontsViewModel fontsTab,
         ColorsViewModel colorsTab,
         AudioViewModel audioTab,
-        ValidationViewModel validationTab)
+        ValidationViewModel validationTab,
+        EditingMode mode)
     {
+        Mode = mode;
+
+        // the tabs of advanced editing go away with it, so the window leaves them for the first tab
+        Mode.PropertyChanged += (_, _) =>
+        {
+            if (Mode.IsSimple && SelectedTabIndex is ScenesTabIndex or ColorsTabIndex)
+            {
+                SelectedTabIndex = 0;
+            }
+        };
         _metadataReader = metadataReader;
         _themeDraftService = themeDraftService;
         _baseFirmwareManager = baseFirmwareManager;
@@ -100,6 +111,13 @@ public partial class MainWindowViewModel : ViewModelBase
             ValidationTab.Run();
         };
     }
+
+    // the order of the tabs in the window
+    private const int ScenesTabIndex = 2;
+    private const int ColorsTabIndex = 5;
+
+    // simple or advanced editing: which tabs, and which parts of them, show
+    public EditingMode Mode { get; }
 
     public ScenesViewModel ScenesTab { get; }
 
@@ -197,7 +215,7 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var hadUnsavedChanges = HasUnsavedChanges;
+        bool hadUnsavedChanges = HasUnsavedChanges;
         _session.BaseUiPath = baseUiPath;
         LoadDraft(_session.Draft);
         HasUnsavedChanges = hadUnsavedChanges;
@@ -227,13 +245,13 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var system = PackagingSystem
+        string system = PackagingSystem
             ?? throw new OperationFailedException("Choose the Base of this theme first (click the console badge in the header).");
         ValidationTab.EnsureValidFor("exporting");
 
-        var previewPath = $"{Path.TrimEndingDirectorySeparator(_session.Draft.SavePath)}.png";
-        var result = _themeExporter.ExportPackage(_session.Draft.DraftPath, outputDirectory, system, PackagingName, previewPath, _session.BaseUiPath, AudioTab.ExportOptions);
-        var summary = $"Exported {result.FileCount} changed files to {result.PackagePath} ({result.UnchangedFilesSkipped} unchanged Base files left out)";
+        string previewPath = $"{Path.TrimEndingDirectorySeparator(_session.Draft.SavePath)}.png";
+        ThemePackageResult result = _themeExporter.ExportPackage(_session.Draft.DraftPath, outputDirectory, system, PackagingName, previewPath, _session.BaseUiPath, AudioTab.ExportOptions);
+        string summary = $"Exported {result.FileCount} changed files to {result.PackagePath} ({result.UnchangedFilesSkipped} unchanged Base files left out)";
         Status = result.IncludesPreview
             ? $"{summary}."
             : $"{summary}, without a preview (no {Path.GetFileName(previewPath)} next to the theme folder).";
@@ -287,7 +305,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void LoadDraft(ThemeDraft draft)
     {
-        var metadata = _metadataReader.Read(draft.DraftPath, Path.GetFileName(draft.SavePath));
+        ThemeMetadata metadata = _metadataReader.Read(draft.DraftPath, Path.GetFileName(draft.SavePath));
         ThemeName = metadata.Name;
         Author = metadata.Author ?? "Not specified";
         ThemePath = draft.SavePath;
@@ -297,6 +315,7 @@ public partial class MainWindowViewModel : ViewModelBase
         _currentBase = _baseFirmwareManager.GetInstalledBases()
             .FirstOrDefault(info => info.Status == BaseInstallStatus.Valid && PathsEqual(info.LocalPath, _session.BaseUiPath))?
             .Definition;
+        _session.BaseDefinition = _currentBase;
         CurrentBaseLabel = _currentBase is null ? "No Base" : ConsoleFamilies.ShortLabel(_currentBase);
         _session.Reload();
         ValidationTab.Run();

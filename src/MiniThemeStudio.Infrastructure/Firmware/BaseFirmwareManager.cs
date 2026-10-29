@@ -42,7 +42,7 @@ public sealed class BaseFirmwareManager : IBaseFirmwareManager
     {
         var installed = GetInstalledBases()
             .Where(info => info.Status == BaseInstallStatus.Valid)
-            .OrderByDescending(info => Version.TryParse(info.Definition.Version, out var version) ? version : new Version())
+            .OrderByDescending(info => Version.TryParse(info.Definition.Version, out Version? version) ? version : new Version())
             .ToList();
         if (installed.Count == 0)
         {
@@ -54,7 +54,7 @@ public sealed class BaseFirmwareManager : IBaseFirmwareManager
             return installed[0].LocalPath;
         }
 
-        var (console, region) = DetectThemeTarget(themePath);
+        (string? console, string? region) = DetectThemeTarget(themePath);
         if (console is null)
         {
             return null;
@@ -72,27 +72,27 @@ public sealed class BaseFirmwareManager : IBaseFirmwareManager
             throw new FileNotFoundException("Firmware file not found.", filePath);
         }
 
-        var fileName = Path.GetFileName(filePath);
-        var sha256 = await Task.Run(() => UiTreeHash.ComputeFileSha256(filePath), cancellationToken);
-        var match = _registry.FindBySourceSha256(sha256)
+        string fileName = Path.GetFileName(filePath);
+        string sha256 = await Task.Run(() => UiTreeHash.ComputeFileSha256(filePath), cancellationToken);
+        (FirmwareDefinition Definition, FirmwareSource Source) match = _registry.FindBySourceSha256(sha256)
             ?? throw new InvalidDataException(
                 $"'{fileName}' is not a recognised original firmware file (SHA-256 {sha256}). "
                 + "Only unmodified official images listed in the firmware registry are accepted.");
-        var (definition, source) = match;
+        (FirmwareDefinition? definition, FirmwareSource? source) = match;
 
-        var existing = GetInstalledBase(definition);
+        InstalledBaseInfo existing = GetInstalledBase(definition);
         if (existing.Status == BaseInstallStatus.Valid)
         {
             return existing;
         }
 
-        var format = FirmwareSourceReader.Detect(filePath);
+        FirmwareSourceFormat format = FirmwareSourceReader.Detect(filePath);
         if (FirmwareSourceReader.FormatName(format) != source.Format)
         {
             throw new InvalidDataException($"'{fileName}' should be a {source.Format} file but its content is {FirmwareSourceReader.FormatName(format)}.");
         }
 
-        var stagingPath = CreateStagingPath();
+        string stagingPath = CreateStagingPath();
         try
         {
             await Task.Run(
@@ -114,19 +114,19 @@ public sealed class BaseFirmwareManager : IBaseFirmwareManager
             throw new DirectoryNotFoundException($"Folder not found: {directoryPath}");
         }
 
-        var fingerprint = await Task.Run(() => UiTreeHash.ComputeForDirectory(directoryPath, cancellationToken), cancellationToken);
-        var definition = _registry.FindByUiTreeSha256(fingerprint.Sha256)
+        UiTreeFingerprint fingerprint = await Task.Run(() => UiTreeHash.ComputeForDirectory(directoryPath, cancellationToken), cancellationToken);
+        FirmwareDefinition definition = _registry.FindByUiTreeSha256(fingerprint.Sha256)
             ?? throw new InvalidDataException(
                 "This folder does not match any original Base UI. Select the UI folder itself "
                 + "(the one containing init.json) from an unmodified firmware.");
 
-        var existing = GetInstalledBase(definition);
+        InstalledBaseInfo existing = GetInstalledBase(definition);
         if (existing.Status == BaseInstallStatus.Valid)
         {
             return existing;
         }
 
-        var stagingPath = CreateStagingPath();
+        string stagingPath = CreateStagingPath();
         try
         {
             await Task.Run(() => CopyDirectory(directoryPath, stagingPath, cancellationToken), cancellationToken);
@@ -146,13 +146,13 @@ public sealed class BaseFirmwareManager : IBaseFirmwareManager
             throw new InvalidOperationException("Console import is not available.");
         }
 
-        await using var client = _consoleClientFactory.Create(connection);
+        await using IConsoleDirectoryClient client = _consoleClientFactory.Create(connection);
         await client.ConnectAsync(cancellationToken);
 
-        foreach (var uiPath in _registry.All.Select(definition => definition.UiPath).Distinct())
+        foreach (string? uiPath in _registry.All.Select(definition => definition.UiPath).Distinct())
         {
-            var definition = _registry.All.First(candidate => candidate.UiPath == uiPath);
-            var remotePath = await client.DirectoryExistsAsync(definition.OriginalConsoleUiPath, cancellationToken)
+            FirmwareDefinition definition = _registry.All.First(candidate => candidate.UiPath == uiPath);
+            string? remotePath = await client.DirectoryExistsAsync(definition.OriginalConsoleUiPath, cancellationToken)
                 ? definition.OriginalConsoleUiPath
                 : await client.DirectoryExistsAsync(definition.ConsoleUiPath, cancellationToken)
                     ? definition.ConsoleUiPath
@@ -162,12 +162,12 @@ public sealed class BaseFirmwareManager : IBaseFirmwareManager
                 continue;
             }
 
-            var stagingPath = CreateStagingPath();
+            string stagingPath = CreateStagingPath();
             try
             {
                 await client.DownloadDirectoryAsync(remotePath, stagingPath, cancellationToken);
-                var fingerprint = await Task.Run(() => UiTreeHash.ComputeForDirectory(stagingPath, cancellationToken), cancellationToken);
-                var match = _registry.FindByUiTreeSha256(fingerprint.Sha256);
+                UiTreeFingerprint fingerprint = await Task.Run(() => UiTreeHash.ComputeForDirectory(stagingPath, cancellationToken), cancellationToken);
+                FirmwareDefinition? match = _registry.FindByUiTreeSha256(fingerprint.Sha256);
                 if (match is null || match.UiPath != uiPath)
                 {
                     throw new InvalidDataException(
@@ -175,7 +175,7 @@ public sealed class BaseFirmwareManager : IBaseFirmwareManager
                         + "It may be modified by an installed theme or mod.");
                 }
 
-                var existing = GetInstalledBase(match);
+                InstalledBaseInfo existing = GetInstalledBase(match);
                 if (existing.Status == BaseInstallStatus.Valid)
                 {
                     return existing;
@@ -194,13 +194,13 @@ public sealed class BaseFirmwareManager : IBaseFirmwareManager
 
     private InstalledBaseInfo GetInstalledBase(FirmwareDefinition definition)
     {
-        var localPath = Path.Combine(BasesRootPath, definition.RelativeStoragePath);
+        string localPath = Path.Combine(BasesRootPath, definition.RelativeStoragePath);
         if (!Directory.Exists(localPath))
         {
             return new InstalledBaseInfo(definition, localPath, BaseInstallStatus.Missing);
         }
 
-        var manifest = ReadManifest(localPath);
+        BaseManifest? manifest = ReadManifest(localPath);
         if (manifest is null)
         {
             return new InstalledBaseInfo(definition, localPath, BaseInstallStatus.Invalid, "Not verified: import manifest missing.");
@@ -218,7 +218,7 @@ public sealed class BaseFirmwareManager : IBaseFirmwareManager
         string? sourceSha256,
         CancellationToken cancellationToken)
     {
-        var fingerprint = await Task.Run(() => UiTreeHash.ComputeForDirectory(stagingPath, cancellationToken), cancellationToken);
+        UiTreeFingerprint fingerprint = await Task.Run(() => UiTreeHash.ComputeForDirectory(stagingPath, cancellationToken), cancellationToken);
         if (!string.Equals(fingerprint.Sha256, definition.UiTreeSha256, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidDataException(
@@ -232,10 +232,10 @@ public sealed class BaseFirmwareManager : IBaseFirmwareManager
             JsonSerializer.Serialize(manifest, ManifestSerializerOptions),
             cancellationToken);
 
-        var destinationPath = Path.Combine(BasesRootPath, definition.RelativeStoragePath);
+        string destinationPath = Path.Combine(BasesRootPath, definition.RelativeStoragePath);
         Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
-        var backupPath = $"{destinationPath}.mts-backup-{Guid.NewGuid():N}";
-        var destinationMoved = false;
+        string backupPath = $"{destinationPath}.mts-backup-{Guid.NewGuid():N}";
+        bool destinationMoved = false;
 
         try
         {
@@ -262,15 +262,15 @@ public sealed class BaseFirmwareManager : IBaseFirmwareManager
 
     private static (string? Console, string? Region) DetectThemeTarget(string themePath)
     {
-        var initPath = Path.Combine(themePath, "init.json");
+        string initPath = Path.Combine(themePath, "init.json");
         if (File.Exists(initPath))
         {
             try
             {
                 using var document = JsonDocument.Parse(File.ReadAllText(initPath));
-                var root = document.RootElement;
-                var engineFormat = root.TryGetProperty("engineFormat", out var format) ? format.GetInt32() : 0;
-                var scripts = root.TryGetProperty("luaScripts", out var scriptList)
+                JsonElement root = document.RootElement;
+                int engineFormat = root.TryGetProperty("engineFormat", out JsonElement format) ? format.GetInt32() : 0;
+                string[] scripts = root.TryGetProperty("luaScripts", out JsonElement scriptList)
                     ? scriptList.EnumerateArray().Select(script => script.GetString() ?? "").ToArray()
                     : [];
 
@@ -279,7 +279,7 @@ public sealed class BaseFirmwareManager : IBaseFirmwareManager
                     return ("shonen", "jpn");
                 }
 
-                foreach (var (script, region) in new[] { ("/env_eur.lua", "eur"), ("/env_usa.lua", "usa"), ("/env_jpn.lua", "jpn") })
+                foreach ((string? script, string? region) in new[] { ("/env_eur.lua", "eur"), ("/env_usa.lua", "usa"), ("/env_jpn.lua", "jpn") })
                 {
                     if (scripts.Any(candidate => candidate.EndsWith(script, StringComparison.Ordinal)))
                     {
@@ -302,7 +302,7 @@ public sealed class BaseFirmwareManager : IBaseFirmwareManager
             }
         }
 
-        var segments = themePath.Replace('\\', '/').ToLowerInvariant().Split('/');
+        string[] segments = themePath.Replace('\\', '/').ToLowerInvariant().Split('/');
         if (segments.Any(segment => segment.Contains("snes")))
         {
             return ("snes", "eur");
@@ -318,7 +318,7 @@ public sealed class BaseFirmwareManager : IBaseFirmwareManager
 
     private static BaseManifest? ReadManifest(string basePath)
     {
-        var manifestPath = Path.Combine(basePath, ManifestFileName);
+        string manifestPath = Path.Combine(basePath, ManifestFileName);
         if (!File.Exists(manifestPath))
         {
             return null;
@@ -342,16 +342,16 @@ public sealed class BaseFirmwareManager : IBaseFirmwareManager
 
     private static void CopyDirectory(string sourcePath, string destinationPath, CancellationToken cancellationToken)
     {
-        foreach (var filePath in Directory.EnumerateFiles(sourcePath, "*", SearchOption.AllDirectories))
+        foreach (string filePath in Directory.EnumerateFiles(sourcePath, "*", SearchOption.AllDirectories))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var relativePath = Path.GetRelativePath(sourcePath, filePath);
+            string relativePath = Path.GetRelativePath(sourcePath, filePath);
             if (UiTreeHash.IsIgnored(relativePath))
             {
                 continue;
             }
 
-            var targetPath = Path.Combine(destinationPath, relativePath);
+            string targetPath = Path.Combine(destinationPath, relativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
             File.Copy(filePath, targetPath);
         }

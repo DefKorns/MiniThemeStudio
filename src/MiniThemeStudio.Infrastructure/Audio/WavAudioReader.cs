@@ -21,7 +21,7 @@ public static class WavAudioReader
 
         try
         {
-            using var stream = File.OpenRead(filePath);
+            using FileStream stream = File.OpenRead(filePath);
             return Read(stream);
         }
         catch (Exception ex)
@@ -65,14 +65,14 @@ public static class WavAudioReader
 
         while (stream.Position < stream.Length - 8)
         {
-            var chunkId = reader.ReadBytes(4);
+            byte[] chunkId = reader.ReadBytes(4);
             if (chunkId.Length < 4)
             {
                 break;
             }
 
-            var chunkSize = reader.ReadUInt32();
-            var nextChunkPosition = stream.Position + chunkSize;
+            uint chunkSize = reader.ReadUInt32();
+            long nextChunkPosition = stream.Position + chunkSize;
 
             if (chunkId.SequenceEqual(FmtChunk))
             {
@@ -98,7 +98,7 @@ public static class WavAudioReader
             {
                 hasSmpl = true;
                 _ = reader.ReadBytes(28); // manufacturer, product, samplePeriod, unityNote, pitchFraction, smpteFmt, smpteOffset
-                var numLoops = reader.ReadInt32();
+                int numLoops = reader.ReadInt32();
                 _ = reader.ReadInt32(); // samplerData
 
                 if (numLoops > 0 && chunkSize >= 36 + 24)
@@ -128,9 +128,9 @@ public static class WavAudioReader
             return WavAudioInfo.Invalid("Missing 'data' chunk in WAV file.");
         }
 
-        var bytesPerSample = bitsPerSample / 8;
-        var bytesPerFrame = channels * bytesPerSample;
-        var duration = bytesPerFrame > 0 && sampleRate > 0
+        int bytesPerSample = bitsPerSample / 8;
+        int bytesPerFrame = channels * bytesPerSample;
+        TimeSpan duration = bytesPerFrame > 0 && sampleRate > 0
             ? TimeSpan.FromSeconds((double)dataSizeBytes / (sampleRate * bytesPerFrame))
             : TimeSpan.Zero;
 
@@ -154,14 +154,14 @@ public static class WavAudioReader
         int? loopStart = null,
         int? loopEnd = null)
     {
-        var bytesPerSample = (short)2;
-        var blockAlign = (short)(channels * bytesPerSample);
-        var byteRate = sampleRate * blockAlign;
-        var dataSize = sampleFrames * blockAlign;
+        short bytesPerSample = (short)2;
+        short blockAlign = (short)(channels * bytesPerSample);
+        int byteRate = sampleRate * blockAlign;
+        int dataSize = sampleFrames * blockAlign;
 
-        var hasSmpl = loopStart.HasValue && loopEnd.HasValue;
-        var smplSize = hasSmpl ? 60 : 0;
-        var totalRiffSize = 36 + dataSize + (hasSmpl ? (8 + smplSize) : 0);
+        bool hasSmpl = loopStart.HasValue && loopEnd.HasValue;
+        int smplSize = hasSmpl ? 60 : 0;
+        int totalRiffSize = 36 + dataSize + (hasSmpl ? (8 + smplSize) : 0);
 
         using var ms = new MemoryStream();
         using var writer = new BinaryWriter(ms, System.Text.Encoding.ASCII);

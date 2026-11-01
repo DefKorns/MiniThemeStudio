@@ -38,7 +38,7 @@ public sealed class SpriteSheetImporterTests : IDisposable
         var importer = new SpriteSheetImporter();
         var keying = new SheetKeying([importer.GetPixel(_sheetPath, 0, 0), importer.GetPixel(_sheetPath, 2, 2)]);
 
-        var frames = importer.DetectFrames(_sheetPath, keying, mergeGap: 1);
+        IReadOnlyList<AtlasRectangle> frames = importer.DetectFrames(_sheetPath, keying, mergeGap: 1);
 
         Assert.Equal(
             [new AtlasRectangle(5, 6, 6, 10), new AtlasRectangle(25, 10, 6, 6), new AtlasRectangle(4, 22, 5, 2)],
@@ -52,7 +52,7 @@ public sealed class SpriteSheetImporterTests : IDisposable
         var keying = new SheetKeying([(uint)SheetBlue, (uint)CellBlue]);
         var frames = importer.DetectFrames(_sheetPath, keying).Take(2).ToList();
 
-        var paths = importer.ExportFrames(_sheetPath, frames, keying, FrameAnchor.BottomCenter, null, Path.Combine(_rootPath, "out"));
+        IReadOnlyList<string> paths = importer.ExportFrames(_sheetPath, frames, keying, FrameAnchor.BottomCenter, null, Path.Combine(_rootPath, "out"));
 
         using var tall = SKBitmap.Decode(paths[0]);
         using var small = SKBitmap.Decode(paths[1]);
@@ -71,7 +71,7 @@ public sealed class SpriteSheetImporterTests : IDisposable
         var keying = new SheetKeying([(uint)SheetBlue, (uint)CellBlue]);
         var frames = importer.DetectFrames(_sheetPath, keying).Take(2).ToList();
 
-        var paths = importer.ExportFrames(_sheetPath, frames, keying, FrameAnchor.BottomCenter, null, Path.Combine(_rootPath, "out"), mirror: true);
+        IReadOnlyList<string> paths = importer.ExportFrames(_sheetPath, frames, keying, FrameAnchor.BottomCenter, null, Path.Combine(_rootPath, "out"), mirror: true);
 
         using var tall = SKBitmap.Decode(paths[0]);
         using var small = SKBitmap.Decode(paths[1]);
@@ -89,8 +89,8 @@ public sealed class SpriteSheetImporterTests : IDisposable
     {
         var importer = new SpriteSheetImporter();
 
-        var suggested = importer.SuggestBackgroundColours(_sheetPath);
-        var frames = importer.DetectFrames(_sheetPath, new SheetKeying(suggested));
+        IReadOnlyList<uint> suggested = importer.SuggestBackgroundColours(_sheetPath);
+        IReadOnlyList<AtlasRectangle> frames = importer.DetectFrames(_sheetPath, new SheetKeying(suggested));
 
         Assert.Equal([(uint)SheetBlue, (uint)CellBlue], suggested);
         Assert.Equal(new AtlasRectangle(5, 6, 6, 10), frames[0]);
@@ -117,9 +117,9 @@ public sealed class SpriteSheetImporterTests : IDisposable
 
     private static void Fill(SKBitmap bitmap, int x, int y, int width, int height, SKColor color)
     {
-        for (var row = y; row < y + height; row++)
+        for (int row = y; row < y + height; row++)
         {
-            for (var column = x; column < x + width; column++)
+            for (int column = x; column < x + width; column++)
             {
                 bitmap.SetPixel(column, row, color);
             }

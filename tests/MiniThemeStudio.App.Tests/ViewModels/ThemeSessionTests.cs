@@ -21,7 +21,7 @@ public sealed class ThemeSessionTests
     public void ContentChangesAreAnnounced()
     {
         var session = new ThemeSession(new ThemeResourceIndexer());
-        var announced = 0;
+        int announced = 0;
         session.ContentChanged += (_, _) => announced++;
 
         session.NotifyContentChanged();
@@ -34,7 +34,7 @@ public sealed class ThemeSessionTests
     public void ReloadWithoutAThemeEmptiesTheReportAndTellsTheTabs()
     {
         var session = new ThemeSession(new ThemeResourceIndexer());
-        var reloads = 0;
+        int reloads = 0;
         session.Reloaded += (_, _) => reloads++;
 
         session.Reload();

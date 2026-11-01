@@ -9,7 +9,7 @@ public sealed class FileDialogService : IFileDialogService
 {
     public async Task<string?> PickFolderAsync(string title)
     {
-        var folders = await ActiveWindow.Get().StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        IReadOnlyList<IStorageFolder> folders = await ActiveWindow.Get().StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
             Title = title,
             AllowMultiple = false,
@@ -20,7 +20,7 @@ public sealed class FileDialogService : IFileDialogService
 
     public async Task<string?> OpenFileAsync(string title, params FileType[] fileTypes)
     {
-        var files = await OpenAsync(title, false, fileTypes);
+        IReadOnlyList<string> files = await OpenAsync(title, false, fileTypes);
         return files.Count > 0 ? files[0] : null;
     }
 
@@ -31,7 +31,7 @@ public sealed class FileDialogService : IFileDialogService
 
     public async Task<string?> SaveFileAsync(string title, string suggestedFileName, string defaultExtension, params FileType[] fileTypes)
     {
-        var file = await ActiveWindow.Get().StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        IStorageFile? file = await ActiveWindow.Get().StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
             Title = title,
             SuggestedFileName = suggestedFileName,
@@ -44,7 +44,7 @@ public sealed class FileDialogService : IFileDialogService
 
     private static async Task<IReadOnlyList<string>> OpenAsync(string title, bool allowMultiple, FileType[] fileTypes)
     {
-        var files = await ActiveWindow.Get().StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        IReadOnlyList<IStorageFile> files = await ActiveWindow.Get().StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = title,
             AllowMultiple = allowMultiple,

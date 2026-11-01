@@ -14,11 +14,11 @@ public sealed class ThemeMetadataReader : IThemeMetadataReader
             throw new DirectoryNotFoundException($"Theme directory not found: {rootPath}");
         }
 
-        var title = ReadOptionalText(Path.Combine(rootPath, "title.txt"));
-        var infoPath = Path.Combine(rootPath, "info");
-        var infoLines = File.Exists(infoPath) ? File.ReadLines(infoPath) : [];
-        var author = ReadOptionalText(Path.Combine(rootPath, "author.txt"));
-        var name = ThemeMetadataResolver.ResolveName(fallbackName ?? directory.Name, title, infoLines);
+        string? title = ReadOptionalText(Path.Combine(rootPath, "title.txt"));
+        string infoPath = Path.Combine(rootPath, "info");
+        IEnumerable<string> infoLines = File.Exists(infoPath) ? File.ReadLines(infoPath) : [];
+        string? author = ReadOptionalText(Path.Combine(rootPath, "author.txt"));
+        string name = ThemeMetadataResolver.ResolveName(fallbackName ?? directory.Name, title, infoLines);
 
         return new ThemeMetadata(
             directory.FullName,
@@ -34,7 +34,7 @@ public sealed class ThemeMetadataReader : IThemeMetadataReader
             return null;
         }
 
-        var value = File.ReadAllText(path).Trim();
+        string value = File.ReadAllText(path).Trim();
         return value.Length == 0 ? null : value;
     }
 }

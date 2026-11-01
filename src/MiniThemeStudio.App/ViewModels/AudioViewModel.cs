@@ -154,7 +154,7 @@ public sealed partial class AudioViewModel : ViewModelBase
         string? format = null;
         if (await _errorHandler.TryRunAsync($"Cannot convert {trackName}", async () =>
         {
-            var ffmpegPath = _settingsStore.Current.FFmpegPath;
+            string ffmpegPath = _settingsStore.Current.FFmpegPath;
             if (string.IsNullOrWhiteSpace(ffmpegPath) || !File.Exists(ffmpegPath))
             {
                 throw new OperationFailedException("FFmpeg executable is not configured in Settings.");
@@ -165,9 +165,9 @@ public sealed partial class AudioViewModel : ViewModelBase
                 throw new OperationFailedException($"No draft audio file found for '{trackName}' to convert.");
             }
 
-            var targetWavPath = Path.ChangeExtension(sourcePath, ".wav");
+            string targetWavPath = Path.ChangeExtension(sourcePath, ".wav");
             _session.Status = $"Converting {trackName}...";
-            var result = await _audioConverter.ConvertToConsoleWavAsync(ffmpegPath, sourcePath, targetWavPath, BgmChannels);
+            AudioConversionResult result = await _audioConverter.ConvertToConsoleWavAsync(ffmpegPath, sourcePath, targetWavPath, BgmChannels);
             if (!result.Success)
             {
                 throw new IOException($"Conversion failed: {result.ErrorMessage}");
@@ -218,7 +218,7 @@ public sealed partial class AudioViewModel : ViewModelBase
 
     private void Reload()
     {
-        var selectedName = SelectedBgmTrack?.Name;
+        string? selectedName = SelectedBgmTrack?.Name;
         BgmTracks = _session.Draft is { } draft ? _assetManager.GetBgmTracks(draft.DraftPath, _session.BaseUiPath) : [];
         SelectedBgmTrack = BgmTracks.FirstOrDefault(track => track.Name == selectedName)
             ?? (BgmTracks.Count > 0 ? BgmTracks[0] : null);

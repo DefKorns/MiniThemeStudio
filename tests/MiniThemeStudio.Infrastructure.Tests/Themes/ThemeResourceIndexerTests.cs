@@ -1,3 +1,4 @@
+using MiniThemeStudio.Core.Themes;
 using MiniThemeStudio.Infrastructure.Themes;
 
 namespace MiniThemeStudio.Infrastructure.Tests.Themes;
@@ -47,11 +48,11 @@ public sealed class ThemeResourceIndexerTests : IDisposable
     [Fact]
     public void MapsSceneUsageAndReportsMissingTextureImages()
     {
-        var report = new ThemeResourceIndexer().Analyze(_themePath, _basePath);
+        ThemeResourceReport report = new ThemeResourceIndexer().Analyze(_themePath, _basePath);
 
         Assert.Equal(["bg.scn"], report.UsageOf(WallId));
         Assert.Equal(["lyt_mario.sceneanimation"], report.UsageOf(MarioId));
-        var missing = Assert.Single(report.MissingTextures);
+        MissingTexture missing = Assert.Single(report.MissingTextures);
         Assert.Equal(GokuId, missing.TextureId);
         Assert.Equal(Path.Combine("resources", "sprites", "sampleasset", "goku.png"), missing.ImageRelativePath);
         Assert.Equal(Path.Combine("resources", "sprites", "sampleasset", "goku.json"), missing.DefinitionRelativePath);
@@ -64,7 +65,7 @@ public sealed class ThemeResourceIndexerTests : IDisposable
         WriteFile(_themePath, "resources/sprites/sampleasset/goku.png", "png");
         WriteFile(_themePath, "resources/prefab/bg.scn", """{"rootWorldNode":{"name":"BG","components":[],"children":[]}}""");
 
-        var report = new ThemeResourceIndexer().Analyze(_themePath, _basePath);
+        ThemeResourceReport report = new ThemeResourceIndexer().Analyze(_themePath, _basePath);
 
         Assert.Empty(report.MissingTextures);
         Assert.Empty(report.UsageOf(WallId));
@@ -74,7 +75,7 @@ public sealed class ThemeResourceIndexerTests : IDisposable
     [Fact]
     public void ResolvesTextureIdsByRegisteredImagePath()
     {
-        var report = new ThemeResourceIndexer().Analyze(_themePath, _basePath);
+        ThemeResourceReport report = new ThemeResourceIndexer().Analyze(_themePath, _basePath);
 
         Assert.Equal(GokuId, report.TextureIdOf("sprites/sampleasset/goku.png", "id-from-image-json"));
         Assert.Equal(WallId, report.TextureIdOf(@"layout\asset\sprite\wallpaper\WALL.png"));
@@ -89,7 +90,7 @@ public sealed class ThemeResourceIndexerTests : IDisposable
             {"rootWorldNode":{"name":"BG","components":[{"type":"TextureComponent","textureId":"00000000-0000-0000-0000-000000000000"}],"children":[]}}
             """);
 
-        var report = new ThemeResourceIndexer().Analyze(_themePath, _basePath);
+        ThemeResourceReport report = new ThemeResourceIndexer().Analyze(_themePath, _basePath);
 
         Assert.Contains(report.Issues, issue => issue.IsError && issue.Message.Contains("not registered in dependencies.json"));
     }
@@ -100,7 +101,7 @@ public sealed class ThemeResourceIndexerTests : IDisposable
         WriteFile(_themePath, "resources/sprites/sampleasset/goku.png", "png");
         WriteFile(_themePath, "resources/layout/asset/sprite/wallpaper/wall.json", $$$"""{"texture":{"id":"{{{WallId}}}","width":512,"height":300},"sprites":{}}""");
 
-        var report = new ThemeResourceIndexer().Analyze(_themePath, _basePath);
+        ThemeResourceReport report = new ThemeResourceIndexer().Analyze(_themePath, _basePath);
 
         Assert.Contains(report.Issues, issue => !issue.IsError && issue.Message.Contains("wall.json is 512x300 instead of the original 512x184"));
     }
@@ -111,7 +112,7 @@ public sealed class ThemeResourceIndexerTests : IDisposable
         WriteFile(_themePath, "resources/sprites/sampleasset/goku.png", "png");
         WriteFile(_themePath, "resources/layout/lyt_mario.sceneanimation", """{"duration":1,"animations":[{"value":[0.,1]}]}""");
 
-        var report = new ThemeResourceIndexer().Analyze(_themePath, _basePath);
+        ThemeResourceReport report = new ThemeResourceIndexer().Analyze(_themePath, _basePath);
 
         Assert.Contains(report.Issues, issue => !issue.IsError && issue.Message.Contains("not strict JSON"));
         Assert.DoesNotContain(report.Issues, issue => issue.IsError);
@@ -119,7 +120,7 @@ public sealed class ThemeResourceIndexerTests : IDisposable
 
     private static void WriteFile(string root, string relativePath, string content)
     {
-        var path = Path.Combine(root, relativePath);
+        string path = Path.Combine(root, relativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, content);
     }

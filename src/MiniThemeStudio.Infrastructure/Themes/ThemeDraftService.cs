@@ -27,7 +27,7 @@ public sealed class ThemeDraftService(
             throw new DirectoryNotFoundException($"Theme directory not found: {source.FullName}");
         }
 
-        var draftPath = CreateDraftDirectory();
+        string draftPath = CreateDraftDirectory();
         try
         {
             CopyDirectory(source.FullName, draftPath);
@@ -44,7 +44,7 @@ public sealed class ThemeDraftService(
     {
         ArgumentNullException.ThrowIfNull(request);
         EnsureNewDestinationAvailable(request.DestinationPath);
-        var draftPath = CreateDraftDirectory();
+        string draftPath = CreateDraftDirectory();
 
         try
         {
@@ -73,16 +73,16 @@ public sealed class ThemeDraftService(
         }
 
         var destination = new DirectoryInfo(draft.SavePath);
-        var parentPath = destination.Parent?.FullName
+        string parentPath = destination.Parent?.FullName
             ?? throw new ArgumentException("The theme destination must have a parent directory.", nameof(draft));
-        var stagingPath = Path.Combine(
+        string stagingPath = Path.Combine(
             parentPath,
             $".{destination.Name}.mts-stage-{Guid.NewGuid():N}");
-        var backupPath = Path.Combine(
+        string backupPath = Path.Combine(
             parentPath,
             $".{destination.Name}.mts-backup-{Guid.NewGuid():N}");
-        var destinationMoved = false;
-        var lastBackupPath = destination.Exists ? KeepBackup(destination) : null;
+        bool destinationMoved = false;
+        string? lastBackupPath = destination.Exists ? KeepBackup(destination) : null;
 
         try
         {
@@ -120,12 +120,12 @@ public sealed class ThemeDraftService(
 
     private string KeepBackup(DirectoryInfo destination)
     {
-        var themeBackupsPath = Path.Combine(backupsRootPath ?? DefaultBackupsRootPath, destination.Name);
-        var backupPath = Path.Combine(themeBackupsPath, DateTime.Now.ToString("yyyyMMdd-HHmmss-fff", System.Globalization.CultureInfo.InvariantCulture));
+        string themeBackupsPath = Path.Combine(backupsRootPath ?? DefaultBackupsRootPath, destination.Name);
+        string backupPath = Path.Combine(themeBackupsPath, DateTime.Now.ToString("yyyyMMdd-HHmmss-fff", System.Globalization.CultureInfo.InvariantCulture));
         Directory.CreateDirectory(backupPath);
         CopyDirectory(destination.FullName, backupPath);
 
-        foreach (var expired in new DirectoryInfo(themeBackupsPath).EnumerateDirectories()
+        foreach (DirectoryInfo? expired in new DirectoryInfo(themeBackupsPath).EnumerateDirectories()
             .OrderByDescending(directory => directory.Name, StringComparer.Ordinal)
             .Skip(Math.Max(1, backupsToKeep)))
         {
@@ -137,11 +137,11 @@ public sealed class ThemeDraftService(
 
     private string CreateDraftDirectory()
     {
-        var configuredRootPath = draftsRootPathProvider?.Invoke();
-        var rootPath = string.IsNullOrWhiteSpace(configuredRootPath)
+        string? configuredRootPath = draftsRootPathProvider?.Invoke();
+        string rootPath = string.IsNullOrWhiteSpace(configuredRootPath)
             ? DefaultDraftsRootPath
             : configuredRootPath;
-        var draftPath = Path.Combine(rootPath, Guid.NewGuid().ToString("N"));
+        string draftPath = Path.Combine(rootPath, Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(draftPath);
         return draftPath;
     }
@@ -149,7 +149,7 @@ public sealed class ThemeDraftService(
     private static void EnsureNewDestinationAvailable(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        var parentPath = Path.GetDirectoryName(path);
+        string? parentPath = Path.GetDirectoryName(path);
 
         if (string.IsNullOrWhiteSpace(parentPath) || !Directory.Exists(parentPath))
         {
@@ -167,16 +167,16 @@ public sealed class ThemeDraftService(
     {
         var source = new DirectoryInfo(sourcePath);
 
-        foreach (var directory in source.EnumerateDirectories("*", SearchOption.AllDirectories))
+        foreach (DirectoryInfo directory in source.EnumerateDirectories("*", SearchOption.AllDirectories))
         {
-            var relativePath = Path.GetRelativePath(source.FullName, directory.FullName);
+            string relativePath = Path.GetRelativePath(source.FullName, directory.FullName);
             Directory.CreateDirectory(Path.Combine(destinationPath, relativePath));
         }
 
-        foreach (var file in source.EnumerateFiles("*", SearchOption.AllDirectories))
+        foreach (FileInfo file in source.EnumerateFiles("*", SearchOption.AllDirectories))
         {
-            var relativePath = Path.GetRelativePath(source.FullName, file.FullName);
-            var destinationFilePath = Path.Combine(destinationPath, relativePath);
+            string relativePath = Path.GetRelativePath(source.FullName, file.FullName);
+            string destinationFilePath = Path.Combine(destinationPath, relativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(destinationFilePath)!);
             file.CopyTo(destinationFilePath);
         }

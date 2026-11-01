@@ -1,6 +1,7 @@
 using MiniThemeStudio.App.Dialogs;
 using MiniThemeStudio.App.Errors;
 using MiniThemeStudio.App.Tests.TestDoubles;
+using MiniThemeStudio.App.ViewModels;
 
 namespace MiniThemeStudio.App.Tests.ViewModels;
 
@@ -21,7 +22,7 @@ public sealed class MainWindowViewModelTests : IDisposable
     [Fact]
     public void OpeningAThemeLoadsEveryTab()
     {
-        var window = _app.Window;
+        MainWindowViewModel window = _app.Window;
 
         window.OpenTheme(_themePath, _basePath);
 
@@ -58,7 +59,7 @@ public sealed class MainWindowViewModelTests : IDisposable
     [Fact]
     public async Task SavingWritesTheChangesToTheThemeFolder()
     {
-        var window = _app.Window;
+        MainWindowViewModel window = _app.Window;
         window.OpenTheme(_themePath, _basePath);
         window.ScenesTab.SelectedScenePath = "0";
         window.ScenesTab.SceneNodeX = 40;
@@ -81,13 +82,13 @@ public sealed class MainWindowViewModelTests : IDisposable
               {"id":"gone","type":"Scene","path":"/prefab/gone.scn","groupId":"2"}
             ],"resourceGroups":[]}
             """);
-        var window = _app.Window;
+        MainWindowViewModel window = _app.Window;
         window.OpenTheme(_themePath, _basePath);
         _app.Session.MarkChanged();
 
         await window.SaveThemeCommand.ExecuteAsync(null);
 
-        var (exception, failure) = Assert.Single(_app.Errors.Failures);
+        (Exception? exception, string? failure) = Assert.Single(_app.Errors.Failures);
         Assert.Equal("Cannot save theme", failure);
         Assert.IsType<OperationFailedException>(exception);
         Assert.Contains("validation error(s) before saving", exception.Message);
@@ -98,13 +99,13 @@ public sealed class MainWindowViewModelTests : IDisposable
     [Fact]
     public async Task ExportingNeedsAKnownBase()
     {
-        var window = _app.Window;
+        MainWindowViewModel window = _app.Window;
         window.OpenTheme(_themePath, _basePath);
         _app.Files.Paths.Enqueue(Path.Combine(_app.Root, "out"));
 
         await window.ExportPackageCommand.ExecuteAsync(null);
 
-        var (exception, _) = Assert.Single(_app.Errors.Failures);
+        (Exception? exception, string _) = Assert.Single(_app.Errors.Failures);
         Assert.IsType<OperationFailedException>(exception);
         Assert.Contains("Choose the Base", exception.Message);
     }
@@ -112,7 +113,7 @@ public sealed class MainWindowViewModelTests : IDisposable
     [Fact]
     public async Task ClosingWithUnsavedWorkCanBeCancelled()
     {
-        var window = _app.Window;
+        MainWindowViewModel window = _app.Window;
         window.OpenTheme(_themePath, _basePath);
         _app.Session.MarkChanged();
         _app.Dialogs.ChoiceAnswer = DialogResult.Cancelled;
@@ -123,7 +124,7 @@ public sealed class MainWindowViewModelTests : IDisposable
     [Fact]
     public async Task ClosingCanKeepTheWorkAsADraft()
     {
-        var window = _app.Window;
+        MainWindowViewModel window = _app.Window;
         window.OpenTheme(_themePath, _basePath);
         _app.Session.MarkChanged();
         _app.Dialogs.ChoiceAnswer = DialogResult.Accepted;
@@ -145,7 +146,7 @@ public sealed class MainWindowViewModelTests : IDisposable
     [Fact]
     public async Task GoingHomeKeepsTheThemeWhenTheUserDoesNotDiscard()
     {
-        var window = _app.Window;
+        MainWindowViewModel window = _app.Window;
         window.OpenTheme(_themePath, _basePath);
         _app.Session.MarkChanged();
         _app.Dialogs.ConfirmationAnswer = false;
@@ -158,7 +159,7 @@ public sealed class MainWindowViewModelTests : IDisposable
     [Fact]
     public async Task GoingHomeClosesTheThemeAndEmptiesTheTabs()
     {
-        var window = _app.Window;
+        MainWindowViewModel window = _app.Window;
         window.OpenTheme(_themePath, _basePath);
 
         await window.ReturnHomeCommand.ExecuteAsync(null);

@@ -15,26 +15,14 @@ public sealed class FontComparisonDiagnosticsTests(ITestOutputHelper output)
     private const string OtfZipPath = @"E:\Downloads\super-metroid-intro-snes.otf.zip";
     private const string TtfZipPath = @"E:\Downloads\super-metroid-intro-snes.ttf.zip";
 
-    [Fact]
-    public void CompareHakchiTitleFntWithRasterizer()
+    [TheoryWhenPresent(HakchiFntPath)]
+    [InlineDataWhenPresent(OtfZipPath)]
+    [InlineDataWhenPresent(TtfZipPath)]
+    public void CompareHakchiTitleFntWithRasterizer(string fontPath)
     {
-        if (!File.Exists(HakchiFntPath))
-        {
-            output.WriteLine($"[SKIP] {HakchiFntPath} not found.");
-            return;
-        }
-        var fontPath = File.Exists(OtfZipPath) ? OtfZipPath
-                     : File.Exists(TtfZipPath) ? TtfZipPath
-                     : null;
-        if (fontPath is null)
-        {
-            output.WriteLine("[SKIP] Super Metroid font .zip not found.");
-            return;
-        }
-
-        var reference = MiniFontReader.Read(HakchiFntPath);
+        MiniFont reference = MiniFontReader.Read(HakchiFntPath);
         var rasterizer = new TrueTypeFontRasterizer();
-        var rasterized = rasterizer.Rasterize(fontPath, new TrueTypeRasterOptions(
+        MiniFont rasterized = rasterizer.Rasterize(fontPath, new TrueTypeRasterOptions(
             FontSize: (int)Math.Abs(reference.Info.FontSize),
             AntiAlias: reference.Info.Smooth,
             AtlasWidth: (int)reference.Common.ScaleW));
@@ -61,7 +49,7 @@ public sealed class FontComparisonDiagnosticsTests(ITestOutputHelper output)
         };
 
         var assigned = new HashSet<uint>();
-        foreach (var (label, match) in groups)
+        foreach ((string? label, Func<uint, bool>? match) in groups)
         {
             var inGroup = missing
                 .Where(id => !assigned.Contains(id) && match(id))
@@ -74,16 +62,16 @@ public sealed class FontComparisonDiagnosticsTests(ITestOutputHelper output)
 
             if (label != "Other Unicode")
             {
-                foreach (var id in inGroup)
+                foreach (uint id in inGroup)
                 {
                     assigned.Add(id);
                 }
             }
 
             output.WriteLine($"-- {label} ({inGroup.Count} missing) --");
-            for (var i = 0; i < inGroup.Count; i += 8)
+            for (int i = 0; i < inGroup.Count; i += 8)
             {
-                var row = inGroup.Skip(i).Take(8)
+                IEnumerable<string> row = inGroup.Skip(i).Take(8)
                     .Select(id => char.IsControl((char)id) || id > 0xFFFF
                         ? $"U+{id:X4}      "
                         : $"U+{id:X4}({(char)id})  ");
@@ -94,7 +82,7 @@ public sealed class FontComparisonDiagnosticsTests(ITestOutputHelper output)
 
         // ASCII 32-126 summary
         var asciiMissing = missing.Where(id => id is >= 32 and <= 126).Select(id => (char)id).ToList();
-        var asciiInRef = refIds.Count(id => id is >= 32 and <= 126);
+        int asciiInRef = refIds.Count(id => id is >= 32 and <= 126);
         output.WriteLine($"-- ASCII 32-126 summary --");
         output.WriteLine($"  In the rasterized font : {asciiInRef - asciiMissing.Count} / {asciiInRef}");
         output.WriteLine(asciiMissing.Count > 0

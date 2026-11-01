@@ -56,8 +56,8 @@ public sealed class CharacterAnimationEditorTests : IDisposable
     {
         var editor = new CharacterAnimationEditor();
 
-        var animation = Assert.Single(editor.GetAnimations(_draftPath, _basePath, "hero"));
-        var node = Assert.Single(editor.GetNodes(_draftPath, _basePath, "hero"));
+        CharacterAnimation animation = Assert.Single(editor.GetAnimations(_draftPath, _basePath, "hero"));
+        CharacterNode node = Assert.Single(editor.GetNodes(_draftPath, _basePath, "hero"));
 
         Assert.Equal(["hero"], editor.GetCharacters(_draftPath, _basePath));
         Assert.Equal("run", animation.Name);
@@ -70,14 +70,14 @@ public sealed class CharacterAnimationEditorTests : IDisposable
     public void AddTextureRegistersImageAndSheetInDraftOnly()
     {
         var editor = new CharacterAnimationEditor();
-        var source = Path.Combine(_rootPath, "frame.png");
+        string source = Path.Combine(_rootPath, "frame.png");
         SavePng(source, 35, 43);
 
-        var id = editor.AddTexture(_draftPath, _basePath, "resources/layout/asset/sprite/hero/hero_run03.png", source);
+        string id = editor.AddTexture(_draftPath, _basePath, "resources/layout/asset/sprite/hero/hero_run03.png", source);
 
-        var resources = ReadJson(Path.Combine(_draftPath, "dependencies.json"))["resources"]!.AsArray();
-        var texture = resources.Single(resource => resource!["id"]!.GetValue<string>() == id)!;
-        var sheet = resources.Single(resource => resource!["id"]!.GetValue<string>() == $"sheet_{id}")!;
+        JsonArray resources = ReadJson(Path.Combine(_draftPath, "dependencies.json"))["resources"]!.AsArray();
+        JsonNode texture = resources.Single(resource => resource!["id"]!.GetValue<string>() == id)!;
+        JsonNode sheet = resources.Single(resource => resource!["id"]!.GetValue<string>() == $"sheet_{id}")!;
         Assert.Equal("/layout/asset/sprite/hero/hero_run03.png", texture["path"]!.GetValue<string>());
         Assert.Equal("6", texture["groupId"]!.GetValue<string>());
         Assert.Equal("7", sheet["groupId"]!.GetValue<string>());
@@ -90,7 +90,7 @@ public sealed class CharacterAnimationEditorTests : IDisposable
     public void MirrorTexturesFlipsEachTextureOnceIntoTheDraft()
     {
         var editor = new CharacterAnimationEditor();
-        var basePng = Path.Combine(_basePath, "resources", "layout", "asset", "sprite", "hero", "hero_run01.png");
+        string basePng = Path.Combine(_basePath, "resources", "layout", "asset", "sprite", "hero", "hero_run01.png");
         using (var bitmap = new SKBitmap(new SKImageInfo(24, 32, SKColorType.Rgba8888, SKAlphaType.Unpremul)))
         {
             bitmap.Erase(SKColors.Transparent);
@@ -99,7 +99,7 @@ public sealed class CharacterAnimationEditorTests : IDisposable
             AtlasLayoutMatcherTests.SavePng(bitmap, basePng);
         }
 
-        var baseBytes = File.ReadAllBytes(basePng);
+        byte[] baseBytes = File.ReadAllBytes(basePng);
 
         editor.MirrorTextures(_draftPath, _basePath, ["t1", "t1"]);
 
@@ -120,14 +120,14 @@ public sealed class CharacterAnimationEditorTests : IDisposable
 
         editor.SetTrackKeys(_draftPath, _basePath, RunAnimation, "Sprite_Hero_0", [new(0.025, "t2"), new(0, "t1"), new(0.05, "t2")], 0.075);
 
-        var animation = ReadJson(Path.Combine(_draftPath, "resources", "layout", "lyt_hero@run.sceneanimation"));
-        var keys = animation["animations"]![1]!["keyCurves"]!.ToJsonString();
-        var dependencies = ReadJson(Path.Combine(_draftPath, "dependencies.json"))["resources"]![1]!["dependencies"]!.ToJsonString();
+        JsonNode animation = ReadJson(Path.Combine(_draftPath, "resources", "layout", "lyt_hero@run.sceneanimation"));
+        string keys = animation["animations"]![1]!["keyCurves"]!.ToJsonString();
+        string dependencies = ReadJson(Path.Combine(_draftPath, "dependencies.json"))["resources"]![1]!["dependencies"]!.ToJsonString();
         Assert.Equal("""[{"time":0,"value":"t1"},{"time":0.025,"value":"t2"},{"time":0.05,"value":"t2"}]""", keys);
         Assert.Equal(0.075, animation["duration"]!.GetValue<double>());
         Assert.Equal("""[{"id":"t1","refCount":1},{"id":"t2","refCount":2}]""", dependencies);
-        var animationText = File.ReadAllText(Path.Combine(_draftPath, "resources", "layout", "lyt_hero@run.sceneanimation"));
-        var dependenciesText = File.ReadAllText(Path.Combine(_draftPath, "dependencies.json"));
+        string animationText = File.ReadAllText(Path.Combine(_draftPath, "resources", "layout", "lyt_hero@run.sceneanimation"));
+        string dependenciesText = File.ReadAllText(Path.Combine(_draftPath, "dependencies.json"));
         Assert.Contains("\n    \"duration\"", animationText);
         Assert.DoesNotContain('\r', animationText);
         Assert.Contains("\"content\":\"{\\\"textureId\\\":\\\"t1\\\"", dependenciesText);
@@ -143,7 +143,7 @@ public sealed class CharacterAnimationEditorTests : IDisposable
 
         editor.SetFrameSize(_draftPath, _basePath, "hero", new AtlasSize(35, 43));
 
-        var node = Assert.Single(editor.GetNodes(_draftPath, _basePath, "hero"));
+        CharacterNode node = Assert.Single(editor.GetNodes(_draftPath, _basePath, "hero"));
         Assert.Equal((105, 129), (node.Width, node.Height));
         Assert.Equal(48, (1 - node.PivotY) * node.Height, 6);
         Assert.Equal(0.5, node.PivotX);
@@ -151,7 +151,7 @@ public sealed class CharacterAnimationEditorTests : IDisposable
 
     private void WriteFile(string relativePath, string content)
     {
-        var path = Path.Combine(_basePath, relativePath);
+        string path = Path.Combine(_basePath, relativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, content);
     }

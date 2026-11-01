@@ -14,7 +14,7 @@ public sealed class FirmwareRegistry : IFirmwareRegistry
     public FirmwareRegistry(IEnumerable<FirmwareDefinition> definitions)
     {
         ArgumentNullException.ThrowIfNull(definitions);
-        foreach (var definition in definitions)
+        foreach (FirmwareDefinition definition in definitions)
         {
             Register(definition);
         }
@@ -24,14 +24,14 @@ public sealed class FirmwareRegistry : IFirmwareRegistry
 
     public static FirmwareRegistry CreateDefault(string? userDefinitionsPath = null)
     {
-        using var stream = typeof(FirmwareRegistry).Assembly.GetManifestResourceStream(BuiltInResourceName)
+        using Stream stream = typeof(FirmwareRegistry).Assembly.GetManifestResourceStream(BuiltInResourceName)
             ?? throw new InvalidOperationException("The built-in firmware registry is missing.");
         var definitions = Parse(stream, "built-in firmwares.json").ToList();
 
         if (!string.IsNullOrWhiteSpace(userDefinitionsPath) && File.Exists(userDefinitionsPath))
         {
-            using var userStream = File.OpenRead(userDefinitionsPath);
-            var userDefinitions = Parse(userStream, userDefinitionsPath);
+            using FileStream userStream = File.OpenRead(userDefinitionsPath);
+            IReadOnlyList<FirmwareDefinition> userDefinitions = Parse(userStream, userDefinitionsPath);
             definitions.RemoveAll(builtIn => userDefinitions.Any(user =>
                 string.Equals(user.Id, builtIn.Id, StringComparison.OrdinalIgnoreCase)));
             definitions.AddRange(userDefinitions);
@@ -44,15 +44,15 @@ public sealed class FirmwareRegistry : IFirmwareRegistry
     {
         try
         {
-            var document = JsonSerializer.Deserialize<RegistryDocument>(stream, SerializerOptions)
+            RegistryDocument document = JsonSerializer.Deserialize<RegistryDocument>(stream, SerializerOptions)
                 ?? throw new InvalidDataException("The document is empty.");
             if (document.SchemaVersion != 1)
             {
                 throw new InvalidDataException($"Unsupported schemaVersion {document.SchemaVersion}.");
             }
 
-            var definitions = document.Bases ?? [];
-            foreach (var definition in definitions)
+            List<FirmwareDefinition> definitions = document.Bases ?? [];
+            foreach (FirmwareDefinition definition in definitions)
             {
                 Validate(definition);
             }
@@ -73,9 +73,9 @@ public sealed class FirmwareRegistry : IFirmwareRegistry
 
     public (FirmwareDefinition Definition, FirmwareSource Source)? FindBySourceSha256(string sha256)
     {
-        foreach (var definition in _definitions)
+        foreach (FirmwareDefinition definition in _definitions)
         {
-            var source = definition.Sources.FirstOrDefault(candidate =>
+            FirmwareSource? source = definition.Sources.FirstOrDefault(candidate =>
                 string.Equals(candidate.Sha256, sha256, StringComparison.OrdinalIgnoreCase));
             if (source is not null)
             {

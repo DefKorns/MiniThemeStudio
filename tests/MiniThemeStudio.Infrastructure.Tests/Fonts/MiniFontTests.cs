@@ -38,19 +38,19 @@ public sealed class MiniFontTests
             GreenChannel: 1,
             BlueChannel: 1);
 
-        var glyphs = new[]
+        FontGlyph[] glyphs = new[]
         {
             new FontGlyph(Id: 65, X: 0, Y: 0, Width: 16, Height: 24, XOffset: 0, YOffset: 0, XAdvance: 18, Page: 0, Channel: 15),
             new FontGlyph(Id: 66, X: 16, Y: 0, Width: 15, Height: 24, XOffset: 1, YOffset: 0, XAdvance: 17, Page: 0, Channel: 15),
             new FontGlyph(Id: 233, X: 32, Y: 0, Width: 14, Height: 26, XOffset: 0, YOffset: -2, XAdvance: 16, Page: 0, Channel: 15), // é
         };
 
-        var kerning = new[]
+        FontKerningPair[] kerning = new[]
         {
             new FontKerningPair(First: 65, Second: 66, Amount: -1)
         };
 
-        var fakePng = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x01, 0x02, 0x03, 0x04 };
+        byte[] fakePng = new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x01, 0x02, 0x03, 0x04 };
 
         var font = new MiniFont(
             formatType: 1,
@@ -61,11 +61,11 @@ public sealed class MiniFontTests
             kerningPairs: kerning,
             texturePngBytes: fakePng);
 
-        var serializedBytes = MiniFontWriter.ToBytes(font);
+        byte[] serializedBytes = MiniFontWriter.ToBytes(font);
         Assert.NotNull(serializedBytes);
         Assert.True(serializedBytes.Length > 9 + 4);
 
-        var deserialized = MiniFontReader.Read(serializedBytes);
+        MiniFont deserialized = MiniFontReader.Read(serializedBytes);
 
         Assert.Equal(font.FormatType, deserialized.FormatType);
         Assert.Equal(font.Info.FontName, deserialized.Info.FontName);
@@ -83,13 +83,13 @@ public sealed class MiniFontTests
         Assert.Equal("test_font_0.png", deserialized.PageNames[0]);
 
         Assert.Equal(3, deserialized.Glyphs.Count);
-        var glyphA = deserialized.GetGlyph('A');
+        FontGlyph? glyphA = deserialized.GetGlyph('A');
         Assert.NotNull(glyphA);
         Assert.Equal(65u, glyphA.Id);
         Assert.Equal(16, glyphA.Width);
         Assert.Equal(18, glyphA.XAdvance);
 
-        var glyphE = deserialized.GetGlyph('é');
+        FontGlyph? glyphE = deserialized.GetGlyph('é');
         Assert.NotNull(glyphE);
         Assert.Equal(233u, glyphE.Id);
 
@@ -113,7 +113,7 @@ public sealed class MiniFontTests
             .ToList();
 
         var fontDigits = new MiniFont(1, info, common, ["page.png"], glyphsOnlyDigits, [], []);
-        var resultDigits = FontValidator.Validate(fontDigits);
+        FontValidationResult resultDigits = FontValidator.Validate(fontDigits);
 
         Assert.False(resultDigits.HasBasicAscii);
         Assert.False(resultDigits.HasLatinAccents);
@@ -129,7 +129,7 @@ public sealed class MiniFontTests
             .ToList();
 
         var fullFont = new MiniFont(1, info, common, ["page.png"], fullGlyphs, [], []);
-        var fullResult = FontValidator.Validate(fullFont);
+        FontValidationResult fullResult = FontValidator.Validate(fullFont);
 
         Assert.True(fullResult.HasBasicAscii);
         Assert.True(fullResult.HasLatinAccents);
@@ -138,31 +138,20 @@ public sealed class MiniFontTests
         Assert.Empty(fullResult.MissingAccentChars);
     }
 
-    [Fact]
-    public void CanParseExistingInstalledBaseFontIfPresent()
+    [Theory]
+    [InlineDataWhenPresent(@"%APPDATA%\MiniThemeStudio\Bases\shonen\jpn\3.0.1\resources\fonts\copyright.fnt")]
+    [InlineDataWhenPresent(@"%APPDATA%\MiniThemeStudio\Bases\snes\eur\2.0.13\resources\fonts\l.font")]
+    public void CanParseExistingInstalledBaseFontIfPresent(string baseFontPath)
     {
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        var baseFontPath = Path.Combine(appData, "MiniThemeStudio", "Bases", "shonen", "jpn", "3.0.1", "resources", "fonts", "copyright.fnt");
-
-        if (!File.Exists(baseFontPath))
-        {
-            // Fallback check in snes eur
-            baseFontPath = Path.Combine(appData, "MiniThemeStudio", "Bases", "snes", "eur", "2.0.13", "resources", "fonts", "l.font");
-            if (!File.Exists(baseFontPath))
-            {
-                return; // Base not installed on this machine, test skipped safely
-            }
-        }
-
-        var font = MiniFontReader.Read(baseFontPath);
+        MiniFont font = MiniFontReader.Read(baseFontPath);
         Assert.NotNull(font);
         Assert.True(font.Glyphs.Count > 0);
         Assert.True(font.Common.LineHeight > 0);
         Assert.NotEmpty(font.TexturePngBytes);
 
         // Validate round-trip on real console file
-        var reEncoded = MiniFontWriter.ToBytes(font);
-        var reRead = MiniFontReader.Read(reEncoded);
+        byte[] reEncoded = MiniFontWriter.ToBytes(font);
+        MiniFont reRead = MiniFontReader.Read(reEncoded);
 
         Assert.Equal(font.FormatType, reRead.FormatType);
         Assert.Equal(font.Glyphs.Count, reRead.Glyphs.Count);

@@ -62,7 +62,7 @@ public sealed class ThemeLayerTests : IDisposable
         WriteFile(_themePath, "resources/scripts/env/colors_usa.lua", "");
         WriteFile(_themePath, "resources/scripts/env/colors_jpn.lua", "");
 
-        var resources = new ThemeLayer(_themePath, _basePath).EnumerateResources("scripts", "colors_*.lua");
+        IReadOnlyList<string> resources = new ThemeLayer(_themePath, _basePath).EnumerateResources("scripts", "colors_*.lua");
 
         Assert.Equal(["/scripts/env/colors_jpn.lua", "/scripts/env/colors_usa.lua"], resources);
     }
@@ -76,10 +76,10 @@ public sealed class ThemeLayerTests : IDisposable
         WriteFile(_themePath, "resources/fonts/m.fnt", "theme");
         WriteFile(_themePath, "resources/fonts/extra/x.fnt", "theme");
 
-        var files = new ThemeLayer(_themePath, _basePath).ListFiles("fonts", "*.fnt", recursive: false);
+        IReadOnlyList<LayeredFile> files = new ThemeLayer(_themePath, _basePath).ListFiles("fonts", "*.fnt", recursive: false);
 
         Assert.Equal(["/fonts/l.fnt", "/fonts/m.fnt", "/fonts/s.fnt"], files.Select(file => file.ResourcePath));
-        var replaced = files[0];
+        LayeredFile replaced = files[0];
         Assert.Equal("theme", File.ReadAllText(replaced.FilePath));
         Assert.False(replaced.IsFromBase);
         Assert.True(replaced.OverridesBase);
@@ -123,7 +123,7 @@ public sealed class ThemeLayerTests : IDisposable
 
     private static void WriteFile(string root, string relativePath, string content)
     {
-        var path = Path.Combine(root, relativePath);
+        string path = Path.Combine(root, relativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, content);
     }

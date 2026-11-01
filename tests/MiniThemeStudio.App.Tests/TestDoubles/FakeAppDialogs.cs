@@ -18,6 +18,8 @@ public sealed class FakeAppDialogs : IAppDialogs
 
     public SavedDraft? SavedDraft { get; set; }
 
+    public SpriteSheetResult? SpriteSheet { get; set; }
+
     public int ManageBasesCalls { get; private set; }
 
     public Task<AppSettings?> EditSettingsAsync(AppSettings current, bool isInitialSetup) => Task.FromResult(Settings);
@@ -37,5 +39,5 @@ public sealed class FakeAppDialogs : IAppDialogs
         Task.FromResult(SavedDraft);
 
     public Task<SpriteSheetResult?> ImportSpriteSheetAsync(string title, AtlasSize? currentFrameSize, Bitmap? referenceFrame) =>
-        Task.FromResult<SpriteSheetResult?>(null);
+        Task.FromResult(SpriteSheet);
 }

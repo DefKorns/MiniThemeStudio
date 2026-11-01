@@ -16,7 +16,7 @@ public partial class MainWindowViewModel
             return;
         }
 
-        var saved = _savedDraftStore.Save(_session.Draft, ThemeName, _session.BaseUiPath);
+        SavedDraft saved = _savedDraftStore.Save(_session.Draft, ThemeName, _session.BaseUiPath);
         _session.Draft = _session.Draft with { SavedDraftId = saved.Id };
         IsDraftSaved = true;
         Status = $"Draft saved at {saved.SavedAt:HH:mm}. Reopen it from Saved drafts.";

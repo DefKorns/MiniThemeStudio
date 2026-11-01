@@ -13,7 +13,7 @@ public static class ThemeMetadataResolver
         }
 
         const string namePrefix = "NAME=";
-        var infoName = infoLines
+        string? infoName = infoLines
             .FirstOrDefault(line => line.StartsWith(namePrefix, StringComparison.OrdinalIgnoreCase));
 
         return string.IsNullOrWhiteSpace(infoName)

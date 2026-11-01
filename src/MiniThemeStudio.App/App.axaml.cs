@@ -27,18 +27,18 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             DisableAvaloniaDataAnnotationValidation();
-            var services = new ServiceCollection()
+            ServiceProvider services = new ServiceCollection()
                 .AddMiniThemeStudio()
                 .BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
             desktop.Exit += (_, _) => services.Dispose();
             services.GetRequiredService<GlobalExceptionHandler>().Register();
-            var logger = services.GetRequiredService<ILogger<App>>();
-            var version = typeof(App).Assembly.GetName().Version?.ToString() ?? "?";
+            ILogger<App> logger = services.GetRequiredService<ILogger<App>>();
+            string version = typeof(App).Assembly.GetName().Version?.ToString() ?? "?";
             LogStarting(logger, version);
 
             services.GetRequiredService<IAppearanceService>().Apply(services.GetRequiredService<IAppSettingsStore>().Current.Theme);
 
-            var mainWindow = services.GetRequiredService<MainWindow>();
+            MainWindow mainWindow = services.GetRequiredService<MainWindow>();
             desktop.MainWindow = mainWindow;
             Program.Instance?.ListenForActivation(() => Dispatcher.UIThread.Post(() => BringToFront(mainWindow)));
         }
@@ -63,10 +63,10 @@ public partial class App : Application
 
     private static void DisableAvaloniaDataAnnotationValidation()
     {
-        var dataValidationPluginsToRemove =
+        DataAnnotationsValidationPlugin[] dataValidationPluginsToRemove =
             BindingPlugins.DataValidators.OfType<DataAnnotationsValidationPlugin>().ToArray();
 
-        foreach (var plugin in dataValidationPluginsToRemove)
+        foreach (DataAnnotationsValidationPlugin? plugin in dataValidationPluginsToRemove)
         {
             BindingPlugins.DataValidators.Remove(plugin);
         }

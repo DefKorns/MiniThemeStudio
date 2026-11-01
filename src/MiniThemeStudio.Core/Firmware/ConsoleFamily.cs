@@ -26,7 +26,7 @@ public static class ConsoleFamilies
     public static string DisplayName(ConsoleFamily family) => family switch
     {
         ConsoleFamily.NesFamicom => "NES / Famicom",
-        ConsoleFamily.Snes => "SNES",
+        ConsoleFamily.Snes => "SNES / Super Famicom",
         ConsoleFamily.Shonen => "Shonen Jump",
         _ => family.ToString(),
     };
@@ -38,6 +38,19 @@ public static class ConsoleFamilies
         ConsoleFamily.Shonen => "shonen",
         _ => throw new ArgumentOutOfRangeException(nameof(family)),
     };
+
+    // the palette (colors_<region>.lua) a Base's own UI uses: the region of a SNES Base, "nes" or "hvc" for the others
+    public static string PaletteRegion(FirmwareDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+
+        return Of(definition) switch
+        {
+            ConsoleFamily.Snes => definition.Region.ToLowerInvariant(),
+            ConsoleFamily.NesFamicom => definition.Console.Equals("nes", StringComparison.OrdinalIgnoreCase) ? "nes" : "hvc",
+            _ => "hvc",
+        };
+    }
 
     public static string ShortLabel(FirmwareDefinition definition)
     {

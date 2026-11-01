@@ -30,9 +30,9 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
         ArgumentNullException.ThrowIfNull(settings);
         Validate(settings);
 
-        var directoryPath = Path.GetDirectoryName(_settingsPath)
+        string directoryPath = Path.GetDirectoryName(_settingsPath)
             ?? throw new InvalidOperationException("The settings file must have a parent directory.");
-        var temporaryPath = $"{_settingsPath}.{Guid.NewGuid():N}.tmp";
+        string temporaryPath = $"{_settingsPath}.{Guid.NewGuid():N}.tmp";
 
         Directory.CreateDirectory(directoryPath);
         try
@@ -61,7 +61,7 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
 
         try
         {
-            var settings = JsonSerializer.Deserialize<AppSettings>(
+            AppSettings? settings = JsonSerializer.Deserialize<AppSettings>(
                 File.ReadAllText(_settingsPath),
                 SerializerOptions);
 

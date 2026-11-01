@@ -21,7 +21,7 @@ public sealed class DefaultProcessRunner : IProcessRunner
             StandardErrorEncoding = Encoding.UTF8,
         };
 
-        foreach (var arg in arguments)
+        foreach (string arg in arguments)
         {
             startInfo.ArgumentList.Add(arg);
         }
@@ -40,14 +40,14 @@ public sealed class DefaultProcessRunner : IProcessRunner
             throw new InvalidOperationException($"Could not execute '{executablePath}': {ex.Message}", ex);
         }
 
-        var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        Task<string> stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        Task<string> stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
 
         try
         {
             await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
-            var stdout = await stdoutTask.ConfigureAwait(false);
-            var stderr = await stderrTask.ConfigureAwait(false);
+            string stdout = await stdoutTask.ConfigureAwait(false);
+            string stderr = await stderrTask.ConfigureAwait(false);
             return new ProcessResult(process.ExitCode, stdout, stderr);
         }
         catch (OperationCanceledException)

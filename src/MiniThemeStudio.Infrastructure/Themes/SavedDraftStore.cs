@@ -24,9 +24,9 @@ public sealed class SavedDraftStore(string? storeRootPath = null, Func<string?>?
         }
 
         var drafts = new List<SavedDraft>();
-        foreach (var directory in Directory.EnumerateDirectories(StoreRootPath).Where(path => !Path.GetFileName(path).StartsWith('.')))
+        foreach (string? directory in Directory.EnumerateDirectories(StoreRootPath).Where(path => !Path.GetFileName(path).StartsWith('.')))
         {
-            var manifestPath = Path.Combine(directory, ManifestFileName);
+            string manifestPath = Path.Combine(directory, ManifestFileName);
             if (!File.Exists(manifestPath))
             {
                 continue;
@@ -34,7 +34,7 @@ public sealed class SavedDraftStore(string? storeRootPath = null, Func<string?>?
 
             try
             {
-                var manifest = JsonSerializer.Deserialize<Manifest>(File.ReadAllText(manifestPath), ManifestOptions);
+                Manifest? manifest = JsonSerializer.Deserialize<Manifest>(File.ReadAllText(manifestPath), ManifestOptions);
                 if (manifest is not null && manifest.Id == Path.GetFileName(directory))
                 {
                     drafts.Add(new SavedDraft(manifest.Id, manifest.Name, manifest.SavePath, manifest.RequiresEmptySavePath, manifest.BaseUiPath, manifest.SavedAt, directory));
@@ -57,11 +57,11 @@ public sealed class SavedDraftStore(string? storeRootPath = null, Func<string?>?
             throw new DirectoryNotFoundException($"Draft directory not found: {draft.DraftPath}");
         }
 
-        var id = draft.SavedDraftId ?? Guid.NewGuid().ToString("N");
-        var targetPath = SnapshotPath(id);
-        var stagingPath = Path.Combine(StoreRootPath, $".{id}.stage-{Guid.NewGuid():N}");
-        var backupPath = Path.Combine(StoreRootPath, $".{id}.backup-{Guid.NewGuid():N}");
-        var targetMoved = false;
+        string id = draft.SavedDraftId ?? Guid.NewGuid().ToString("N");
+        string targetPath = SnapshotPath(id);
+        string stagingPath = Path.Combine(StoreRootPath, $".{id}.stage-{Guid.NewGuid():N}");
+        string backupPath = Path.Combine(StoreRootPath, $".{id}.backup-{Guid.NewGuid():N}");
+        bool targetMoved = false;
         var manifest = new Manifest(id, name.Trim(), draft.SavePath, draft.RequiresEmptySavePath, baseUiPath, DateTimeOffset.Now);
 
         try
@@ -101,14 +101,14 @@ public sealed class SavedDraftStore(string? storeRootPath = null, Func<string?>?
     public ThemeDraft Restore(SavedDraft savedDraft)
     {
         ArgumentNullException.ThrowIfNull(savedDraft);
-        var snapshotPath = SnapshotPath(savedDraft.Id);
+        string snapshotPath = SnapshotPath(savedDraft.Id);
         if (!File.Exists(Path.Combine(snapshotPath, ManifestFileName)))
         {
             throw new DirectoryNotFoundException($"Saved draft not found: {savedDraft.Name}");
         }
 
-        var workingRootPath = workingRootPathProvider?.Invoke();
-        var workingPath = Path.Combine(
+        string? workingRootPath = workingRootPathProvider?.Invoke();
+        string workingPath = Path.Combine(
             string.IsNullOrWhiteSpace(workingRootPath) ? Path.Combine(Path.GetTempPath(), "MiniThemeStudio", "drafts") : workingRootPath,
             Guid.NewGuid().ToString("N"));
         CopyDirectory(snapshotPath, workingPath);
@@ -118,7 +118,7 @@ public sealed class SavedDraftStore(string? storeRootPath = null, Func<string?>?
 
     public void Delete(string id)
     {
-        var snapshotPath = SnapshotPath(id);
+        string snapshotPath = SnapshotPath(id);
         if (Directory.Exists(snapshotPath))
         {
             Directory.Delete(snapshotPath, true);
@@ -138,9 +138,9 @@ public sealed class SavedDraftStore(string? storeRootPath = null, Func<string?>?
     private static void CopyDirectory(string sourcePath, string destinationPath)
     {
         Directory.CreateDirectory(destinationPath);
-        foreach (var filePath in Directory.EnumerateFiles(sourcePath, "*", SearchOption.AllDirectories))
+        foreach (string filePath in Directory.EnumerateFiles(sourcePath, "*", SearchOption.AllDirectories))
         {
-            var targetPath = Path.Combine(destinationPath, Path.GetRelativePath(sourcePath, filePath));
+            string targetPath = Path.Combine(destinationPath, Path.GetRelativePath(sourcePath, filePath));
             Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
             File.Copy(filePath, targetPath);
         }

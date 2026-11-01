@@ -21,12 +21,12 @@ public sealed record ThemeResourceReport(
 
     public IReadOnlyList<string> UsageOf(string? textureId)
     {
-        return textureId is not null && SceneUsageByTextureId.TryGetValue(textureId, out var usage) ? usage : [];
+        return textureId is not null && SceneUsageByTextureId.TryGetValue(textureId, out IReadOnlyList<string>? usage) ? usage : [];
     }
 
     // the id the scenes use is the one registered for the path; the id inside the image .json may differ
     public string? TextureIdOf(string imageRelativePath, string? fallbackTextureId = null)
     {
-        return TextureIdsByImagePath.TryGetValue(imageRelativePath.Replace('\\', '/').TrimStart('/'), out var id) ? id : fallbackTextureId;
+        return TextureIdsByImagePath.TryGetValue(imageRelativePath.Replace('\\', '/').TrimStart('/'), out string? id) ? id : fallbackTextureId;
     }
 }

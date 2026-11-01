@@ -9,12 +9,12 @@ public sealed class TextureAtlasEditorTests
     [Fact]
     public void ReplaceSpriteChangesOnlySelectedFrame()
     {
-        var rootPath = Directory.CreateTempSubdirectory().FullName;
-        var atlasPath = Path.Combine(rootPath, "packed.png");
-        var replacementPath = Path.Combine(rootPath, "replacement.png");
+        string rootPath = Directory.CreateTempSubdirectory().FullName;
+        string atlasPath = Path.Combine(rootPath, "packed.png");
+        string replacementPath = Path.Combine(rootPath, "replacement.png");
         SaveSolidPng(atlasPath, 4, 4, SKColors.Red);
         SaveSolidPng(replacementPath, 2, 2, SKColors.Blue);
-        var sprite = CreateSprite(1, 1, 2, 2);
+        SpriteRegion sprite = CreateSprite(1, 1, 2, 2);
 
         try
         {
@@ -36,19 +36,19 @@ public sealed class TextureAtlasEditorTests
     [Fact]
     public void ReplaceSpriteRejectsIncorrectDimensionsWithoutBackup()
     {
-        var rootPath = Directory.CreateTempSubdirectory().FullName;
-        var atlasPath = Path.Combine(rootPath, "packed.png");
-        var replacementPath = Path.Combine(rootPath, "replacement.png");
+        string rootPath = Directory.CreateTempSubdirectory().FullName;
+        string atlasPath = Path.Combine(rootPath, "packed.png");
+        string replacementPath = Path.Combine(rootPath, "replacement.png");
         SaveSolidPng(atlasPath, 4, 4, SKColors.Red);
         SaveSolidPng(replacementPath, 3, 2, SKColors.Blue);
-        var sprite = CreateSprite(1, 1, 2, 2);
+        SpriteRegion sprite = CreateSprite(1, 1, 2, 2);
 
         try
         {
-            var action = () => new TextureAtlasEditor().ReplaceSprite(
+            Func<SpriteReplacementResult> action = () => new TextureAtlasEditor().ReplaceSprite(
                 new SpriteReplacementRequest(atlasPath, sprite, replacementPath));
 
-            var exception = Assert.Throws<InvalidDataException>(action);
+            InvalidDataException exception = Assert.Throws<InvalidDataException>(action);
             Assert.Contains("must be 2 x 2 pixels", exception.Message, StringComparison.Ordinal);
             Assert.False(File.Exists(atlasPath + ".bak"));
         }
@@ -77,8 +77,8 @@ public sealed class TextureAtlasEditorTests
         using var bitmap = new SKBitmap(width, height);
         bitmap.Erase(color);
         using var image = SKImage.FromBitmap(bitmap);
-        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-        using var stream = File.Create(path);
+        using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
+        using FileStream stream = File.Create(path);
         data.SaveTo(stream);
     }
 }

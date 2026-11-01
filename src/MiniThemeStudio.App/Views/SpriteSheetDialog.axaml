@@ -33,7 +33,7 @@
 
     <Grid Grid.Row="2" ColumnDefinitions="*,240">
       <Border Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
-        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" AllowAutoHide="False" controls:DragToScroll.IsEnabled="True">
           <controls:AtlasView x:Name="SheetCanvas" Margin="12" HorizontalAlignment="Left" VerticalAlignment="Top" />
         </ScrollViewer>
       </Border>

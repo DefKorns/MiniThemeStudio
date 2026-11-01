@@ -7,7 +7,7 @@ public sealed class BaseUiValidatorTests
     [Fact]
     public void ValidateAcceptsRequiredOriginalUiStructure()
     {
-        var path = Directory.CreateTempSubdirectory().FullName;
+        string path = Directory.CreateTempSubdirectory().FullName;
         Directory.CreateDirectory(Path.Combine(path, "resources"));
         File.WriteAllText(Path.Combine(path, "dependencies.json"), "{}");
         File.WriteAllText(Path.Combine(path, "init.json"), "{}");
@@ -25,11 +25,11 @@ public sealed class BaseUiValidatorTests
     [Fact]
     public void ValidateReportsAllMissingEntries()
     {
-        var path = Directory.CreateTempSubdirectory().FullName;
+        string path = Directory.CreateTempSubdirectory().FullName;
 
         try
         {
-            var exception = Assert.Throws<InvalidDataException>(
+            InvalidDataException exception = Assert.Throws<InvalidDataException>(
                 () => new BaseUiValidator().Validate(path));
 
             Assert.Contains("resources/", exception.Message, StringComparison.Ordinal);

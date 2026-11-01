@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:MiniThemeStudio.App.ViewModels"
         xmlns:themes="using:MiniThemeStudio.Core.Themes"
+        xmlns:scenes="using:MiniThemeStudio.Core.Scenes"
         xmlns:fonts="using:MiniThemeStudio.Core.Fonts"
         xmlns:audio="using:MiniThemeStudio.Core.Audio"
         xmlns:lucide="using:Lucide.Avalonia"
@@ -17,6 +18,22 @@
         MinWidth="1250" MinHeight="780"
         Background="{DynamicResource PageBackgroundBrush}"
         FontFamily="Segoe UI, Ubuntu, sans-serif">
+
+  <Window.DataTemplates>
+    <!-- play / pause, the time slider and the time, for every animation preview -->
+    <DataTemplate DataType="vm:AnimationClock">
+      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+        <ToggleButton Padding="10,5" IsChecked="{Binding IsPlaying, Mode=OneWay}" Command="{Binding TogglePlayCommand}" ToolTip.Tip="Play in a loop, or pause">
+          <Panel>
+            <lucide:LucideIcon Kind="Play" Size="14" IsVisible="{Binding !IsPlaying}" />
+            <lucide:LucideIcon Kind="Pause" Size="14" IsVisible="{Binding IsPlaying}" />
+          </Panel>
+        </ToggleButton>
+        <Slider Grid.Column="1" VerticalAlignment="Center" Minimum="0" Maximum="{Binding Duration}" Value="{Binding Time}" IsEnabled="{Binding HasDuration}" />
+        <TextBlock Grid.Column="2" MinWidth="90" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding TimeText}" />
+      </Grid>
+    </DataTemplate>
+  </Window.DataTemplates>
 
   <Grid RowDefinitions="56,*,28" ColumnDefinitions="56,*">
     <!-- Left Navigation Bar -->
@@ -79,6 +96,8 @@
           </Border>
         </Grid>
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" IsVisible="{Binding IsThemeOpen}">
+          <ToggleSwitch VerticalAlignment="Center" IsChecked="{Binding Mode.IsAdvanced}" OnContent="Advanced" OffContent="Simple"
+                        ToolTip.Tip="Simple: sprites, wallpapers, colours, character frames, fonts and music. Advanced adds scenes, scrolling layers and character animations" />
           <Button Padding="12,6" Background="Transparent" Command="{Binding RunValidationCommand}" ToolTip.Tip="Validate theme integrity">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <lucide:LucideIcon Kind="Check" Size="16" />
@@ -199,7 +218,7 @@
                   <Button Padding="6,2" Content="3x" Click="AtlasZoom3x_Click" ToolTip.Tip="Atlas at 300%" />
                 </StackPanel>
               </Grid>
-              <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+              <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" AllowAutoHide="False" controls:DragToScroll.IsEnabled="True">
                 <controls:AtlasView x:Name="AtlasCanvas" Margin="12" HorizontalAlignment="Left" VerticalAlignment="Top"
                                     Sprites="{Binding Sprites}" SelectedSprite="{Binding SelectedSprite}" />
               </ScrollViewer>
@@ -262,9 +281,92 @@
       <!-- TAB 2: WALLPAPERS -->
       <TabItem Header="Wallpapers">
         <Grid ColumnDefinitions="*,380" Margin="16,12" DataContext="{Binding WallpapersTab}" x:DataType="vm:WallpapersViewModel">
-          <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+          <!-- the NES and Famicom background: colours and the white pictures a script draws it with -->
+          <Grid Grid.ColumnSpan="2" ColumnDefinitions="*,360" IsVisible="{Binding HasPixelBackground}"
+                DataContext="{Binding PixelBackground}" x:DataType="vm:PixelBackgroundViewModel">
+            <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+              <Grid RowDefinitions="Auto,Auto,*" Margin="12">
+                <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Background pictures" />
+                <TextBlock Grid.Row="1" Margin="0,4,0,0" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
+                           Text="This console draws its background with a script: patterns of dots, the small Mario and Luigi and the transitions, tinted with the colours on the right. The pictures are white because the colours are added on the console; they are shown here over the background colour." />
+                <ScrollViewer Grid.Row="2" Margin="0,10,0,0">
+                  <ItemsControl ItemsSource="{Binding Images}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:BackgroundImageRow">
+                        <Border Margin="0,0,0,10" Padding="10" CornerRadius="4" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                          <Grid ColumnDefinitions="160,*,Auto" ColumnSpacing="12">
+                            <Border Height="90" CornerRadius="4" Background="{Binding $parent[ItemsControl].((vm:PixelBackgroundViewModel)DataContext).BackgroundBrush}">
+                              <controls:FileImage Margin="6" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" FilePath="{Binding ImagePath}" Revision="{Binding Revision}" />
+                            </Border>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+                              <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Label}" />
+                              <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Text="{Binding Description}" />
+                              <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SizeText}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="6">
+                              <Button Padding="12,6" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Replace PNG..."
+                                      Command="{Binding $parent[ItemsControl].((vm:PixelBackgroundViewModel)DataContext).ReplaceImageCommand}" CommandParameter="{Binding}" />
+                              <Button Padding="12,6" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Export PNG..."
+                                      Command="{Binding $parent[ItemsControl].((vm:PixelBackgroundViewModel)DataContext).ExportImageCommand}" CommandParameter="{Binding}" />
+                            </StackPanel>
+                          </Grid>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+              </Grid>
+            </Border>
+            <Border Grid.Column="1" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+              <StackPanel Margin="20" Spacing="14">
+                <TextBlock FontFamily="Georgia, serif" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Background Colours" />
+                <ItemsControl ItemsSource="{Binding Colors}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:BackgroundColorRow">
+                      <Grid Margin="0,0,0,10" ColumnDefinitions="*,Auto">
+                        <StackPanel VerticalAlignment="Center">
+                          <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Label}" />
+                          <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding ColorName}" />
+                        </StackPanel>
+                        <ColorPicker Grid.Column="1" Color="{Binding Color}" IsAlphaEnabled="False" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                  <Button Padding="12,8" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}"
+                          FontWeight="SemiBold" Command="{Binding ApplyColorsCommand}" Content="Apply" />
+                  <Button Grid.Column="1" Padding="12,8" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding ResetColorsCommand}" Content="Discard" />
+                </Grid>
+                <Button Padding="12,8" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding RestoreBaseColorsCommand}" Content="Restore Base colours"
+                        ToolTip.Tip="Write back the colours of the Base" />
+                <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
+                           Text="The colours are written to the theme's colour palette (scripts/colors_*.lua), for every region that has them." />
+              </StackPanel>
+            </Border>
+          </Grid>
+
+          <!-- the list takes the whole column when the Base has no scrolling background -->
+          <DockPanel Margin="0,0,12,0" IsVisible="{Binding HasWallpaperImages}">
+          <Border DockPanel.Dock="Top" Height="390" Margin="0,0,0,12" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                  DataContext="{Binding Parallax}" x:DataType="vm:ParallaxViewModel" IsVisible="{Binding HasBackgrounds}">
+            <Grid RowDefinitions="Auto,*,Auto">
+              <Grid Margin="12,8" ColumnDefinitions="Auto,*">
+                <TextBlock VerticalAlignment="Center" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Background as the console plays it" />
+                <ContentControl Grid.Column="1" Margin="16,0,0,0" Content="{Binding Clock}" />
+              </Grid>
+              <controls:ScenePreview Grid.Row="1" Margin="12,0"
+                                     Root="{Binding PreviewRoot}"
+                                     BranchPath="{Binding PreviewBranchPath}"
+                                     SelectedPath="{Binding PreviewSelectedPath}"
+                                     Images="{Binding Images}" />
+              <TextBlock Grid.Row="2" Margin="12,8" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
+                         Text="The framed layer is the one selected on the right; click a layer here to select it. A new speed shows here before you apply it." />
+            </Grid>
+          </Border>
+          <Border Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid RowDefinitions="Auto,*">
-              <TextBlock Margin="16,12" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Background Wallpapers (wall, wall_near, wall_far)" />
+              <TextBlock Margin="16,10" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Wallpaper images" />
               <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding Wallpapers}" SelectedItem="{Binding SelectedWallpaper}">
                 <ListBox.Styles>
                   <Style Selector="ListBoxItem">
@@ -280,6 +382,7 @@
                       </Border>
                       <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                         <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding DisplayName}" />
+                        <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="Not drawn by any scene" IsVisible="{Binding !UsedBy.Count}" />
                         <StackPanel Orientation="Horizontal" Spacing="6">
                           <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Width, StringFormat='{}{0} × '}" />
                           <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Height, StringFormat='{}{0} px'}" />
@@ -293,12 +396,14 @@
               </ListBox>
             </Grid>
           </Border>
+          </DockPanel>
 
-          <Border Grid.Column="1" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+          <Border Grid.Column="1" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                  IsVisible="{Binding HasWallpaperImages}">
             <ScrollViewer>
               <StackPanel Margin="20" Spacing="14">
-                <TextBlock FontFamily="Georgia, serif" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Wallpaper Preview" />
-                <Border Height="240" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                <TextBlock FontFamily="Georgia, serif" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Wallpaper Image" />
+                <Border Height="150" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
                   <controls:FileImage Margin="8" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" FilePath="{Binding SelectedWallpaper.ImagePath}" Revision="{Binding PreviewRevision}" />
                 </Border>
                 <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedWallpaper.DisplayName}" />
@@ -307,8 +412,63 @@
                   <Button Margin="0,0,4,0" Padding="12,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Command="{Binding ReplaceWallpaperCommand}" Content="Replace PNG" />
                   <Button Grid.Column="1" Margin="4,0,0,0" Padding="12,8" HorizontalAlignment="Stretch" Command="{Binding ExportWallpaperCommand}" Content="Export PNG" />
                 </Grid>
+                <Button Padding="12,8" HorizontalAlignment="Stretch" Command="{Binding DeleteWallpaperCommand}" Content="{Binding DeleteWallpaperText}" IsVisible="{Binding Mode.IsAdvanced}"
+                        ToolTip.Tip="Only the theme's own images: an image a scene still draws is kept (remove its layer first)" />
                 <Border Height="1" Background="{DynamicResource BorderBrush}" />
                 <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="Wallpapers define the main background, near foreground parallax layer, and far distant layer. Dimensions are automatically preserved or updated in JSON." TextWrapping="Wrap" />
+
+                <!-- Scrolling layers -->
+                <StackPanel Spacing="10" Margin="0,8,0,0" IsVisible="{Binding $parent[ScrollViewer].((vm:WallpapersViewModel)DataContext).Mode.IsAdvanced}" DataContext="{Binding Parallax}" x:DataType="vm:ParallaxViewModel">
+                  <TextBlock FontFamily="Georgia, serif" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Scrolling Layers" />
+                  <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" IsVisible="{Binding !HasBackgrounds}"
+                             Text="This Base draws its background from a script, so its layers cannot be changed here." />
+                  <StackPanel Spacing="10" IsVisible="{Binding HasBackgrounds}">
+                    <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding Backgrounds}" SelectedItem="{Binding SelectedBackground}" ToolTip.Tip="The background and the animation that scrolls it">
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="scenes:ParallaxBackground">
+                          <TextBlock Text="{Binding DisplayName}" />
+                        </DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Text="{Binding CycleText}" />
+                    <ListBox MaxHeight="180" ItemsSource="{Binding Layers}" SelectedItem="{Binding SelectedLayer}">
+                      <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ParallaxLayerRow">
+                          <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="1" Margin="8,0,0,0" FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Detail}" />
+                          </Grid>
+                        </DataTemplate>
+                      </ListBox.ItemTemplate>
+                    </ListBox>
+                    <Grid ColumnDefinitions="110,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="4" IsEnabled="{Binding HasSelectedLayer}">
+                      <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Speed" />
+                      <NumericUpDown Grid.Column="1" Value="{Binding LayerLoops}" Increment="1" FormatString="0" Minimum="-16" Maximum="16"
+                                     ToolTip.Tip="Loops per cycle: how many times the layer slides by its own width. Negative scrolls the other way, 0 stops it" />
+                      <Button Grid.Column="2" Padding="10,6" Command="{Binding ApplySpeedCommand}" Content="Apply" />
+                      <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SpeedText}" />
+                    </Grid>
+                    <Button Padding="10,6" HorizontalAlignment="Stretch" Command="{Binding RemoveLayerCommand}" Content="Remove layer..." />
+
+                    <Border Height="1" Background="{DynamicResource BorderBrush}" />
+                    <TextBlock FontWeight="Bold" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="NEW LAYER" />
+                    <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="8">
+                      <TextBlock VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Name" />
+                      <TextBox Grid.Column="1" Text="{Binding NewLayerName}" />
+                      <TextBlock Grid.Row="1" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Y" />
+                      <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding NewLayerY}" Increment="1" FormatString="0" ToolTip.Tip="Pixels above the centre of the screen: Y points up" />
+                      <TextBlock Grid.Row="2" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Layer" />
+                      <NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding NewLayerZIndex}" Increment="1" FormatString="0" ToolTip.Tip="Higher layers are drawn over lower ones: the far wall is -1, the near wall 0" />
+                      <TextBlock Grid.Row="3" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Scale" />
+                      <NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding NewLayerScale}" Increment="1" FormatString="0" Minimum="1" Maximum="8" ToolTip.Tip="Screen pixels per image pixel: the console's layers use 3" />
+                      <TextBlock Grid.Row="4" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Loops per cycle" />
+                      <NumericUpDown Grid.Row="4" Grid.Column="1" Value="{Binding NewLayerLoops}" Increment="1" FormatString="0" Minimum="-16" Maximum="16" />
+                    </Grid>
+                    <Button Padding="10,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold"
+                            Command="{Binding AddLayerCommand}" Content="Choose PNG and add layer..."
+                            ToolTip.Tip="The image is repeated side by side until it covers the screen, so it scrolls without a seam" />
+                  </StackPanel>
+                </StackPanel>
               </StackPanel>
             </ScrollViewer>
           </Border>
@@ -316,7 +476,7 @@
       </TabItem>
 
       <!-- TAB 3: SCENES -->
-      <TabItem Header="Scenes">
+      <TabItem Header="Scenes" IsVisible="{Binding Mode.IsAdvanced}">
         <Grid ColumnDefinitions="290,*,320" Margin="16,12" DataContext="{Binding ScenesTab}" x:DataType="vm:ScenesViewModel">
           <!-- Scene and node tree -->
           <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
@@ -324,6 +484,14 @@
               <StackPanel Margin="12" Spacing="8">
                 <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding SceneResources}" SelectedItem="{Binding SelectedSceneResource}" ToolTip.Tip="Scene file" />
                 <TextBox Height="36" Watermark="Search nodes by name..." Text="{Binding SceneSearchText}" />
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="6">
+                  <Button Padding="6,5" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding AddImageCommand}" Content="Add image..."
+                          ToolTip.Tip="Adds a PNG as a new image node: inside the selected group, or next to the selected image" />
+                  <Button Grid.Column="1" Padding="6,5" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding DuplicateNodeCommand}" Content="Duplicate"
+                          ToolTip.Tip="Copies the selected node and everything inside it" />
+                  <Button Grid.Column="2" Padding="6,5" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding DeleteNodeCommand}" Content="Delete"
+                          ToolTip.Tip="Removes the selected node and everything inside it" />
+                </Grid>
               </StackPanel>
 
               <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding SceneRows}" SelectedItem="{Binding SelectedSceneRow}">
@@ -348,19 +516,34 @@
 
           <!-- Preview -->
           <Border Grid.Column="1" Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
-            <Grid RowDefinitions="Auto,*,Auto">
+            <Grid RowDefinitions="Auto,Auto,*,Auto">
               <StackPanel Margin="12,8" Orientation="Horizontal" Spacing="16">
                 <CheckBox IsChecked="{Binding IsolateSceneBranch}" Content="Only the selected branch" ToolTip.Tip="Draw only the menu or background the selected node belongs to" />
                 <CheckBox IsChecked="{Binding ShowHiddenSceneNodes}" Content="Show hidden nodes" />
               </StackPanel>
-              <controls:ScenePreview Grid.Row="1" Margin="12,0"
-                                     Root="{Binding CurrentScene.Root}"
+              <Grid Grid.Row="1" Margin="12,0,12,8" ColumnDefinitions="240,Auto,*" ColumnSpacing="8">
+                <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding SceneAnimations}" SelectedItem="{Binding SelectedAnimation}" PlaceholderText="Play an animation..."
+                          ToolTip.Tip="The animations whose nodes are all in this scene; scripts start them on the console">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="scenes:SceneAnimationBinding">
+                      <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <Button Grid.Column="1" Padding="10,5" Command="{Binding StopAnimationCommand}" ToolTip.Tip="Back to the scene as it is saved">
+                  <lucide:LucideIcon Kind="Square" Size="14" />
+                </Button>
+                <ContentControl Grid.Column="2" Content="{Binding Clock}" />
+              </Grid>
+              <controls:ScenePreview Grid.Row="2" Margin="12,0"
+                                     Root="{Binding PreviewRoot}"
                                      SelectedPath="{Binding SelectedScenePath}"
                                      BranchPath="{Binding PreviewBranchPath}"
                                      ShowHidden="{Binding ShowHiddenSceneNodes}"
-                                     Images="{Binding SceneImages}" />
-              <TextBlock Grid.Row="2" Margin="12,8" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
-                         Text="Click an image to select its node. This is the layout saved in the scene; scripts and animations can still move, show or hide nodes on the console." />
+                                     Images="{Binding SceneImages}"
+                                     MoveCommand="{Binding MoveNodeCommand}" />
+              <TextBlock Grid.Row="3" Margin="12,8" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
+                         Text="Click an image to select its node and drag it to move it; drag inside a selected group to move the whole group. This is the layout saved in the scene; scripts and animations can still move, show or hide nodes on the console." />
             </Grid>
           </Border>
 
@@ -423,8 +606,73 @@
 
       <!-- CHARACTERS -->
       <TabItem Header="Characters">
-        <Grid DataContext="{Binding CharactersTab}" x:DataType="vm:CharactersViewModel" ColumnDefinitions="260,*,320" Margin="16,12">
-          <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+        <Grid DataContext="{Binding CharactersTab}" x:DataType="vm:CharactersViewModel" ColumnDefinitions="Auto,*,320" Margin="16,12">
+          <!-- the NES and Famicom UIs draw their characters from sheets: one row at a time, like a SNES character -->
+          <Grid Grid.ColumnSpan="3" ColumnDefinitions="*,320" IsVisible="{Binding ShowSheet}">
+            <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+              <Grid RowDefinitions="Auto,Auto,*" Margin="12">
+                <Grid ColumnDefinitions="Auto,220,*,Auto" ColumnSpacing="12">
+                  <TextBlock VerticalAlignment="Center" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Frames of" />
+                  <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding SheetGroups}" SelectedItem="{Binding SelectedSheetGroup}">
+                    <ComboBox.ItemTemplate>
+                      <DataTemplate x:DataType="vm:SheetGroupView">
+                        <TextBlock Text="{Binding Label}" />
+                      </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                  </ComboBox>
+                  <Button Grid.Column="3" Padding="10,6" Content="Import from a sprite sheet..."
+                          Command="{Binding ImportRowCommand}" CommandParameter="{Binding SelectedSheetGroup.Row}"
+                          ToolTip.Tip="Open any sprite sheet and pick these pictures on it, in order" />
+                </Grid>
+                <TextBlock Grid.Row="1" Margin="0,4,0,0" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
+                           Text="Replace each picture with a PNG, or pick them all on a sprite sheet. A new picture can fill the room of its frame and stands where the old one stood." />
+                <ScrollViewer Grid.Row="2" Margin="0,10,0,0">
+                  <ItemsControl ItemsSource="{Binding SelectedSheetGroup.Row.Frames}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <WrapPanel ItemSpacing="8" LineSpacing="8" />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:SheetFrameView">
+                        <Border Width="120" Padding="8" CornerRadius="4" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                          <StackPanel Spacing="4">
+                            <Image Height="72" Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
+                            <TextBlock FontWeight="SemiBold" Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SizeText}" />
+                            <Button Padding="8,4" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Replace..."
+                                    Command="{Binding $parent[ScrollViewer].((vm:CharactersViewModel)DataContext).ReplaceSheetFrameCommand}" CommandParameter="{Binding}" />
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+              </Grid>
+            </Border>
+            <Border Grid.Column="1" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+              <StackPanel Margin="20" Spacing="14">
+                <TextBlock FontFamily="Georgia, serif" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedSheetGroup.Sheet.Title}" />
+                <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Text="{Binding SelectedSheetGroup.Sheet.Description}" />
+                <Border Height="200" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                  <Image Margin="12" Source="{Binding SelectedSheetGroup.Sheet.Image}" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
+                </Border>
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                  <Button Padding="12,8" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Replace sheet..."
+                          Command="{Binding ReplaceSheetCommand}" CommandParameter="{Binding SelectedSheetGroup.Sheet}"
+                          ToolTip.Tip="A whole sheet edited elsewhere, the same size as this one" />
+                  <Button Grid.Column="1" Padding="12,8" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Export sheet..."
+                          Command="{Binding ExportSheetCommand}" CommandParameter="{Binding SelectedSheetGroup.Sheet}"
+                          ToolTip.Tip="Save the sheet to edit it in an image editor" />
+                </Grid>
+                <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
+                           Text="An edited sheet keeps every picture in its place: the console cuts them at fixed places." />
+              </StackPanel>
+            </Border>
+          </Grid>
+
+          <Border Width="260" Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                  IsVisible="{Binding ShowAdvancedFrames}">
             <Grid RowDefinitions="Auto,*" Margin="12">
               <StackPanel Spacing="8">
                 <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding Characters}" SelectedItem="{Binding SelectedCharacter}" />
@@ -443,7 +691,43 @@
             </Grid>
           </Border>
 
-          <Border Grid.Column="1" Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+          <Border Grid.Column="1" Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                  IsVisible="{Binding ShowSimpleFrames}">
+            <Grid RowDefinitions="Auto,Auto,*" Margin="12">
+              <Grid ColumnDefinitions="Auto,200,*" ColumnSpacing="12">
+                <TextBlock VerticalAlignment="Center" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Frames of" />
+                <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding Characters}" SelectedItem="{Binding SelectedCharacter}" />
+                <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding CharacterSizeText}" TextTrimming="CharacterEllipsis" />
+              </Grid>
+              <TextBlock Grid.Row="1" Margin="0,4,0,0" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
+                         Text="Replace each frame with a PNG of the same size. The animations keep using the same frames, so the character keeps moving as on the official theme." />
+              <ScrollViewer Grid.Row="2" Margin="0,10,0,0">
+                <ItemsControl ItemsSource="{Binding CharacterFrames}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <WrapPanel ItemSpacing="8" LineSpacing="8" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:CharacterFrameRow">
+                      <Border Width="120" Padding="8" CornerRadius="4" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                        <StackPanel Spacing="4">
+                          <Image Height="72" Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
+                          <TextBlock FontWeight="SemiBold" Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
+                          <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SizeText}" />
+                          <Button Padding="8,4" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Replace..."
+                                  Command="{Binding $parent[ItemsControl].((vm:CharactersViewModel)DataContext).ReplaceFrameCommand}" CommandParameter="{Binding}" />
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </Grid>
+          </Border>
+
+          <Border Grid.Column="1" Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                  IsVisible="{Binding ShowAdvancedFrames}">
             <Grid RowDefinitions="Auto,*" Margin="12">
               <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Frames (faded frames run after the loop, click to select)" />
               <ScrollViewer Grid.Row="1" Margin="0,10,0,0">
@@ -469,15 +753,24 @@
             </Grid>
           </Border>
 
-          <Border Grid.Column="2" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+          <Border Grid.Column="2" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding ShowAnimations}">
             <ScrollViewer>
               <StackPanel Margin="20" Spacing="14">
                 <TextBlock FontFamily="Georgia, serif" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Animation Preview" />
+                <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding CharacterAnimations}" SelectedItem="{Binding SelectedAnimation}" IsVisible="{Binding Mode.IsSimple}"
+                          ToolTip.Tip="The animation shown with the current frames">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="themes:CharacterAnimation">
+                      <TextBlock Text="{Binding Name}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
                 <Border Height="220" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
                   <Image x:Name="AnimationPreviewImage" Margin="12" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
                 </Border>
                 <CheckBox x:Name="MirrorPreviewCheckBox" Content="Preview flipped" IsChecked="{Binding IsPreviewMirrored}" IsCheckedChanged="MirrorPreview_IsCheckedChanged"
                           ToolTip.Tip="Show the animation flipped horizontally without changing any frame" />
+                <StackPanel Spacing="14" IsVisible="{Binding Mode.IsAdvanced}">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                   <Button Padding="12,8" Command="{Binding MirrorSelectedFramesCommand}" CommandParameter="{Binding #AnimationFramesList.SelectedItems}" Content="Flip selected"
                           ToolTip.Tip="Flip the pixels of the selected frames horizontally" />
@@ -494,6 +787,7 @@
                         Command="{Binding ReplaceFramesCommand}" Content="Replace frames from sprite sheet..." />
                 <TextBlock FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
                            Text="The loop frames are replaced in place and extra frames are added as new textures. Other animations of the character keep their own frames." />
+                </StackPanel>
               </StackPanel>
             </ScrollViewer>
           </Border>
@@ -594,16 +888,22 @@
               <Grid Grid.Row="3" RowDefinitions="Auto,*">
                 <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,8">
                   <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Glyph Texture Atlas" />
-                  <TextBlock Grid.Column="1" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}">
-                    <Run Text="{Binding SelectedFont.TextureWidth}" />
-                    <Run Text="×" />
-                    <Run Text="{Binding SelectedFont.TextureHeight}" />
-                    <Run Text="px" />
-                  </TextBlock>
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                    <TextBlock Margin="0,0,8,0" VerticalAlignment="Center" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}">
+                      <Run Text="{Binding SelectedFont.TextureWidth}" />
+                      <Run Text="×" />
+                      <Run Text="{Binding SelectedFont.TextureHeight}" />
+                      <Run Text="px" />
+                    </TextBlock>
+                    <Button Padding="6,2" Content="1x" Click="GlyphAtlasZoom1x_Click" ToolTip.Tip="Atlas at 100%" />
+                    <Button Padding="6,2" Content="2x" Click="GlyphAtlasZoom2x_Click" ToolTip.Tip="Atlas at 200%" />
+                    <Button Padding="6,2" Content="3x" Click="GlyphAtlasZoom3x_Click" ToolTip.Tip="Atlas at 300%" />
+                  </StackPanel>
                 </Grid>
                 <Border Grid.Row="1" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
-                  <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-                    <Image Source="{Binding FontTexturePreview}" Margin="8" Stretch="None" RenderOptions.BitmapInterpolationMode="None" />
+                  <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" AllowAutoHide="False" controls:DragToScroll.IsEnabled="True"
+                                ToolTip.Tip="Drag to look around; the wheel scrolls, Shift+wheel sideways">
+                    <controls:AtlasView x:Name="GlyphAtlasCanvas" Margin="8" HorizontalAlignment="Left" VerticalAlignment="Top" Source="{Binding FontTexturePreview}" IsSelectionEnabled="False" />
                   </ScrollViewer>
                 </Border>
               </Grid>
@@ -623,9 +923,9 @@
                         <lucide:LucideIcon Kind="TriangleAlert" Size="16" Foreground="{DynamicResource DialogWarningBrush}" Margin="0,0,6,0" IsVisible="{Binding !FontValidation.IsSafeForWesternUi, FallbackValue=true}" />
                         <TextBlock Grid.Column="1" FontWeight="SemiBold" FontSize="12" Text="{Binding FontValidation.Summary, FallbackValue='Select a font to check'}" TextWrapping="Wrap" />
                       </Grid>
-                      <Button Margin="0,6,0,0" Padding="8,6" HorizontalAlignment="Stretch" Content="Fill missing from base"
-                              IsVisible="{Binding !FontValidation.IsSafeForWesternUi, FallbackValue=false}"
-                              Command="{Binding CompleteFontCommand}" ToolTip.Tip="Add the characters this font lacks from the complete base font of its role" />
+                      <Button Margin="0,6,0,0" Padding="8,6" HorizontalAlignment="Stretch" Content="Redraw with the title font"
+                              Command="{Binding CompleteFontCommand}"
+                              ToolTip.Tip="Draws every character again, and the missing ones, with the letter of Font Remount's title.fnt (Yu Gothic UI) at this font's size and weight, so every font reads alike. Button icons are kept." />
                     </StackPanel>
                   </Border>
                 </StackPanel>
@@ -659,79 +959,77 @@
       </TabItem>
 
       <TabItem Header="Colors">
-        <Grid ColumnDefinitions="280,*,400" Margin="16,12" DataContext="{Binding ColorsTab}" x:DataType="vm:ColorsViewModel">
-          <Border Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+        <!-- spacing follows an 8 px grid: 8 inside a group, 16 between groups and as the padding of a panel -->
+        <Grid ColumnDefinitions="*,400" ColumnSpacing="16" Margin="16" DataContext="{Binding ColorsTab}" x:DataType="vm:ColorsViewModel">
+          <Border Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
             <Grid RowDefinitions="Auto,*">
-              <TextBlock Margin="16,12" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Palettes (colors_*.lua)" />
-              <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding Palettes}" SelectedItem="{Binding SelectedPalette}">
-                <ListBox.Styles>
-                  <Style Selector="ListBoxItem">
-                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                    <Setter Property="Padding" Value="10,8" />
-                  </Style>
-                </ListBox.Styles>
-                <ListBox.ItemTemplate>
-                  <DataTemplate x:DataType="themes:ThemePalette">
-                    <Grid ColumnDefinitions="Auto,*" Margin="4,2">
-                      <Border Width="32" Height="32" Background="{DynamicResource PanelBackgroundBrush}" CornerRadius="4" Margin="0,0,12,0">
-                        <lucide:LucideIcon Kind="Palette" Size="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                      </Border>
-                      <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                        <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Region}" />
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                          <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Colors.Count, StringFormat='{}{0} colours'}" />
-                          <TextBlock FontSize="11" Foreground="{DynamicResource AccentBrush}" Text="(From Base)" IsVisible="{Binding IsFromBaseUi}" />
-                        </StackPanel>
-                      </StackPanel>
-                    </Grid>
-                  </DataTemplate>
-                </ListBox.ItemTemplate>
-              </ListBox>
-            </Grid>
-          </Border>
-
-          <Border Grid.Column="1" Margin="0,0,12,0" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
-            <Grid RowDefinitions="Auto,*">
-              <Grid Margin="16,8" ColumnDefinitions="*,Auto">
-                <TextBlock VerticalAlignment="Center" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedPalette.RelativePath}" />
-                <CheckBox Grid.Column="1" Content="Show unused" IsChecked="{Binding ShowUnusedColors}"
-                          ToolTip.Tip="Colours no scene or script of this UI names; they may be for other consoles or read by the engine itself" />
+              <!-- a colour is written to every region, so there is one list: the values are the Base's own region's -->
+              <Grid Margin="16,16,16,8" ColumnDefinitions="*,Auto">
+                <StackPanel VerticalAlignment="Center">
+                  <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Colours" />
+                  <TextBlock FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding RegionsText}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+                  <CheckBox Content="Show unused" IsChecked="{Binding ShowUnusedColors}"
+                            ToolTip.Tip="Colours no scene or script of this UI names; they may be for other consoles or read by the engine itself" />
+                  <Button Padding="16,8" Command="{Binding ResetAllColorsCommand}" Content="Reset all" ToolTip.Tip="Put every colour back to the value of the Base" />
+                </StackPanel>
               </Grid>
+              <!-- each colour with the words the console draws with it, under the screen they are on -->
               <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding PaletteColors}" SelectedItem="{Binding SelectedPaletteColor}">
                 <ListBox.ItemTemplate>
                   <DataTemplate x:DataType="vm:PaletteColorRow">
-                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="4,2">
-                      <Border Width="40" Height="24" CornerRadius="4" Margin="0,0,12,0" Background="{Binding Swatch}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" />
-                      <TextBlock Grid.Column="1" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Name}" />
-                      <TextBlock Grid.Column="2" VerticalAlignment="Center" FontFamily="monospace" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Hex}" />
-                    </Grid>
+                    <StackPanel>
+                      <TextBlock Margin="8,16,8,8" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" Text="{Binding Group}" IsVisible="{Binding StartsGroup}" />
+                      <Grid Margin="8,4" ColumnDefinitions="56,*,Auto" ToolTip.Tip="{Binding Name}">
+                        <Border Width="40" Height="24" HorizontalAlignment="Left" CornerRadius="4" Background="{Binding Swatch}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                          <StackPanel Orientation="Horizontal" Spacing="8">
+                            <TextBlock Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Title}" />
+                            <TextBlock FontSize="11" VerticalAlignment="Center" Foreground="{DynamicResource AccentBrush}" Text="edited" IsVisible="{Binding IsModified}" />
+                          </StackPanel>
+                          <TextBlock FontSize="12" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Samples}" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="2" Margin="16,0,0,0" VerticalAlignment="Center" FontFamily="monospace" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Hex}" />
+                      </Grid>
+                    </StackPanel>
                   </DataTemplate>
                 </ListBox.ItemTemplate>
               </ListBox>
             </Grid>
           </Border>
 
-          <Border Grid.Column="2" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="14" Spacing="12">
-              <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedPaletteColor.Name}" />
-              <ColorView Color="{Binding EditColor}" IsAlphaEnabled="True" IsColorPaletteVisible="False" />
-              <CheckBox IsChecked="{Binding ApplyColorToAllRegions}" Content="Apply to all regions" />
-              <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Classes="accent" Command="{Binding ApplyColorCommand}" Content="Apply" />
-              <TextBlock Margin="0,8,0,0" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding ColorUsageSummary}" />
-              <ItemsControl ItemsSource="{Binding ColorUsages}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="themes:PaletteColorUsage">
-                    <StackPanel Margin="0,0,0,8" Spacing="1">
-                      <TextBlock FontFamily="monospace" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding TextKey, TargetNullValue='(no text)'}" />
-                      <TextBlock FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding NodePath}" />
-                      <TextBlock FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding ScenePath}" />
-                    </StackPanel>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </StackPanel>
-            </ScrollViewer>
+          <!-- the picker stays in view: it is what the tab is for -->
+          <Border Grid.Column="1" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+            <Grid Margin="16" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="16">
+              <StackPanel Spacing="4">
+                <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedPaletteColor.Title}" />
+                <TextBlock FontFamily="monospace" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SelectedPaletteColor.Name}" />
+                <TextBlock FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding UsedOn}" />
+              </StackPanel>
+              <!-- a word the console draws with the colour, on a plain background it reads on -->
+              <Border Grid.Row="1" MinHeight="112" CornerRadius="8" ClipToBounds="True" Background="{Binding SampleBackground}"
+                      ToolTip.Tip="The text with what it is drawn on in the theme, over the wall or the background of the home screen where it sits on that">
+                <Grid>
+                  <Image Width="{Binding SampleBackdropWidth}" Height="{Binding SampleBackdropHeight}" Source="{Binding SampleBackdrop}" IsVisible="{Binding HasSampleBackdrop}"
+                         Stretch="Fill" RenderOptions.BitmapInterpolationMode="None" />
+                  <controls:ScenePreview IsHitTestVisible="False" IsVisible="{Binding HasSampleScene}" ShowHidden="True" HiddenOpacity="1" TextBesideIcons="True"
+                                         Root="{Binding SampleRoot}"
+                                         Images="{Binding SampleImages}"
+                                         Colors="{Binding SampleColors}"
+                                         Strings="{Binding SampleStrings}"
+                                         FocusColorName="{Binding SelectedPaletteColor.Name}" />
+                  <TextBlock Margin="8" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="18" TextAlignment="Center" TextTrimming="CharacterEllipsis"
+                             Foreground="{Binding EditBrush}" Text="{Binding SampleText}" IsVisible="{Binding !HasSampleScene}" />
+                </Grid>
+              </Border>
+              <ColorView Grid.Row="2" MinHeight="240" Color="{Binding EditColor}" IsAlphaEnabled="True" IsColorPaletteVisible="False" />
+              <Grid Grid.Row="3" ColumnDefinitions="*,*" ColumnSpacing="8">
+                <Button Height="40" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Classes="accent" Command="{Binding ApplyColorCommand}" Content="Apply" />
+                <Button Grid.Column="1" Height="40" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Command="{Binding ResetColorCommand}" Content="Reset to default"
+                        ToolTip.Tip="Put this colour back to the value of the Base, in every region" />
+              </Grid>
+            </Grid>
           </Border>
         </Grid>
       </TabItem>

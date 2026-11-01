@@ -25,7 +25,7 @@ public class LuaColorPaletteTests
     [Fact]
     public void WritesUnchangedPaletteBackByteForByte()
     {
-        var bytes = PaletteFixtures.SampleBytes;
+        byte[] bytes = PaletteFixtures.SampleBytes;
 
         Assert.Equal(bytes, LuaColorPalette.Read(bytes).ToBytes());
     }
@@ -76,9 +76,9 @@ public class LuaColorPaletteTests
             .Where(file => File.ReadAllBytes(file) is [0x1B, (byte)'L', (byte)'J', ..]) // skips decompiled sources
             .ToList();
 
-        foreach (var file in files)
+        foreach (string? file in files)
         {
-            var bytes = File.ReadAllBytes(file);
+            byte[] bytes = File.ReadAllBytes(file);
             var palette = LuaColorPalette.Read(bytes);
 
             Assert.NotEmpty(palette.Colors);

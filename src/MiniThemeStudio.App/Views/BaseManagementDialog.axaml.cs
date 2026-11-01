@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -40,9 +41,9 @@ public sealed partial class BaseManagementDialog : Window
             return;
         }
 
-        var bases = _manager.GetInstalledBases();
+        IReadOnlyList<InstalledBaseInfo> bases = _manager.GetInstalledBases();
         BasesListBox.ItemsSource = bases;
-        var installedCount = bases.Count(info => info.Status == BaseInstallStatus.Valid);
+        int installedCount = bases.Count(info => info.Status == BaseInstallStatus.Valid);
         StatusText.Text = $"{installedCount} of {bases.Count} bases installed in {_manager.BasesRootPath}";
     }
 
@@ -53,7 +54,7 @@ public sealed partial class BaseManagementDialog : Window
 
     private async void ImportFile_Click(object? sender, RoutedEventArgs e)
     {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        IReadOnlyList<IStorageFile> files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Select original firmware image (.hsqs, .tar, .tar.gz)",
             AllowMultiple = false,
@@ -64,7 +65,7 @@ public sealed partial class BaseManagementDialog : Window
             ],
         });
 
-        var filePath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
+        string? filePath = files.Count > 0 ? files[0].TryGetLocalPath() : null;
         if (filePath is not null)
         {
             await RunImportAsync("Verifying and extracting firmware...", "Cannot import firmware", () => _manager.ImportFromFileAsync(filePath));
@@ -73,13 +74,13 @@ public sealed partial class BaseManagementDialog : Window
 
     private async void ImportFolder_Click(object? sender, RoutedEventArgs e)
     {
-        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        IReadOnlyList<IStorageFolder> folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
             Title = "Select an extracted Base UI folder (containing init.json)",
             AllowMultiple = false,
         });
 
-        var folderPath = folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
+        string? folderPath = folders.Count > 0 ? folders[0].TryGetLocalPath() : null;
         if (folderPath is not null)
         {
             await RunImportAsync("Verifying folder...", "Cannot import folder", () => _manager.ImportFromDirectoryAsync(folderPath));
@@ -88,7 +89,7 @@ public sealed partial class BaseManagementDialog : Window
 
     private async void ImportConsole_Click(object? sender, RoutedEventArgs e)
     {
-        var host = _settings is { ConsoleConnectionMode: ConsoleConnectionMode.Wifi }
+        string host = _settings is { ConsoleConnectionMode: ConsoleConnectionMode.Wifi }
             ? _settings.ConsoleHost
             : UsbConsoleHost;
         using var progressDialog = new ConsoleConnectionDialog(cancellationToken =>
@@ -112,7 +113,7 @@ public sealed partial class BaseManagementDialog : Window
         StatusText.Text = progressText;
         try
         {
-            var result = await import();
+            InstalledBaseInfo result = await import();
             RefreshList();
             StatusText.Text = $"Installed {result.Definition.DisplayName} v{result.Definition.Version}.";
         }

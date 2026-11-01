@@ -1,3 +1,4 @@
+using MiniThemeStudio.Core.Audio;
 using MiniThemeStudio.Infrastructure.Audio;
 
 namespace MiniThemeStudio.Infrastructure.Tests.Audio;
@@ -7,13 +8,13 @@ public sealed class WavAudioReaderTests
     [Fact]
     public void ReadsValidPcmStereoWav()
     {
-        var sampleRate = 44100;
-        var channels = (short)2;
-        var sampleFrames = 44100 * 2; // 2 seconds
-        var bytes = WavAudioReader.CreateMinimalPcm16Wav(sampleRate, channels, sampleFrames);
+        int sampleRate = 44100;
+        short channels = (short)2;
+        int sampleFrames = 44100 * 2; // 2 seconds
+        byte[] bytes = WavAudioReader.CreateMinimalPcm16Wav(sampleRate, channels, sampleFrames);
 
         using var ms = new MemoryStream(bytes);
-        var info = WavAudioReader.Read(ms);
+        WavAudioInfo info = WavAudioReader.Read(ms);
 
         Assert.True(info.IsValidWav);
         Assert.True(info.IsPcm);
@@ -30,13 +31,13 @@ public sealed class WavAudioReaderTests
     [Fact]
     public void ReadsValidPcmMonoWavWithSmplLoopPoints()
     {
-        var sampleRate = 44100;
-        var channels = (short)1;
-        var sampleFrames = 44100 * 5; // 5 seconds
-        var bytes = WavAudioReader.CreateMinimalPcm16Wav(sampleRate, channels, sampleFrames, loopStart: 1000, loopEnd: 40000);
+        int sampleRate = 44100;
+        short channels = (short)1;
+        int sampleFrames = 44100 * 5; // 5 seconds
+        byte[] bytes = WavAudioReader.CreateMinimalPcm16Wav(sampleRate, channels, sampleFrames, loopStart: 1000, loopEnd: 40000);
 
         using var ms = new MemoryStream(bytes);
-        var info = WavAudioReader.Read(ms);
+        WavAudioInfo info = WavAudioReader.Read(ms);
 
         Assert.True(info.IsValidWav);
         Assert.True(info.IsPcm);
@@ -53,9 +54,9 @@ public sealed class WavAudioReaderTests
     [Fact]
     public void RejectsTruncatedWav()
     {
-        var bytes = new byte[20];
+        byte[] bytes = new byte[20];
         using var ms = new MemoryStream(bytes);
-        var info = WavAudioReader.Read(ms);
+        WavAudioInfo info = WavAudioReader.Read(ms);
 
         Assert.False(info.IsValidWav);
         Assert.Contains("too short", info.ErrorMessage, StringComparison.OrdinalIgnoreCase);
@@ -64,9 +65,9 @@ public sealed class WavAudioReaderTests
     [Fact]
     public void RejectsNonRiffContainer()
     {
-        var bytes = new byte[64];
+        byte[] bytes = new byte[64];
         using var ms = new MemoryStream(bytes);
-        var info = WavAudioReader.Read(ms);
+        WavAudioInfo info = WavAudioReader.Read(ms);
 
         Assert.False(info.IsValidWav);
         Assert.Contains("Not a RIFF/WAVE container", info.ErrorMessage, StringComparison.OrdinalIgnoreCase);
@@ -76,9 +77,9 @@ public sealed class WavAudioReaderTests
     public void DetectsNonStandardSampleRateAndChannels()
     {
         // 48 kHz, 6 channels (5.1)
-        var bytes = WavAudioReader.CreateMinimalPcm16Wav(48000, 6, 48000);
+        byte[] bytes = WavAudioReader.CreateMinimalPcm16Wav(48000, 6, 48000);
         using var ms = new MemoryStream(bytes);
-        var info = WavAudioReader.Read(ms);
+        WavAudioInfo info = WavAudioReader.Read(ms);
 
         Assert.True(info.IsValidWav);
         Assert.False(info.IsConsoleStandard);

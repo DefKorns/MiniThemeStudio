@@ -36,7 +36,7 @@ public static class FontCharsets
 
     private static string Load(string name)
     {
-        using var stream = typeof(FontCharsets).Assembly.GetManifestResourceStream($"MiniThemeStudio.Fonts.Charsets.{name}.txt")
+        using Stream stream = typeof(FontCharsets).Assembly.GetManifestResourceStream($"MiniThemeStudio.Fonts.Charsets.{name}.txt")
             ?? throw new InvalidOperationException($"Missing charset resource '{name}'.");
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd().TrimEnd('\n', '\r');

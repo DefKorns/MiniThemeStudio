@@ -26,9 +26,9 @@ public sealed class ThemeExporterBgmTests
             CancellationToken cancellationToken = default)
         {
             ConversionCallCount++;
-            var expectedChannels = channels == BgmAudioChannels.Mono ? (short)1 : (short)2;
+            short expectedChannels = channels == BgmAudioChannels.Mono ? (short)1 : (short)2;
             File.WriteAllBytes(outputPath, WavAudioReader.CreateMinimalPcm16Wav(44100, expectedChannels, 44100));
-            var info = WavAudioReader.Read(outputPath);
+            WavAudioInfo info = WavAudioReader.Read(outputPath);
             return Task.FromResult(AudioConversionResult.Succeeded(outputPath, info));
         }
     }
@@ -36,33 +36,33 @@ public sealed class ThemeExporterBgmTests
     [Fact]
     public void DisabledBgmConversionPreservesFilesUnchangedWithoutCallingConverter()
     {
-        var tempDir = Directory.CreateTempSubdirectory().FullName;
+        string tempDir = Directory.CreateTempSubdirectory().FullName;
         try
         {
-            var themeDir = Path.Combine(tempDir, "theme");
-            var outDir = Path.Combine(tempDir, "out");
-            var soundsDir = Path.Combine(themeDir, "resources", "sounds", "hvc");
+            string themeDir = Path.Combine(tempDir, "theme");
+            string outDir = Path.Combine(tempDir, "out");
+            string soundsDir = Path.Combine(themeDir, "resources", "sounds", "hvc");
             Directory.CreateDirectory(soundsDir);
 
-            var rawBytes = "original-audio-bytes"u8.ToArray();
+            byte[] rawBytes = "original-audio-bytes"u8.ToArray();
             File.WriteAllBytes(Path.Combine(soundsDir, "bgm_home.wav"), rawBytes);
 
             var mockConverter = new MockAudioConverter();
             var exporter = new ThemeExporter(mockConverter);
 
             var options = new ThemeExportOptions(ConvertBgmAudio: false);
-            var result = exporter.ExportPackage(themeDir, outDir, "snes", "mytheme", null, null, options);
+            ThemePackageResult result = exporter.ExportPackage(themeDir, outDir, "snes", "mytheme", null, null, options);
 
             Assert.Equal(0, mockConverter.ConversionCallCount);
             Assert.True(File.Exists(result.PackagePath));
 
             // Verify tar.gz contains the original bytes
-            using var fileStream = File.OpenRead(result.PackagePath);
+            using FileStream fileStream = File.OpenRead(result.PackagePath);
             using var gzipStream = new GZipStream(fileStream, CompressionMode.Decompress);
             using var reader = new TarReader(gzipStream);
 
             TarEntry? entry;
-            var found = false;
+            bool found = false;
             while ((entry = reader.GetNextEntry()) != null)
             {
                 if (entry.Name.EndsWith("bgm_home.wav", StringComparison.Ordinal))
@@ -85,18 +85,18 @@ public sealed class ThemeExporterBgmTests
     [Fact]
     public void EnabledBgmConversionConvertsAndOmitsNonWavSourceFromTar()
     {
-        var tempDir = Directory.CreateTempSubdirectory().FullName;
+        string tempDir = Directory.CreateTempSubdirectory().FullName;
         try
         {
-            var themeDir = Path.Combine(tempDir, "theme");
-            var outDir = Path.Combine(tempDir, "out");
-            var soundsDir = Path.Combine(themeDir, "resources", "sounds", "hvc");
+            string themeDir = Path.Combine(tempDir, "theme");
+            string outDir = Path.Combine(tempDir, "out");
+            string soundsDir = Path.Combine(themeDir, "resources", "sounds", "hvc");
             Directory.CreateDirectory(soundsDir);
 
             // Input is an MP3 file
             File.WriteAllText(Path.Combine(soundsDir, "bgm_home.mp3"), "mp3 data");
 
-            var fakeFFmpeg = Path.Combine(tempDir, "ffmpeg.exe");
+            string fakeFFmpeg = Path.Combine(tempDir, "ffmpeg.exe");
             File.WriteAllText(fakeFFmpeg, "stub");
 
             var mockConverter = new MockAudioConverter();
@@ -107,19 +107,19 @@ public sealed class ThemeExporterBgmTests
                 FFmpegPath: fakeFFmpeg,
                 BgmChannels: BgmAudioChannels.Mono);
 
-            var result = exporter.ExportPackage(themeDir, outDir, "snes", "mytheme", null, null, options);
+            ThemePackageResult result = exporter.ExportPackage(themeDir, outDir, "snes", "mytheme", null, null, options);
 
             Assert.Equal(1, mockConverter.ConversionCallCount);
             Assert.True(File.Exists(Path.Combine(soundsDir, "bgm_home.wav")));
 
             // Inspect the archive: it MUST contain bgm_home.wav and MUST NOT contain bgm_home.mp3
-            using var fileStream = File.OpenRead(result.PackagePath);
+            using FileStream fileStream = File.OpenRead(result.PackagePath);
             using var gzipStream = new GZipStream(fileStream, CompressionMode.Decompress);
             using var reader = new TarReader(gzipStream);
 
             TarEntry? entry;
-            var hasWav = false;
-            var hasMp3 = false;
+            bool hasWav = false;
+            bool hasMp3 = false;
             while ((entry = reader.GetNextEntry()) != null)
             {
                 if (entry.Name.EndsWith("bgm_home.wav", StringComparison.Ordinal))
@@ -144,17 +144,17 @@ public sealed class ThemeExporterBgmTests
     [Fact]
     public void DisabledIncludeBgmOmitsBgmTracksAndDoesNotCallConverter()
     {
-        var tempDir = Directory.CreateTempSubdirectory().FullName;
+        string tempDir = Directory.CreateTempSubdirectory().FullName;
         try
         {
-            var themeDir = Path.Combine(tempDir, "theme");
-            var outDir = Path.Combine(tempDir, "out");
-            var soundsDir = Path.Combine(themeDir, "resources", "sounds", "hvc");
+            string themeDir = Path.Combine(tempDir, "theme");
+            string outDir = Path.Combine(tempDir, "out");
+            string soundsDir = Path.Combine(themeDir, "resources", "sounds", "hvc");
             Directory.CreateDirectory(soundsDir);
 
             File.WriteAllBytes(Path.Combine(soundsDir, "bgm_home.wav"), WavAudioReader.CreateMinimalPcm16Wav(44100, 2, 44100));
 
-            var fakeFFmpeg = Path.Combine(tempDir, "ffmpeg.exe");
+            string fakeFFmpeg = Path.Combine(tempDir, "ffmpeg.exe");
             File.WriteAllText(fakeFFmpeg, "stub");
 
             var mockConverter = new MockAudioConverter();
@@ -166,16 +166,16 @@ public sealed class ThemeExporterBgmTests
                 BgmChannels: BgmAudioChannels.Mono,
                 IncludeBgm: false);
 
-            var result = exporter.ExportPackage(themeDir, outDir, "snes", "mytheme", null, null, options);
+            ThemePackageResult result = exporter.ExportPackage(themeDir, outDir, "snes", "mytheme", null, null, options);
 
             Assert.Equal(0, mockConverter.ConversionCallCount);
 
-            using var fileStream = File.OpenRead(result.PackagePath);
+            using FileStream fileStream = File.OpenRead(result.PackagePath);
             using var gzipStream = new GZipStream(fileStream, CompressionMode.Decompress);
             using var reader = new TarReader(gzipStream);
 
             TarEntry? entry;
-            var foundBgm = false;
+            bool foundBgm = false;
             while ((entry = reader.GetNextEntry()) != null)
             {
                 if (entry.Name.Contains("bgm_home", StringComparison.OrdinalIgnoreCase))
@@ -195,27 +195,27 @@ public sealed class ThemeExporterBgmTests
     [Fact]
     public void DeltaThemeWithUntouchedBaseBgmDoesNotConvertOrExportBaseBgm()
     {
-        var tempDir = Directory.CreateTempSubdirectory().FullName;
+        string tempDir = Directory.CreateTempSubdirectory().FullName;
         try
         {
-            var themeDir = Path.Combine(tempDir, "theme");
-            var baseDir = Path.Combine(tempDir, "base");
-            var outDir = Path.Combine(tempDir, "out");
+            string themeDir = Path.Combine(tempDir, "theme");
+            string baseDir = Path.Combine(tempDir, "base");
+            string outDir = Path.Combine(tempDir, "out");
 
-            var themeSoundsDir = Path.Combine(themeDir, "resources", "sounds", "hvc");
-            var baseSoundsDir = Path.Combine(baseDir, "resources", "sounds", "hvc");
+            string themeSoundsDir = Path.Combine(themeDir, "resources", "sounds", "hvc");
+            string baseSoundsDir = Path.Combine(baseDir, "resources", "sounds", "hvc");
             Directory.CreateDirectory(themeSoundsDir);
             Directory.CreateDirectory(baseSoundsDir);
 
             // Both have identical stereo WAV
-            var stockAudio = WavAudioReader.CreateMinimalPcm16Wav(44100, 2, 44100);
+            byte[] stockAudio = WavAudioReader.CreateMinimalPcm16Wav(44100, 2, 44100);
             File.WriteAllBytes(Path.Combine(themeSoundsDir, "bgm_home.wav"), stockAudio);
             File.WriteAllBytes(Path.Combine(baseSoundsDir, "bgm_home.wav"), stockAudio);
 
             // Add an altered file so the theme is not empty
             File.WriteAllText(Path.Combine(themeDir, "custom.txt"), "hello");
 
-            var fakeFFmpeg = Path.Combine(tempDir, "ffmpeg.exe");
+            string fakeFFmpeg = Path.Combine(tempDir, "ffmpeg.exe");
             File.WriteAllText(fakeFFmpeg, "stub");
 
             var mockConverter = new MockAudioConverter();
@@ -228,18 +228,18 @@ public sealed class ThemeExporterBgmTests
                 BgmChannels: BgmAudioChannels.Mono,
                 IncludeBgm: true);
 
-            var result = exporter.ExportPackage(themeDir, outDir, "snes", "mytheme", null, baseDir, options);
+            ThemePackageResult result = exporter.ExportPackage(themeDir, outDir, "snes", "mytheme", null, baseDir, options);
 
             // Converter must NOT be called for untouched base file
             Assert.Equal(0, mockConverter.ConversionCallCount);
 
             // Archive must NOT contain bgm_home.wav (it was skipped as unchanged from base)
-            using var fileStream = File.OpenRead(result.PackagePath);
+            using FileStream fileStream = File.OpenRead(result.PackagePath);
             using var gzipStream = new GZipStream(fileStream, CompressionMode.Decompress);
             using var reader = new TarReader(gzipStream);
 
             TarEntry? entry;
-            var foundBgm = false;
+            bool foundBgm = false;
             while ((entry = reader.GetNextEntry()) != null)
             {
                 if (entry.Name.Contains("bgm_home", StringComparison.OrdinalIgnoreCase))

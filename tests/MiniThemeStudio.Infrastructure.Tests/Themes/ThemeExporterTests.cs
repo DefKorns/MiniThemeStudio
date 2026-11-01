@@ -1,5 +1,6 @@
 using System.Formats.Tar;
 using System.IO.Compression;
+using MiniThemeStudio.Core.Themes;
 using MiniThemeStudio.Infrastructure.Themes;
 
 namespace MiniThemeStudio.Infrastructure.Tests.Themes;
@@ -28,11 +29,11 @@ public sealed class ThemeExporterTests : IDisposable
     [Fact]
     public void ExportsPackageInOmThemesLayout()
     {
-        var previewPath = Path.Combine(_rootPath, "my_theme.png");
+        string previewPath = Path.Combine(_rootPath, "my_theme.png");
         File.WriteAllText(previewPath, "preview");
-        var outputPath = Path.Combine(_rootPath, "out");
+        string outputPath = Path.Combine(_rootPath, "out");
 
-        var result = new ThemeExporter().ExportPackage(_themePath, outputPath, "snes", "my_theme", previewPath, null);
+        ThemePackageResult result = new ThemeExporter().ExportPackage(_themePath, outputPath, "snes", "my_theme", previewPath, null);
 
         Assert.Equal(Path.Combine(outputPath, "SNES.my_theme.tar.gz"), result.PackagePath);
         Assert.True(result.IncludesPreview);
@@ -53,7 +54,7 @@ public sealed class ThemeExporterTests : IDisposable
     [Fact]
     public void ExportsPackageWithoutPreviewWhenNoneExists()
     {
-        var result = new ThemeExporter().ExportPackage(_themePath, _rootPath, "shonen", "my_theme", Path.Combine(_rootPath, "missing.png"), null);
+        ThemePackageResult result = new ThemeExporter().ExportPackage(_themePath, _rootPath, "shonen", "my_theme", Path.Combine(_rootPath, "missing.png"), null);
 
         Assert.False(result.IncludesPreview);
         Assert.EndsWith("SHONEN.my_theme.tar.gz", result.PackagePath, StringComparison.Ordinal);
@@ -63,13 +64,13 @@ public sealed class ThemeExporterTests : IDisposable
     [Fact]
     public void LeavesOutFilesIdenticalToTheBase()
     {
-        var basePath = Path.Combine(_rootPath, "base");
+        string basePath = Path.Combine(_rootPath, "base");
         WriteFile(basePath, "dependencies.json", "{}");
         WriteFile(basePath, "resources/sprites/packed.png", "stock png");
         WriteFile(basePath, "resources/prefab/bg.scn", "scene");
         WriteFile(_themePath, "resources/prefab/bg.scn", "scene");
 
-        var result = new ThemeExporter().ExportPackage(_themePath, Path.Combine(_rootPath, "out"), "snes", "my_theme", null, basePath);
+        ThemePackageResult result = new ThemeExporter().ExportPackage(_themePath, Path.Combine(_rootPath, "out"), "snes", "my_theme", null, basePath);
 
         Assert.Equal(1, result.FileCount);
         Assert.Equal(2, result.UnchangedFilesSkipped);
@@ -81,16 +82,32 @@ public sealed class ThemeExporterTests : IDisposable
     [Fact]
     public void MarksPackagesWithNewFilesForOverlay()
     {
-        var basePath = Path.Combine(_rootPath, "base");
+        string basePath = Path.Combine(_rootPath, "base");
         WriteFile(basePath, "resources/sprites/packed.png", "stock png");
         WriteFile(_themePath, "resources/layout/asset/sprite/mario/mario_run04.png", "new frame");
 
-        var withNewFile = new ThemeExporter().ExportPackage(_themePath, Path.Combine(_rootPath, "a"), "snes", "my_theme", null, basePath);
+        ThemePackageResult withNewFile = new ThemeExporter().ExportPackage(_themePath, Path.Combine(_rootPath, "a"), "snes", "my_theme", null, basePath);
         File.Delete(Path.Combine(_themePath, "resources", "layout", "asset", "sprite", "mario", "mario_run04.png"));
-        var changedOnly = new ThemeExporter().ExportPackage(_themePath, Path.Combine(_rootPath, "b"), "snes", "my_theme", null, basePath);
+        ThemePackageResult changedOnly = new ThemeExporter().ExportPackage(_themePath, Path.Combine(_rootPath, "b"), "snes", "my_theme", null, basePath);
 
         Assert.Contains("my_theme/needs_overlay", ReadEntryNames(withNewFile.PackagePath));
         Assert.DoesNotContain("my_theme/needs_overlay", ReadEntryNames(changedOnly.PackagePath));
+    }
+
+    [Fact]
+    public void ThemeFontsGoBesideResourcesNamedAsFontRemountReadsThem()
+    {
+        // the theme's fonts folder, and a font an older draft kept in resources/fonts
+        WriteFile(_themePath, "fonts/large.fnt", "large");
+        WriteFile(_themePath, "resources/fonts/nes/s.fnt", "small");
+        WriteFile(_themePath, "resources/fonts/l.fnt", "older large");
+
+        ThemePackageResult result = new ThemeExporter().ExportPackage(_themePath, Path.Combine(_rootPath, "out"), "nes", "my_theme", null, null);
+
+        List<string> entries = ReadEntryNames(result.PackagePath);
+        Assert.Contains("my_theme/fonts/large.fnt", entries);
+        Assert.Contains("my_theme/fonts/small.fnt", entries);
+        Assert.DoesNotContain(entries, entry => entry.StartsWith("my_theme/resources/fonts", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -101,7 +118,7 @@ public sealed class ThemeExporterTests : IDisposable
 
     private static List<string> ReadEntryNames(string packagePath)
     {
-        using var stream = File.OpenRead(packagePath);
+        using FileStream stream = File.OpenRead(packagePath);
         using var gzip = new GZipStream(stream, CompressionMode.Decompress);
         using var reader = new TarReader(gzip);
         var names = new List<string>();
@@ -115,7 +132,7 @@ public sealed class ThemeExporterTests : IDisposable
 
     private static void WriteFile(string root, string relativePath, string content)
     {
-        var path = Path.Combine(root, relativePath);
+        string path = Path.Combine(root, relativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, content);
     }

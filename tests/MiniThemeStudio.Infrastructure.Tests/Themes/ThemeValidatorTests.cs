@@ -1,3 +1,4 @@
+using MiniThemeStudio.Core.Themes;
 using MiniThemeStudio.Infrastructure.Themes;
 using SkiaSharp;
 
@@ -8,8 +9,8 @@ public sealed class ThemeValidatorTests
     [Fact]
     public void ValidatesAtlasMatchingCoordinates()
     {
-        var tempDir = Directory.CreateTempSubdirectory().FullName;
-        var spritesDir = Path.Combine(tempDir, "resources", "sprites");
+        string tempDir = Directory.CreateTempSubdirectory().FullName;
+        string spritesDir = Path.Combine(tempDir, "resources", "sprites");
         Directory.CreateDirectory(spritesDir);
 
         SaveSolidPng(Path.Combine(spritesDir, "packed.png"), 100, 100, SKColors.Red);
@@ -27,7 +28,7 @@ public sealed class ThemeValidatorTests
         try
         {
             var validator = new ThemeValidator();
-            var result = validator.Validate(tempDir);
+            ThemeValidationResult result = validator.Validate(tempDir);
             Assert.True(result.IsValid);
         }
         finally
@@ -39,8 +40,8 @@ public sealed class ThemeValidatorTests
     [Fact]
     public void RejectsAtlasWithOutOfBoundsSpriteCoordinates()
     {
-        var tempDir = Directory.CreateTempSubdirectory().FullName;
-        var spritesDir = Path.Combine(tempDir, "resources", "sprites");
+        string tempDir = Directory.CreateTempSubdirectory().FullName;
+        string spritesDir = Path.Combine(tempDir, "resources", "sprites");
         Directory.CreateDirectory(spritesDir);
 
         SaveSolidPng(Path.Combine(spritesDir, "packed.png"), 100, 100, SKColors.Red);
@@ -58,7 +59,7 @@ public sealed class ThemeValidatorTests
         try
         {
             var validator = new ThemeValidator();
-            var result = validator.Validate(tempDir);
+            ThemeValidationResult result = validator.Validate(tempDir);
             Assert.False(result.IsValid);
             Assert.Contains(result.Issues, i => i.IsError && i.Message.Contains("exceeds atlas dimensions"));
         }
@@ -71,8 +72,8 @@ public sealed class ThemeValidatorTests
     [Fact]
     public void AcceptsNesThemeWithoutPackedAtlas()
     {
-        var tempDir = Directory.CreateTempSubdirectory().FullName;
-        var spritesDir = Path.Combine(tempDir, "resources", "sprites");
+        string tempDir = Directory.CreateTempSubdirectory().FullName;
+        string spritesDir = Path.Combine(tempDir, "resources", "sprites");
         Directory.CreateDirectory(spritesDir);
         SaveSolidPng(Path.Combine(spritesDir, "nes.png"), 64, 64, SKColors.Red);
         File.WriteAllText(
@@ -81,7 +82,7 @@ public sealed class ThemeValidatorTests
 
         try
         {
-            var result = new ThemeValidator().Validate(tempDir);
+            ThemeValidationResult result = new ThemeValidator().Validate(tempDir);
 
             Assert.True(result.IsValid);
             Assert.DoesNotContain(result.Issues, issue => issue.Message.Contains("packed"));
@@ -95,11 +96,11 @@ public sealed class ThemeValidatorTests
     [Fact]
     public void ReportsThemeWithoutAnyAtlas()
     {
-        var tempDir = Directory.CreateTempSubdirectory().FullName;
+        string tempDir = Directory.CreateTempSubdirectory().FullName;
 
         try
         {
-            var result = new ThemeValidator().Validate(tempDir);
+            ThemeValidationResult result = new ThemeValidator().Validate(tempDir);
 
             Assert.False(result.IsValid);
             Assert.Contains(result.Issues, issue => issue.IsError && issue.Message.StartsWith("No sprite atlas found", StringComparison.Ordinal));
@@ -115,8 +116,8 @@ public sealed class ThemeValidatorTests
         using var bitmap = new SKBitmap(width, height);
         bitmap.Erase(color);
         using var image = SKImage.FromBitmap(bitmap);
-        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-        using var stream = File.Create(path);
+        using SKData data = image.Encode(SKEncodedImageFormat.Png, 100);
+        using FileStream stream = File.Create(path);
         data.SaveTo(stream);
     }
 }

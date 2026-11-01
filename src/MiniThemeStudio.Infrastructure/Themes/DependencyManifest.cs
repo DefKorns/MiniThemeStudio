@@ -59,8 +59,8 @@ internal sealed class DependencyManifest
             throw new IOException($"A texture is already registered at resources{imageResourcePath}.");
         }
 
-        var textureId = Guid.NewGuid().ToString();
-        var group = NextGroupId();
+        string textureId = Guid.NewGuid().ToString();
+        int group = NextGroupId();
         _resources.Add(new JsonObject
         {
             ["id"] = textureId,
@@ -79,12 +79,36 @@ internal sealed class DependencyManifest
         return textureId;
     }
 
+    // the scenes and animations that still draw the texture (the sprite sheet describing it does not count)
+    public IReadOnlyList<string> UsersOf(string textureId) =>
+        Resources
+            .Where(resource => resource.Type is Scene or SceneAnimation && resource.References.Any(reference => reference.Id == textureId && reference.Count > 0))
+            .Select(resource => resource.Path ?? resource.Id)
+            .ToList();
+
+    // drops the texture and the sprite sheets that only describe it
+    public void RemoveTexture(string textureId)
+    {
+        foreach (JsonObject? resource in _resources.OfType<JsonObject>().ToList())
+        {
+            bool isTexture = Text(resource["id"]) == textureId && Text(resource["type"]) == TextureResource;
+            bool isItsSheet = Text(resource["type"]) == SpriteSheet
+                && resource["dependencies"] is JsonArray references
+                && references.OfType<JsonObject>().All(reference => Text(reference["id"]) == textureId)
+                && references.Count > 0;
+            if (isTexture || isItsSheet)
+            {
+                _resources.Remove(resource);
+            }
+        }
+    }
+
     // adds delta to how many times the resource at ownerPath references referencedId; a count of 0 drops the entry
     public void ChangeReferenceCount(string ownerType, string ownerPath, string referencedId, int delta)
     {
-        var references = References(ownerType, ownerPath);
-        var reference = references.OfType<JsonObject>().FirstOrDefault(candidate => Text(candidate["id"]) == referencedId);
-        var count = (reference is null ? 0 : Count(reference)) + delta;
+        JsonArray references = References(ownerType, ownerPath);
+        JsonObject? reference = references.OfType<JsonObject>().FirstOrDefault(candidate => Text(candidate["id"]) == referencedId);
+        int count = (reference is null ? 0 : Count(reference)) + delta;
         if (reference is null)
         {
             if (count > 0)
@@ -108,8 +132,8 @@ internal sealed class DependencyManifest
         ArgumentNullException.ThrowIfNull(isReplaced);
         ArgumentNullException.ThrowIfNull(counts);
 
-        var owner = Owner(ownerType, ownerPath);
-        var kept = (owner["dependencies"] as JsonArray ?? [])
+        JsonObject owner = Owner(ownerType, ownerPath);
+        IEnumerable<JsonNode> kept = (owner["dependencies"] as JsonArray ?? [])
             .OfType<JsonObject>()
             .Where(reference => !isReplaced(Text(reference["id"]) ?? ""))
             .Select(reference => reference.DeepClone());
@@ -143,7 +167,7 @@ internal sealed class DependencyManifest
 
     private JsonArray References(string ownerType, string ownerPath)
     {
-        var owner = Owner(ownerType, ownerPath);
+        JsonObject owner = Owner(ownerType, ownerPath);
         if (owner["dependencies"] is not JsonArray references)
         {
             references = [];
@@ -162,7 +186,7 @@ internal sealed class DependencyManifest
     private int NextGroupId()
     {
         return _resources.OfType<JsonObject>()
-            .Select(resource => int.TryParse(Text(resource["groupId"]), NumberStyles.Integer, CultureInfo.InvariantCulture, out var group) ? group : 0)
+            .Select(resource => int.TryParse(Text(resource["groupId"]), NumberStyles.Integer, CultureInfo.InvariantCulture, out int group) ? group : 0)
             .DefaultIfEmpty(0)
             .Max() + 1;
     }
@@ -182,11 +206,11 @@ internal sealed class DependencyManifest
 
     private static int Count(JsonObject reference)
     {
-        return reference["refCount"] is JsonValue value && value.TryGetValue<int>(out var count) ? count : 1;
+        return reference["refCount"] is JsonValue value && value.TryGetValue<int>(out int count) ? count : 1;
     }
 
     private static string? Text(JsonNode? value)
     {
-        return value is JsonValue json && json.TryGetValue<string>(out var text) ? text : null;
+        return value is JsonValue json && json.TryGetValue<string>(out string? text) ? text : null;
     }
 }

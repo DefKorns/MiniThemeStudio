@@ -76,7 +76,7 @@ public sealed partial class SpritesViewModel : ViewModelBase
     public bool ShowSprite(SceneSpriteRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var atlas = Atlases.FirstOrDefault(candidate => candidate.TextureId == request.TextureId)
+        TextureAtlas? atlas = Atlases.FirstOrDefault(candidate => candidate.TextureId == request.TextureId)
             ?? Atlases.FirstOrDefault(candidate => request.ImagePath is not null && SamePath(candidate.ImagePath, request.ImagePath));
         if (atlas?.Sprites.FirstOrDefault(sprite => sprite.Name == request.SpriteName) is not { } sprite)
         {
@@ -115,7 +115,7 @@ public sealed partial class SpritesViewModel : ViewModelBase
 
         if (draftImagePath != atlas.ImagePath)
         {
-            var draftAtlas = atlas with { ImagePath = draftImagePath! };
+            TextureAtlas draftAtlas = atlas with { ImagePath = draftImagePath! };
             Atlases = Atlases.Select(candidate => candidate == atlas ? draftAtlas : candidate).ToList();
             SelectedAtlas = draftAtlas;
             SelectedSprite = sprite;
@@ -135,7 +135,7 @@ public sealed partial class SpritesViewModel : ViewModelBase
             return;
         }
 
-        var atlasImagePath = AtlasImagePath;
+        string atlasImagePath = AtlasImagePath;
         if (await _errorHandler.TryRunAsync($"Cannot export {sprite.Name}", () =>
         {
             _assetManager.ExportPackedSprite(atlasImagePath, sprite, savePath);
@@ -148,7 +148,7 @@ public sealed partial class SpritesViewModel : ViewModelBase
 
     private void Reload()
     {
-        var previousAtlas = SelectedAtlas?.Name;
+        string? previousAtlas = SelectedAtlas?.Name;
         Atlases = _session.Draft is { } draft ? _atlasReader.ReadAll(draft.DraftPath, _session.BaseUiPath) : [];
         SelectedAtlas = Atlases.FirstOrDefault(atlas => atlas.Name == previousAtlas)
             ?? (Atlases.Count > 0 ? Atlases[0] : null);

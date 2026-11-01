@@ -1,3 +1,4 @@
+using MiniThemeStudio.Core.Settings;
 using MiniThemeStudio.Infrastructure.Settings;
 
 namespace MiniThemeStudio.Infrastructure.Tests.Settings;
@@ -7,7 +8,7 @@ public sealed class JsonAppSettingsStoreTests
     [Fact]
     public void UsesUsbConnectionDefaultsWhenSettingsDoNotExist()
     {
-        var rootPath = Directory.CreateTempSubdirectory().FullName;
+        string rootPath = Directory.CreateTempSubdirectory().FullName;
 
         try
         {
@@ -25,10 +26,10 @@ public sealed class JsonAppSettingsStoreTests
     [Fact]
     public void SavesAndLoadsNonSecretSettings()
     {
-        var rootPath = Directory.CreateTempSubdirectory().FullName;
-        var settingsPath = Path.Combine(rootPath, "settings.json");
+        string rootPath = Directory.CreateTempSubdirectory().FullName;
+        string settingsPath = Path.Combine(rootPath, "settings.json");
         var store = new JsonAppSettingsStore(settingsPath);
-        var settings = store.Current with
+        AppSettings settings = store.Current with
         {
             ConsoleHost = "192.168.3.197",
             InitialSetupCompleted = true,
@@ -51,10 +52,10 @@ public sealed class JsonAppSettingsStoreTests
     [Fact]
     public void SavesAndLoadsFFmpegAndBgmPreferences()
     {
-        var rootPath = Directory.CreateTempSubdirectory().FullName;
-        var settingsPath = Path.Combine(rootPath, "settings.json");
+        string rootPath = Directory.CreateTempSubdirectory().FullName;
+        string settingsPath = Path.Combine(rootPath, "settings.json");
         var store = new JsonAppSettingsStore(settingsPath);
-        var settings = store.Current with
+        AppSettings settings = store.Current with
         {
             FFmpegPath = "C:\\Tools\\ffmpeg.exe",
             ConvertBgmAudio = true,

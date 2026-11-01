@@ -5,7 +5,8 @@ namespace MiniThemeStudio.Infrastructure.Themes;
 /// <summary>
 /// Reads and edits the colours of a firmware colors_*.lua, which is stripped LuaJIT 2.0 bytecode.
 /// Every colour is a constant template table {r, g, b, a} that a TDUP copies and a TSETS stores under its name,
-/// so editing the template's numbers gives the same bytes LuaJIT 2.0.2 compiles from the edited source.
+/// so editing the template's numbers gives the same bytes LuaJIT compiles from the edited source. Both LuaJIT 2.0.2 and
+/// the 2.0.4 build in Nintendo's open-source release for the consoles compile the stock colors_eur.lua to the console's file.
 /// </summary>
 public sealed class LuaColorPalette
 {

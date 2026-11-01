@@ -19,7 +19,7 @@
         <TextBlock Text="Original Base UIs are verified by SHA-256 before they are installed. Provide your own firmware files; none are bundled."
                    TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}" />
       </StackPanel>
-      <Button Grid.Column="1" Click="Refresh_Click" Background="Transparent" ToolTip.Tip="Refresh installed bases">
+      <Button Grid.Column="1" Click="Refresh_Click" Background="Transparent" ToolTip.Tip="Refresh installed bases" AutomationProperties.Name="Refresh installed bases">
         <StackPanel Orientation="Horizontal" Spacing="8">
           <lucide:LucideIcon Kind="RotateCcw" Size="16" />
           <TextBlock Text="Refresh" />

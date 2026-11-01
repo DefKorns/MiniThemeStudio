@@ -20,11 +20,20 @@
         Background="{DynamicResource PageBackgroundBrush}"
         FontFamily="Segoe UI, Ubuntu, sans-serif">
 
+  <Window.KeyBindings>
+    <KeyBinding Gesture="Ctrl+S" Command="{Binding SaveThemeCommand}" />
+    <KeyBinding Gesture="Ctrl+Shift+S" Command="{Binding SaveDraftCommand}" />
+    <KeyBinding Gesture="Ctrl+E" Command="{Binding ExportPackageCommand}" />
+    <KeyBinding Gesture="Ctrl+N" Command="{Binding CreateThemeCommand}" />
+    <KeyBinding Gesture="Ctrl+O" Command="{Binding OpenThemeCommand}" />
+    <KeyBinding Gesture="Ctrl+OemComma" Command="{Binding ShowSettingsCommand}" />
+  </Window.KeyBindings>
+
   <Window.DataTemplates>
     <!-- play / pause, the time slider and the time, for every animation preview -->
     <DataTemplate DataType="vm:AnimationClock">
       <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-        <ToggleButton Padding="12,4" IsChecked="{Binding IsPlaying, Mode=OneWay}" Command="{Binding TogglePlayCommand}" ToolTip.Tip="Play in a loop, or pause">
+        <ToggleButton Padding="12,4" IsChecked="{Binding IsPlaying, Mode=OneWay}" Command="{Binding TogglePlayCommand}" ToolTip.Tip="Play in a loop, or pause" AutomationProperties.Name="Play in a loop, or pause">
           <Panel>
               <lucide:LucideIcon Kind="Play" Size="14" IsVisible="{Binding !IsPlaying}" />
               <lucide:LucideIcon Kind="Pause" Size="14" IsVisible="{Binding IsPlaying}" />
@@ -44,39 +53,39 @@
         <StackPanel Grid.Row="1" Margin="0,16" Spacing="8">
           <Panel IsVisible="{Binding IsThemeOpen}">
             <Border Width="3" Margin="0,12" HorizontalAlignment="Left" Background="{DynamicResource AccentBrush}" CornerRadius="0,2,2,0" IsVisible="{Binding IsHomeVisible}" />
-            <Button Classes="nav" Classes.active="{Binding IsHomeVisible}" Width="40" Height="40" Padding="0" HorizontalAlignment="Center" Command="{Binding GoToStartCommand}" ToolTip.Tip="Start page (your theme stays open)">
+            <Button Classes="nav" Classes.active="{Binding IsHomeVisible}" Width="40" Height="40" Padding="0" HorizontalAlignment="Center" Command="{Binding GoToStartCommand}" ToolTip.Tip="Start page (your theme stays open)" AutomationProperties.Name="Start page (your theme stays open)">
               <lucide:LucideIcon Kind="House" Size="20" />
             </Button>
           </Panel>
           <Panel IsVisible="{Binding IsThemeOpen}">
             <!-- accent bar on the edge of the sidebar marks the section being shown -->
             <Border Width="3" Margin="0,12" HorizontalAlignment="Left" Background="{DynamicResource AccentBrush}" CornerRadius="0,2,2,0" IsVisible="{Binding IsWorkspaceVisible}" />
-            <Button Classes="nav" Classes.active="{Binding IsWorkspaceVisible}" Width="40" Height="40" Padding="0" HorizontalAlignment="Center" Command="{Binding ResumeWorkspaceCommand}" ToolTip.Tip="Back to the theme you are editing">
+            <Button Classes="nav" Classes.active="{Binding IsWorkspaceVisible}" Width="40" Height="40" Padding="0" HorizontalAlignment="Center" Command="{Binding ResumeWorkspaceCommand}" ToolTip.Tip="Back to the theme you are editing" AutomationProperties.Name="Back to the theme you are editing">
               <lucide:LucideIcon Kind="LayoutDashboard" Size="20" />
             </Button>
           </Panel>
           <Border Width="24" Height="1" Margin="0,4" Background="{DynamicResource HeaderBorderBrush}" IsVisible="{Binding IsThemeOpen}" />
           <Panel>
-            <Button Classes="nav" Width="40" Height="40" Padding="0" HorizontalAlignment="Center" Command="{Binding CreateThemeCommand}" ToolTip.Tip="Create new theme">
+            <Button Classes="nav" Width="40" Height="40" Padding="0" HorizontalAlignment="Center" Command="{Binding CreateThemeCommand}" ToolTip.Tip="Create new theme (Ctrl+N)" AutomationProperties.Name="Create new theme">
               <lucide:LucideIcon Kind="Plus" Size="20" />
             </Button>
           </Panel>
           <Panel>
-            <Button Classes="nav" Width="40" Height="40" Padding="0" HorizontalAlignment="Center" Command="{Binding OpenThemeCommand}" ToolTip.Tip="Edit existing theme">
+            <Button Classes="nav" Width="40" Height="40" Padding="0" HorizontalAlignment="Center" Command="{Binding OpenThemeCommand}" ToolTip.Tip="Edit existing theme (Ctrl+O)" AutomationProperties.Name="Edit existing theme">
               <lucide:LucideIcon Kind="FolderOpen" Size="20" />
             </Button>
           </Panel>
           <Panel>
-            <Button Classes="nav" Width="40" Height="40" Padding="0" HorizontalAlignment="Center" Command="{Binding ShowSavedDraftsCommand}" ToolTip.Tip="Saved drafts">
+            <Button Classes="nav" Width="40" Height="40" Padding="0" HorizontalAlignment="Center" Command="{Binding ShowSavedDraftsCommand}" ToolTip.Tip="Saved drafts" AutomationProperties.Name="Saved drafts">
               <lucide:LucideIcon Kind="FolderClock" Size="20" />
             </Button>
           </Panel>
         </StackPanel>
         <StackPanel Grid.Row="2" Margin="8,0,8,12" Spacing="8">
-          <Button Classes="nav" Width="40" Height="40" Padding="0" Command="{Binding ShowSettingsCommand}" ToolTip.Tip="Settings">
+          <Button Classes="nav" Width="40" Height="40" Padding="0" Command="{Binding ShowSettingsCommand}" ToolTip.Tip="Settings (Ctrl+,)" AutomationProperties.Name="Settings">
             <lucide:LucideIcon Kind="Settings" Size="20" />
           </Button>
-          <Button Classes="nav" Width="40" Height="40" Padding="0" Click="ThemeMode_Click" ToolTip.Tip="Toggle dark mode">
+          <Button Classes="nav" Width="40" Height="40" Padding="0" Click="ThemeMode_Click" ToolTip.Tip="Toggle dark mode" AutomationProperties.Name="Toggle dark mode">
             <lucide:LucideIcon x:Name="ThemeModeIcon" Kind="Moon" Size="20" Foreground="{DynamicResource HeaderMutedBrush}" />
           </Button>
         </StackPanel>
@@ -93,7 +102,7 @@
           <Border Grid.Column="1" Padding="8,2" Background="{DynamicResource SidebarSelectedBrush}" CornerRadius="4">
             <TextBlock FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource HeaderMutedBrush}" Text="{Binding Author, StringFormat='by {0}'}" />
           </Border>
-          <Button Grid.Column="2" Padding="8,2" Background="{DynamicResource SidebarSelectedBrush}" CornerRadius="4" Command="{Binding ChangeBaseCommand}" ToolTip.Tip="Console and Base used to edit this theme">
+          <Button Grid.Column="2" Padding="8,2" Background="{DynamicResource SidebarSelectedBrush}" CornerRadius="4" Command="{Binding ChangeBaseCommand}" ToolTip.Tip="Console and Base used to edit this theme" AutomationProperties.Name="Console and Base used to edit this theme">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <lucide:LucideIcon Kind="Gamepad2" Size="14" Foreground="{DynamicResource HeaderMutedBrush}" />
               <TextBlock FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource HeaderMutedBrush}" Text="{Binding CurrentBaseLabel}" />
@@ -110,20 +119,20 @@
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" IsVisible="{Binding IsThemeOpen}">
           <ToggleSwitch VerticalAlignment="Center" IsChecked="{Binding Mode.IsAdvanced}" OnContent="Advanced" OffContent="Simple"
                         ToolTip.Tip="Simple: sprites, wallpapers, colours, character frames, fonts and music. Advanced adds scenes, scrolling layers and character animations" />
-          <Button Classes="ghost" Padding="12,8" Command="{Binding RunValidationCommand}" ToolTip.Tip="Validate theme integrity">
+          <Button Classes="ghost" Padding="12,8" Command="{Binding RunValidationCommand}" ToolTip.Tip="Validate theme integrity" AutomationProperties.Name="Validate theme integrity">
             <StackPanel Orientation="Horizontal" Spacing="8">
               <lucide:LucideIcon Kind="Check" Size="16" />
               <TextBlock Text="Validate" />
             </StackPanel>
           </Button>
-          <Button Classes="ghost" Padding="8,8" ToolTip.Tip="More actions">
+          <Button Classes="ghost" Padding="8,8" ToolTip.Tip="More actions" AutomationProperties.Name="More actions">
             <lucide:LucideIcon Kind="Ellipsis" Size="16" />
             <Button.Flyout>
               <MenuFlyout Placement="BottomEdgeAlignedRight">
-                <MenuItem Header="Save draft" Command="{Binding SaveDraftCommand}">
+                <MenuItem Header="Save draft" InputGesture="Ctrl+Shift+S" Command="{Binding SaveDraftCommand}">
                   <MenuItem.Icon><lucide:LucideIcon Kind="Bookmark" Size="14" /></MenuItem.Icon>
                 </MenuItem>
-                <MenuItem Header="Export .tar.gz" Command="{Binding ExportPackageCommand}">
+                <MenuItem Header="Export .tar.gz" InputGesture="Ctrl+E" Command="{Binding ExportPackageCommand}">
                   <MenuItem.Icon><lucide:LucideIcon Kind="Package" Size="14" /></MenuItem.Icon>
                 </MenuItem>
                 <Separator />
@@ -133,7 +142,7 @@
               </MenuFlyout>
             </Button.Flyout>
           </Button>
-          <Button Classes="primary" Padding="16,8" IsEnabled="{Binding HasUnsavedChanges}" Command="{Binding SaveThemeCommand}" Content="Save" />
+          <Button Classes="primary" Padding="16,8" IsEnabled="{Binding HasUnsavedChanges}" Command="{Binding SaveThemeCommand}" Content="Save" ToolTip.Tip="Save the theme (Ctrl+S)" />
         </StackPanel>
       </Grid>
     </Border>
@@ -245,6 +254,8 @@
                 </Grid>
               </StackPanel>
 
+              <TextBlock Grid.Row="1" Margin="16" HorizontalAlignment="Center" VerticalAlignment="Top" TextAlignment="Center" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
+                         IsVisible="{Binding !FilteredSprites.Count}" Text="No sprites match the search." />
               <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding FilteredSprites}" SelectedItem="{Binding SelectedSprite}">
                 <ListBox.Styles>
                   <Style Selector="ListBoxItem">
@@ -279,7 +290,7 @@
                   <Button Padding="8,2" Content="1x" Click="AtlasZoom1x_Click" ToolTip.Tip="Atlas at 100%" />
                   <Button Padding="8,2" Content="2x" Click="AtlasZoom2x_Click" ToolTip.Tip="Atlas at 200%" />
                   <Button Padding="8,2" Content="3x" Click="AtlasZoom3x_Click" ToolTip.Tip="Atlas at 300%" />
-                  <ToggleButton Margin="8,0,0,0" Padding="8,2" IsChecked="{Binding IsInspectorVisible}" ToolTip.Tip="Show or hide the sprite inspector">
+                  <ToggleButton Margin="8,0,0,0" Padding="8,2" IsChecked="{Binding IsInspectorVisible}" ToolTip.Tip="Show or hide the sprite inspector" AutomationProperties.Name="Show or hide the sprite inspector">
                     <lucide:LucideIcon Kind="PanelRight" Size="16" />
                   </ToggleButton>
                 </StackPanel>
@@ -438,7 +449,7 @@
             <Grid RowDefinitions="Auto,*">
               <Grid Margin="16,12,12,12" ColumnDefinitions="*,Auto">
                 <TextBlock VerticalAlignment="Center" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Wallpaper images" />
-                <ToggleButton Grid.Column="1" Padding="8,2" IsChecked="{Binding IsInspectorVisible}" ToolTip.Tip="Show or hide the wallpaper panel">
+                <ToggleButton Grid.Column="1" Padding="8,2" IsChecked="{Binding IsInspectorVisible}" ToolTip.Tip="Show or hide the wallpaper panel" AutomationProperties.Name="Show or hide the wallpaper panel">
                   <lucide:LucideIcon Kind="PanelRight" Size="16" />
                 </ToggleButton>
               </Grid>
@@ -605,7 +616,7 @@
                     </DataTemplate>
                   </ComboBox.ItemTemplate>
                 </ComboBox>
-                <Button Grid.Column="1" Padding="12,4" Command="{Binding StopAnimationCommand}" ToolTip.Tip="Back to the scene as it is saved">
+                <Button Grid.Column="1" Padding="12,4" Command="{Binding StopAnimationCommand}" ToolTip.Tip="Back to the scene as it is saved" AutomationProperties.Name="Back to the scene as it is saved">
                   <lucide:LucideIcon Kind="Square" Size="14" />
                 </Button>
                 <ContentControl Grid.Column="2" Content="{Binding Clock}" />
@@ -783,7 +794,7 @@
                 <TextBlock VerticalAlignment="Center" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Frames of" />
                 <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding Characters}" SelectedItem="{Binding SelectedCharacter}" />
                 <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="{DynamicResource FontSizeSmall}" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding CharacterSizeText}" TextTrimming="CharacterEllipsis" />
-                <ToggleButton Grid.Column="3" Padding="8,2" IsChecked="{Binding IsInspectorVisible}" ToolTip.Tip="Show or hide the animation panel">
+                <ToggleButton Grid.Column="3" Padding="8,2" IsChecked="{Binding IsInspectorVisible}" ToolTip.Tip="Show or hide the animation panel" AutomationProperties.Name="Show or hide the animation panel">
                   <lucide:LucideIcon Kind="PanelRight" Size="16" />
                 </ToggleButton>
               </Grid>
@@ -819,7 +830,7 @@
             <Grid RowDefinitions="Auto,*" Margin="12">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock VerticalAlignment="Center" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Frames (faded frames run after the loop, click to select)" />
-                <ToggleButton Grid.Column="1" Padding="8,2" IsChecked="{Binding IsInspectorVisible}" ToolTip.Tip="Show or hide the animation panel">
+                <ToggleButton Grid.Column="1" Padding="8,2" IsChecked="{Binding IsInspectorVisible}" ToolTip.Tip="Show or hide the animation panel" AutomationProperties.Name="Show or hide the animation panel">
                   <lucide:LucideIcon Kind="PanelRight" Size="16" />
                 </ToggleButton>
               </Grid>
@@ -994,7 +1005,7 @@
                     <Button Padding="8,2" Content="1x" Click="GlyphAtlasZoom1x_Click" ToolTip.Tip="Atlas at 100%" />
                     <Button Padding="8,2" Content="2x" Click="GlyphAtlasZoom2x_Click" ToolTip.Tip="Atlas at 200%" />
                     <Button Padding="8,2" Content="3x" Click="GlyphAtlasZoom3x_Click" ToolTip.Tip="Atlas at 300%" />
-                    <ToggleButton Margin="8,0,0,0" Padding="8,2" IsChecked="{Binding IsInspectorVisible}" ToolTip.Tip="Show or hide the glyph coverage panel">
+                    <ToggleButton Margin="8,0,0,0" Padding="8,2" IsChecked="{Binding IsInspectorVisible}" ToolTip.Tip="Show or hide the glyph coverage panel" AutomationProperties.Name="Show or hide the glyph coverage panel">
                       <lucide:LucideIcon Kind="PanelRight" Size="16" />
                     </ToggleButton>
                   </StackPanel>
@@ -1076,6 +1087,8 @@
               </Grid>
               <TextBox Grid.Row="1" Margin="16,0,16,8" Height="36" Watermark="Search by name, words on screen or hex..." Text="{Binding ColorSearchText}" />
               <!-- each colour with the words the console draws with it, under the screen they are on -->
+              <TextBlock Grid.Row="2" Margin="16" HorizontalAlignment="Center" VerticalAlignment="Top" TextAlignment="Center" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
+                         IsVisible="{Binding !PaletteColors.Count}" Text="No colours match the search." />
               <ListBox Grid.Row="2" Margin="8,0,8,8" ItemsSource="{Binding PaletteColors}" SelectedItem="{Binding SelectedPaletteColor}">
                 <ListBox.ItemTemplate>
                   <DataTemplate x:DataType="vm:PaletteColorRow">

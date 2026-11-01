@@ -115,6 +115,7 @@ public partial class MainWindowViewModel : ViewModelBase
     // the order of the tabs in the window
     private const int ScenesTabIndex = 2;
     private const int ColorsTabIndex = 5;
+    private const int ValidationTabIndex = 7;
 
     // simple or advanced editing: which tabs, and which parts of them, show
     public EditingMode Mode { get; }
@@ -261,6 +262,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private void RunValidation()
     {
         ValidationTab.Run();
+        SelectedTabIndex = ValidationTabIndex;
     }
 
     public void ShowHome()

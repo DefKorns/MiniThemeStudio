@@ -4,6 +4,54 @@
 
   <Application.Resources>
     <ResourceDictionary>
+      <!-- Section tab: underlined when checked -->
+      <ControlTheme x:Key="SectionTabTheme" TargetType="RadioButton">
+        <Setter Property="Foreground" Value="{DynamicResource HeaderMutedBrush}" />
+        <Setter Property="Padding" Value="16,0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+          <ControlTemplate>
+            <Border Name="Part" Background="Transparent" BorderBrush="Transparent" BorderThickness="0,0,0,2" Padding="{TemplateBinding Padding}"><ContentPresenter Content="{TemplateBinding Content}" VerticalAlignment="Center" TextElement.Foreground="{TemplateBinding Foreground}" /></Border>
+          </ControlTemplate>
+        </Setter>
+        <Style Selector="^:pointerover">
+          <Setter Property="Foreground" Value="{DynamicResource HeaderTextBrush}" />
+        </Style>
+        <Style Selector="^:checked">
+          <Setter Property="Foreground" Value="{DynamicResource HeaderTextBrush}" />
+        </Style>
+        <Style Selector="^:checked /template/ Border#Part">
+          <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        </Style>
+        <Style Selector="^:focus-visible /template/ Border#Part">
+          <Setter Property="Background" Value="{DynamicResource SidebarSelectedBrush}" />
+        </Style>
+      </ControlTheme>
+
+      <!-- Segment of a sub-navigation: filled when checked -->
+      <ControlTheme x:Key="SegmentTheme" TargetType="RadioButton">
+        <Setter Property="Foreground" Value="{DynamicResource HeaderMutedBrush}" />
+        <Setter Property="Padding" Value="12,4" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+          <ControlTemplate>
+            <Border Name="Part" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="4" Padding="{TemplateBinding Padding}"><ContentPresenter Content="{TemplateBinding Content}" HorizontalAlignment="Center" TextElement.Foreground="{TemplateBinding Foreground}" /></Border>
+          </ControlTemplate>
+        </Setter>
+        <Style Selector="^:pointerover">
+          <Setter Property="Foreground" Value="{DynamicResource HeaderTextBrush}" />
+        </Style>
+        <Style Selector="^:checked">
+          <Setter Property="Foreground" Value="{DynamicResource HeaderTextBrush}" />
+        </Style>
+        <Style Selector="^:checked /template/ Border#Part">
+          <Setter Property="Background" Value="{DynamicResource SidebarSelectedBrush}" />
+        </Style>
+        <Style Selector="^:focus-visible /template/ Border#Part">
+          <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        </Style>
+      </ControlTheme>
+
       <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Light">
           <Color x:Key="SystemAccentColor">#C99A18</Color>
@@ -36,25 +84,25 @@
           <SolidColorBrush x:Key="DialogErrorBrush">#C73E3A</SolidColorBrush>
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
-          <Color x:Key="SystemAccentColor">#E1B93F</Color>
+          <Color x:Key="SystemAccentColor">#E6B832</Color>
           <Color x:Key="SystemAccentColorDark1">#CFA72F</Color>
           <Color x:Key="SystemAccentColorDark2">#B89121</Color>
           <Color x:Key="SystemAccentColorDark3">#9D7918</Color>
           <Color x:Key="SystemAccentColorLight1">#E8C65F</Color>
           <Color x:Key="SystemAccentColorLight2">#EFD47F</Color>
           <Color x:Key="SystemAccentColorLight3">#F5E1A5</Color>
-          <SolidColorBrush x:Key="PageBackgroundBrush">#141414</SolidColorBrush>
-          <SolidColorBrush x:Key="HeaderBackgroundBrush">#0E0E0F</SolidColorBrush>
-          <SolidColorBrush x:Key="HeaderBorderBrush">#333438</SolidColorBrush>
+          <SolidColorBrush x:Key="PageBackgroundBrush">#151719</SolidColorBrush>
+          <SolidColorBrush x:Key="HeaderBackgroundBrush">#202326</SolidColorBrush>
+          <SolidColorBrush x:Key="HeaderBorderBrush">#2F3438</SolidColorBrush>
           <SolidColorBrush x:Key="HeaderTextBrush">#F2F2F3</SolidColorBrush>
           <SolidColorBrush x:Key="HeaderMutedBrush">#A8A8AD</SolidColorBrush>
-          <SolidColorBrush x:Key="AccentBrush">#E1B93F</SolidColorBrush>
+          <SolidColorBrush x:Key="AccentBrush">#E6B832</SolidColorBrush>
           <SolidColorBrush x:Key="AccentTextBrush">#151515</SolidColorBrush>
-          <SolidColorBrush x:Key="SidebarBackgroundBrush">#19191B</SolidColorBrush>
-          <SolidColorBrush x:Key="SidebarSelectedBrush">#303033</SolidColorBrush>
-          <SolidColorBrush x:Key="PanelBackgroundBrush">#1B1B1D</SolidColorBrush>
-          <SolidColorBrush x:Key="SurfaceBackgroundBrush">#232326</SolidColorBrush>
-          <SolidColorBrush x:Key="BorderBrush">#3B3B40</SolidColorBrush>
+          <SolidColorBrush x:Key="SidebarBackgroundBrush">#202326</SolidColorBrush>
+          <SolidColorBrush x:Key="SidebarSelectedBrush">#292D31</SolidColorBrush>
+          <SolidColorBrush x:Key="PanelBackgroundBrush">#1B1E20</SolidColorBrush>
+          <SolidColorBrush x:Key="SurfaceBackgroundBrush">#202326</SolidColorBrush>
+          <SolidColorBrush x:Key="BorderBrush">#2F3438</SolidColorBrush>
           <SolidColorBrush x:Key="PrimaryTextBrush">#F0F0F2</SolidColorBrush>
           <SolidColorBrush x:Key="SecondaryTextBrush">#ABABB0</SolidColorBrush>
           <SolidColorBrush x:Key="PreviewBackgroundBrush">#74767A</SolidColorBrush>
@@ -75,6 +123,24 @@
 
   <Application.Styles>
     <FluentTheme />
+    <!-- Button hierarchy: Button.primary is the single main action, Button.ghost is for secondary actions -->
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SystemAccentColorLight1}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource AccentTextBrush}" />
+    </Style>
+    <Style Selector="Button.ghost">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource HeaderMutedBrush}" />
+    </Style>
+    <Style Selector="Button.ghost:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SidebarSelectedBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource HeaderTextBrush}" />
+    </Style>
     <StyleInclude Source="avares://Avalonia.Controls.ColorPicker/Themes/Fluent/Fluent.xaml" />
   </Application.Styles>
 </Application>

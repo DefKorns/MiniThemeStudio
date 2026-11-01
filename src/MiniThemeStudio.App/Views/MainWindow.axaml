@@ -7,6 +7,7 @@
         xmlns:audio="using:MiniThemeStudio.Core.Audio"
         xmlns:lucide="using:Lucide.Avalonia"
         xmlns:controls="using:MiniThemeStudio.App.Controls"
+        xmlns:conv="using:MiniThemeStudio.App.Converters"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="780"
@@ -98,25 +99,26 @@
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" IsVisible="{Binding IsThemeOpen}">
           <ToggleSwitch VerticalAlignment="Center" IsChecked="{Binding Mode.IsAdvanced}" OnContent="Advanced" OffContent="Simple"
                         ToolTip.Tip="Simple: sprites, wallpapers, colours, character frames, fonts and music. Advanced adds scenes, scrolling layers and character animations" />
-          <Button Padding="12,6" Background="Transparent" Command="{Binding RunValidationCommand}" ToolTip.Tip="Validate theme integrity">
+          <Button Classes="ghost" Padding="12,6" Command="{Binding RunValidationCommand}" ToolTip.Tip="Validate theme integrity">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <lucide:LucideIcon Kind="Check" Size="16" />
               <TextBlock Text="Validate" />
             </StackPanel>
           </Button>
-          <Button Padding="12,6" Background="Transparent" Command="{Binding ExportPackageCommand}" ToolTip.Tip="Validate and export the changed files as a .tar.gz theme package">
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <lucide:LucideIcon Kind="Package" Size="16" />
-              <TextBlock Text="Export .tar.gz" />
-            </StackPanel>
+          <Button Classes="ghost" Padding="8,6" ToolTip.Tip="More actions">
+            <lucide:LucideIcon Kind="Ellipsis" Size="16" />
+            <Button.Flyout>
+              <MenuFlyout Placement="BottomEdgeAlignedRight">
+                <MenuItem Header="Save draft" Command="{Binding SaveDraftCommand}">
+                  <MenuItem.Icon><lucide:LucideIcon Kind="Bookmark" Size="14" /></MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Export .tar.gz" Command="{Binding ExportPackageCommand}">
+                  <MenuItem.Icon><lucide:LucideIcon Kind="Package" Size="14" /></MenuItem.Icon>
+                </MenuItem>
+              </MenuFlyout>
+            </Button.Flyout>
           </Button>
-          <Button Padding="12,6" Background="Transparent" Command="{Binding SaveDraftCommand}" ToolTip.Tip="Keep this work in progress and resume it later">
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <lucide:LucideIcon Kind="Bookmark" Size="16" />
-              <TextBlock Text="Save draft" />
-            </StackPanel>
-          </Button>
-          <Button Padding="16,6" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" IsEnabled="{Binding HasUnsavedChanges}" Command="{Binding SaveThemeCommand}" Content="Save" />
+          <Button Classes="primary" Padding="16,6" IsEnabled="{Binding HasUnsavedChanges}" Command="{Binding SaveThemeCommand}" Content="Save" />
         </StackPanel>
       </Grid>
     </Border>
@@ -156,8 +158,48 @@
       </Grid>
     </Grid>
 
-    <!-- Theme Workspace View -->
-    <TabControl x:Name="WorkspaceTabs" Grid.Row="1" Grid.Column="1" IsVisible="{Binding IsThemeOpen}" SelectedIndex="{Binding SelectedTabIndex}">
+    <!-- Workspace: section tabs, sub-navigation and the tab content -->
+    <Grid Grid.Row="1" Grid.Column="1" RowDefinitions="40,Auto,*" IsVisible="{Binding IsThemeOpen}">
+      <Border Background="{DynamicResource PageBackgroundBrush}" BorderBrush="{DynamicResource HeaderBorderBrush}" BorderThickness="0,0,0,1">
+        <StackPanel Orientation="Horizontal" Margin="12,0">
+          <RadioButton Theme="{StaticResource SectionTabTheme}" GroupName="Section" Content="Assets" IsChecked="{Binding SelectedTabIndex, Converter={x:Static conv:TabIndexConverter.Instance}, ConverterParameter='0,1,3,4'}" />
+          <RadioButton Theme="{StaticResource SectionTabTheme}" GroupName="Section" Content="Scenes" IsVisible="{Binding Mode.IsAdvanced}" IsChecked="{Binding SelectedTabIndex, Converter={x:Static conv:TabIndexConverter.Instance}, ConverterParameter='2'}" />
+          <RadioButton Theme="{StaticResource SectionTabTheme}" GroupName="Section" Content="Theme" IsChecked="{Binding SelectedTabIndex, Converter={x:Static conv:TabIndexConverter.Instance}, ConverterParameter='5,6'}" />
+          <RadioButton Theme="{StaticResource SectionTabTheme}" GroupName="Section" Content="Validation" IsChecked="{Binding SelectedTabIndex, Converter={x:Static conv:TabIndexConverter.Instance}, ConverterParameter='7'}" />
+        </StackPanel>
+      </Border>
+
+      <!-- sub-navigation of Assets (tabs 0, 1, 3, 4) -->
+      <Border Grid.Row="1" Margin="16,10,16,0" Padding="2" HorizontalAlignment="Left" Background="{DynamicResource HeaderBackgroundBrush}" CornerRadius="6">
+        <Border.IsVisible>
+          <Binding Path="SelectedTabIndex" Converter="{x:Static conv:TabIndexConverter.Instance}" ConverterParameter="0,1,3,4" />
+        </Border.IsVisible>
+        <StackPanel Orientation="Horizontal" Spacing="2">
+          <RadioButton Theme="{StaticResource SegmentTheme}" GroupName="Assets" Content="Sprites" IsChecked="{Binding SelectedTabIndex, Converter={x:Static conv:TabIndexConverter.Instance}, ConverterParameter='0'}" />
+          <RadioButton Theme="{StaticResource SegmentTheme}" GroupName="Assets" Content="Wallpapers" IsChecked="{Binding SelectedTabIndex, Converter={x:Static conv:TabIndexConverter.Instance}, ConverterParameter='1'}" />
+          <RadioButton Theme="{StaticResource SegmentTheme}" GroupName="Assets" Content="Characters" IsChecked="{Binding SelectedTabIndex, Converter={x:Static conv:TabIndexConverter.Instance}, ConverterParameter='3'}" />
+          <RadioButton Theme="{StaticResource SegmentTheme}" GroupName="Assets" Content="Fonts" IsChecked="{Binding SelectedTabIndex, Converter={x:Static conv:TabIndexConverter.Instance}, ConverterParameter='4'}" />
+        </StackPanel>
+      </Border>
+
+      <!-- sub-navigation of Theme (tabs 5, 6) -->
+      <Border Grid.Row="1" Margin="16,10,16,0" Padding="2" HorizontalAlignment="Left" Background="{DynamicResource HeaderBackgroundBrush}" CornerRadius="6">
+        <Border.IsVisible>
+          <Binding Path="SelectedTabIndex" Converter="{x:Static conv:TabIndexConverter.Instance}" ConverterParameter="5,6" />
+        </Border.IsVisible>
+        <StackPanel Orientation="Horizontal" Spacing="2">
+          <RadioButton Theme="{StaticResource SegmentTheme}" GroupName="Theme" Content="Colors" IsVisible="{Binding Mode.IsAdvanced}" IsChecked="{Binding SelectedTabIndex, Converter={x:Static conv:TabIndexConverter.Instance}, ConverterParameter='5'}" />
+          <RadioButton Theme="{StaticResource SegmentTheme}" GroupName="Theme" Content="Details" IsChecked="{Binding SelectedTabIndex, Converter={x:Static conv:TabIndexConverter.Instance}, ConverterParameter='6'}" />
+        </StackPanel>
+      </Border>
+
+      <TabControl x:Name="WorkspaceTabs" Grid.Row="2" SelectedIndex="{Binding SelectedTabIndex}">
+      <TabControl.Styles>
+        <!-- the section tabs and the sub-navigation above replace the tab strip -->
+        <Style Selector="TabControl#WorkspaceTabs /template/ ItemsPresenter#PART_ItemsPresenter">
+          <Setter Property="IsVisible" Value="False" />
+        </Style>
+      </TabControl.Styles>
       <!-- TAB 1: PACKED ATLAS SPRITES -->
       <TabItem Header="Sprites">
         <Grid ColumnDefinitions="270,*,320" Margin="16,12" DataContext="{Binding SpritesTab}" x:DataType="vm:SpritesViewModel">
@@ -1034,10 +1076,10 @@
         </Grid>
       </TabItem>
 
-      <!-- TAB 5: METADATA & VALIDATION -->
-      <TabItem Header="Theme Details &amp; Validation">
-        <Grid ColumnDefinitions="*,*" Margin="24">
-          <ScrollViewer Margin="0,0,12,0" VerticalScrollBarVisibility="Auto">
+      <!-- TAB 6: THEME DETAILS -->
+      <TabItem Header="Theme Details">
+        <Grid Margin="24">
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel Spacing="16">
               <Border Padding="20" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
                 <StackPanel Spacing="16">
@@ -1110,13 +1152,18 @@
               </Border>
             </StackPanel>
           </ScrollViewer>
+        </Grid>
+      </TabItem>
 
-          <Border Grid.Column="1" Margin="12,0,0,0" Padding="20" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+      <!-- TAB 7: VALIDATION -->
+      <TabItem Header="Validation">
+        <Grid Margin="24">
+          <Border Padding="20" Background="{DynamicResource SurfaceBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6"
                   DataContext="{Binding ValidationTab}" x:DataType="vm:ValidationViewModel">
             <Grid RowDefinitions="Auto,Auto,*,Auto">
               <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,12">
                 <TextBlock VerticalAlignment="Center" FontFamily="Georgia, serif" FontSize="18" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Integrity Validation" />
-                <Button Grid.Column="1" Command="{Binding RunCommand}" Padding="12,6" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Content="Re-validate" />
+                <Button Grid.Column="1" Classes="primary" Command="{Binding RunCommand}" Padding="12,6" Content="Re-validate" />
               </Grid>
 
               <Border Grid.Row="1" Margin="0,0,0,12" Padding="12" CornerRadius="4"
@@ -1181,6 +1228,7 @@
         </Grid>
       </TabItem>
     </TabControl>
+    </Grid>
 
     <!-- Bottom Status Bar -->
     <Border Grid.Row="2" Grid.Column="1" Background="{DynamicResource HeaderBackgroundBrush}">

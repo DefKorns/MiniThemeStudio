@@ -24,9 +24,9 @@
       <lucide:LucideIcon HorizontalAlignment="Center" Kind="TriangleAlert" Size="30" StrokeWidth="2" Foreground="{DynamicResource DialogWarningBrush}" IsVisible="{Binding IsWarning}" />
       <lucide:LucideIcon HorizontalAlignment="Center" Kind="CircleX" Size="30" StrokeWidth="2" Foreground="{DynamicResource DialogErrorBrush}" IsVisible="{Binding IsError}" />
 
-      <TextBlock Grid.Row="1" Margin="0,14,0,0" HorizontalAlignment="Center" FontSize="19" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Title}" />
-      <TextBlock Grid.Row="2" Margin="12,10,12,18" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="13" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Message}" TextAlignment="Center" TextWrapping="Wrap" />
-      <StackPanel Grid.Row="3" HorizontalAlignment="Center" Orientation="Horizontal" Spacing="10">
+      <TextBlock Grid.Row="1" Margin="0,16,0,0" HorizontalAlignment="Center" FontSize="{DynamicResource FontSizeTitle}" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Title}" />
+      <TextBlock Grid.Row="2" Margin="12,12,12,20" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="{DynamicResource FontSizeSmall}" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding Message}" TextAlignment="Center" TextWrapping="Wrap" />
+      <StackPanel Grid.Row="3" HorizontalAlignment="Center" Orientation="Horizontal" Spacing="12">
         <Button Classes="dialogAction" IsVisible="{Binding IsConfirmation}" Click="Cancel_Click" Content="{Binding CancelButtonText}" />
         <Button Classes="dialogAction destructive" IsVisible="{Binding HasAlternate}" Click="Alternate_Click" Content="{Binding AlternateButtonText}" />
         <Button Classes="dialogAction" Classes.destructive="{Binding IsDestructive}" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Click="Accept_Click" Content="{Binding AcceptButtonText}" />

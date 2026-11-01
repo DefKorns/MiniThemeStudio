@@ -31,14 +31,14 @@
   <Border Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="28,24,28,20">
     <Grid RowDefinitions="Auto,*,Auto">
       <StackPanel Spacing="4">
-        <TextBlock x:Name="TitleText" FontSize="22" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Settings" />
+        <TextBlock x:Name="TitleText" FontSize="{DynamicResource FontSizeHeading}" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Settings" />
         <TextBlock x:Name="SubtitleText" Foreground="{DynamicResource SecondaryTextBrush}" Text="Configure the workspace and console connection." />
       </StackPanel>
 
       <ScrollViewer Grid.Row="1" Margin="0,24,0,0" VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="0,0,18,24" Spacing="24">
-          <StackPanel Spacing="10">
-            <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Text="Console connection" />
+        <StackPanel Margin="0,0,20,24" Spacing="24">
+          <StackPanel Spacing="12">
+            <TextBlock FontSize="{DynamicResource FontSizeSmall}" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Text="Console connection" />
             <Grid ColumnDefinitions="*,*">
               <ToggleButton x:Name="UsbConnectionButton" Classes="connection-segment" Margin="0,0,4,0" CornerRadius="4,0,0,4" Click="ConnectionMode_Click" Content="USB" />
               <ToggleButton x:Name="NetworkConnectionButton" Grid.Column="1" Classes="connection-segment" Margin="4,0,0,0" CornerRadius="0,4,4,0" Click="ConnectionMode_Click" Content="Network" />
@@ -48,10 +48,10 @@
             <TextBox x:Name="ConsoleHostTextBox" Height="40" Watermark="169.254.13.37" TextChanged="ConsoleHostTextBox_TextChanged" />
           </StackPanel>
 
-          <StackPanel Spacing="10">
-            <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Text="Base firmwares" />
+          <StackPanel Spacing="12">
+            <TextBlock FontSize="{DynamicResource FontSizeSmall}" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Text="Base firmwares" />
             <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}" Text="Import and manage the stock firmwares new themes are built on." />
-            <Button x:Name="ManageBasesButton" HorizontalAlignment="Left" Padding="14,8" Click="ManageBases_Click">
+            <Button x:Name="ManageBasesButton" HorizontalAlignment="Left" Padding="16,8" Click="ManageBases_Click">
               <StackPanel Orientation="Horizontal" Spacing="8">
                 <lucide:LucideIcon Kind="Database" Size="16" />
                 <TextBlock Text="Manage Base Firmwares..." />
@@ -59,58 +59,58 @@
             </Button>
           </StackPanel>
 
-          <StackPanel Spacing="10">
-            <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Text="Paths" />
-            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="6">
+          <StackPanel Spacing="12">
+            <TextBlock FontSize="{DynamicResource FontSizeSmall}" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Text="Paths" />
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="8">
               <TextBlock Grid.ColumnSpan="2" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Draft root" />
               <TextBox x:Name="DraftRootTextBox" Grid.Row="1" Height="40" Classes="path-input" Watermark="Temporary working copies" TextChanged="PathTextBox_TextChanged" />
               <Button Grid.Row="1" Grid.Column="1" Width="40" Height="40" Margin="8,0,0,0" Padding="0" Click="BrowseDraftRoot_Click" ToolTip.Tip="Select draft root">
                 <lucide:LucideIcon Kind="FolderOpen" Size="18" />
               </Button>
             </Grid>
-            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
               <TextBlock Grid.ColumnSpan="2" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Fill font" />
               <TextBox x:Name="FillFontTextBox" Grid.Row="1" Height="40" Classes="path-input" Watermark="Optional .ttf / .otf / .ttc" TextChanged="PathTextBox_TextChanged" />
               <Button Grid.Row="1" Grid.Column="1" Width="40" Height="40" Margin="8,0,0,0" Padding="0" Click="BrowseFillFont_Click" ToolTip.Tip="Select the fill font">
                 <lucide:LucideIcon Kind="FolderOpen" Size="18" />
               </Button>
-              <TextBlock Grid.Row="2" Grid.ColumnSpan="2" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
+              <TextBlock Grid.Row="2" Grid.ColumnSpan="2" FontSize="{DynamicResource FontSizeCaption}" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
                          Text="Draws the characters a converted font lacks. Empty: the system's Yu Gothic UI (Font Remount's typeface), else the built-in Noto." />
             </Grid>
-            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="6">
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="8">
               <TextBlock Grid.ColumnSpan="2" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Default theme destination" />
               <TextBox x:Name="ThemeDestinationTextBox" Grid.Row="1" Height="40" Classes="path-input" Watermark="Optional" TextChanged="PathTextBox_TextChanged" />
               <Button Grid.Row="1" Grid.Column="1" Width="40" Height="40" Margin="8,0,0,0" Padding="0" Click="BrowseThemeDestination_Click" ToolTip.Tip="Select default theme destination">
                 <lucide:LucideIcon Kind="FolderOpen" Size="18" />
               </Button>
             </Grid>
-            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto" RowSpacing="8">
               <TextBlock Grid.ColumnSpan="2" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="FFmpeg executable" />
               <TextBox x:Name="FFmpegTextBox" Grid.Row="1" Height="40" Classes="path-input" Watermark="Optional path to ffmpeg.exe" TextChanged="FFmpegTextBox_TextChanged" />
               <Button Grid.Row="1" Grid.Column="1" Width="40" Height="40" Margin="8,0,0,0" Padding="0" Click="BrowseFFmpeg_Click" ToolTip.Tip="Select FFmpeg executable">
                 <lucide:LucideIcon Kind="FolderOpen" Size="18" />
               </Button>
-              <TextBlock x:Name="FFmpegStatusText" Grid.Row="2" Grid.ColumnSpan="2" FontSize="11" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
+              <TextBlock x:Name="FFmpegStatusText" Grid.Row="2" Grid.ColumnSpan="2" FontSize="{DynamicResource FontSizeCaption}" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
                          Text="Required only if BGM conversion is enabled. Converts audio into PCM 16-bit 44.1 kHz WAV." />
             </Grid>
           </StackPanel>
 
-          <StackPanel Spacing="10">
-            <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Text="Appearance" />
+          <StackPanel Spacing="12">
+            <TextBlock FontSize="{DynamicResource FontSizeSmall}" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Text="Appearance" />
             <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Theme" />
             <ComboBox x:Name="ThemeComboBox" Height="40" HorizontalAlignment="Stretch" SelectionChanged="ThemeComboBox_SelectionChanged" />
           </StackPanel>
         </StackPanel>
       </ScrollViewer>
 
-      <Border Grid.Row="2" Margin="0,0,0,0" Padding="0,18,0,0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+      <Border Grid.Row="2" Margin="0,0,0,0" Padding="0,20,0,0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
         <Grid ColumnDefinitions="*,Auto,Auto">
           <StackPanel VerticalAlignment="Center" Spacing="2">
             <TextBlock x:Name="ValidationText" Classes="feedback" TextWrapping="Wrap" />
-            <TextBlock x:Name="UnsavedChangesText" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Text="Unsaved changes" IsVisible="False" />
+            <TextBlock x:Name="UnsavedChangesText" FontSize="{DynamicResource FontSizeSmall}" Foreground="{DynamicResource SecondaryTextBrush}" Text="Unsaved changes" IsVisible="False" />
           </StackPanel>
           <Button x:Name="CancelButton" Grid.Column="1" Height="40" Margin="8,0" Padding="16,8" Click="Cancel_Click" Content="Cancel" />
-          <Button Grid.Column="2" Height="40" Padding="18,8" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Click="Save_Click" Content="Save changes" />
+          <Button Grid.Column="2" Height="40" Padding="20,8" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Click="Save_Click" Content="Save changes" />
         </Grid>
       </Border>
     </Grid>

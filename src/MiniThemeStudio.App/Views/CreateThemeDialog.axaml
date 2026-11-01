@@ -10,38 +10,38 @@
 
   <Border Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="28">
     <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto">
-      <TextBlock FontFamily="Georgia, serif" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="New theme" />
-      <StackPanel Grid.Row="1" Margin="0,24,0,0" Spacing="6">
+      <TextBlock FontFamily="Georgia, serif" FontSize="{DynamicResource FontSizeHeading}" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="New theme" />
+      <StackPanel Grid.Row="1" Margin="0,24,0,0" Spacing="8">
         <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Name" />
         <TextBox x:Name="ThemeNameTextBox" Watermark="Theme name" TextChanged="ThemeNameTextBox_TextChanged" />
       </StackPanel>
-      <StackPanel Grid.Row="2" Margin="0,16,0,0" Spacing="6">
+      <StackPanel Grid.Row="2" Margin="0,16,0,0" Spacing="8">
         <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Author" />
         <TextBox x:Name="AuthorTextBox" Watermark="Author name" TextChanged="AuthorTextBox_TextChanged" />
       </StackPanel>
-      <StackPanel Grid.Row="3" Margin="0,16,0,0" Spacing="6">
+      <StackPanel Grid.Row="3" Margin="0,16,0,0" Spacing="8">
         <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Start from an existing atlas (optional)" />
         <Grid ColumnDefinitions="*,Auto,Auto">
           <TextBlock x:Name="AtlasPathText" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" TextTrimming="CharacterEllipsis" Text="Use the Base atlas" />
-          <Button x:Name="ClearAtlasButton" Grid.Column="1" Margin="8,0,0,0" Padding="10,4" Click="ClearAtlas_Click" Content="Clear" IsVisible="False" />
-          <Button x:Name="BrowseAtlasButton" Grid.Column="2" Margin="8,0,0,0" Padding="10,4" Click="BrowseAtlas_Click" Content="Choose packed.png..." />
+          <Button x:Name="ClearAtlasButton" Grid.Column="1" Margin="8,0,0,0" Padding="12,4" Click="ClearAtlas_Click" Content="Clear" IsVisible="False" />
+          <Button x:Name="BrowseAtlasButton" Grid.Column="2" Margin="8,0,0,0" Padding="12,4" Click="BrowseAtlas_Click" Content="Choose packed.png..." />
         </Grid>
       </StackPanel>
-      <StackPanel Grid.Row="4" Margin="0,16,0,0" Spacing="6">
+      <StackPanel Grid.Row="4" Margin="0,16,0,0" Spacing="8">
         <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Base firmware" />
         <controls:BaseSelector x:Name="BaseSelector" />
       </StackPanel>
-      <StackPanel Grid.Row="5" Margin="0,14,0,0" Orientation="Horizontal" Spacing="6">
+      <StackPanel Grid.Row="5" Margin="0,16,0,0" Orientation="Horizontal" Spacing="8">
         <TextBlock Foreground="{DynamicResource SecondaryTextBrush}" Text="Folder:" />
         <TextBlock x:Name="DirectoryNameText" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" />
       </StackPanel>
       <StackPanel Grid.Row="6" Margin="0,16,0,0" Spacing="4">
         <CheckBox x:Name="AdvancedEditingCheckBox" Content="Advanced editing" />
-        <TextBlock Margin="28,0,0,0" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
+        <TextBlock Margin="28,0,0,0" FontSize="{DynamicResource FontSizeSmall}" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
                    Text="A simple theme changes the sprites, the wallpapers, the colours, the character frames, the fonts and the music. Advanced editing adds the scenes, the scrolling layers and the character animations; it can be turned on later." />
       </StackPanel>
       <TextBlock x:Name="ValidationText" Grid.Row="7" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="{DynamicResource ErrorTextBrush}" />
-      <StackPanel Grid.Row="8" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="10">
+      <StackPanel Grid.Row="8" HorizontalAlignment="Right" Orientation="Horizontal" Spacing="12">
         <Button Padding="16,8" Click="Cancel_Click" Content="Cancel" />
         <Button Padding="16,8" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Click="Continue_Click" Content="Continue" />
       </StackPanel>

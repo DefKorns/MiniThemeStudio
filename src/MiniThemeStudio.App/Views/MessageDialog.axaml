@@ -16,7 +16,7 @@
     </Style>
   </Window.Styles>
 
-  <Border Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="26">
+  <Border Classes="dialog">
     <Grid RowDefinitions="Auto,Auto,*,Auto">
       <lucide:LucideIcon HorizontalAlignment="Center" Kind="MessageCircle" Size="30" StrokeWidth="2" Foreground="{DynamicResource DialogDefaultBrush}" IsVisible="{Binding IsDefault}" />
       <lucide:LucideIcon HorizontalAlignment="Center" Kind="Info" Size="30" StrokeWidth="2" Foreground="{DynamicResource DialogInfoBrush}" IsVisible="{Binding IsInfo}" />

@@ -149,6 +149,20 @@
     <Style Selector="Border.preview.checker">
       <Setter Property="Background" Value="{StaticResource CheckerboardBrush}" />
     </Style>
+    <!-- Dialogs: Border.dialog is the frame of a small modal, TextBlock.dialog-title the heading of any dialog -->
+    <Style Selector="Border.dialog">
+      <Setter Property="Background" Value="{DynamicResource PanelBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="24" />
+    </Style>
+    <Style Selector="TextBlock.dialog-title">
+      <Setter Property="FontFamily" Value="Georgia, serif" />
+      <Setter Property="FontSize" Value="{DynamicResource FontSizeHeading}" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
+    </Style>
     <!-- Panel with a border: the surface for cards and lists -->
     <Style Selector="Border.card">
       <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />

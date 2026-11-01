@@ -23,6 +23,7 @@ public sealed partial class MainWindow : Window, IDisposable
     private Bitmap? _atlasBitmap;
     private CroppedBitmap? _spritePreview;
     private int _spriteZoom;
+    private int _sheetZoom;
     private readonly Avalonia.Threading.DispatcherTimer _animationTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
     private readonly System.Diagnostics.Stopwatch _animationClock = System.Diagnostics.Stopwatch.StartNew();
 
@@ -37,6 +38,13 @@ public sealed partial class MainWindow : Window, IDisposable
         DataContext = viewModel;
 
         InitializeComponent();
+        SheetPreviewImage.PropertyChanged += (_, change) =>
+        {
+            if (change.Property == Image.SourceProperty)
+            {
+                ApplySheetZoom();
+            }
+        };
         Opened += MainWindow_Opened;
         _animationTimer.Tick += AnimationTimer_Tick;
         _animationTimer.Start();
@@ -88,6 +96,38 @@ public sealed partial class MainWindow : Window, IDisposable
         SpritePreviewImage.Stretch = Avalonia.Media.Stretch.Fill;
         SpritePreviewImage.Width = _spritePreview.Size.Width * _spriteZoom;
         SpritePreviewImage.Height = _spritePreview.Size.Height * _spriteZoom;
+    }
+
+    private void SheetZoom1x_Click(object? sender, RoutedEventArgs e) => SetSheetZoom(1);
+    private void SheetZoom2x_Click(object? sender, RoutedEventArgs e) => SetSheetZoom(2);
+    private void SheetZoom4x_Click(object? sender, RoutedEventArgs e) => SetSheetZoom(4);
+    private void SheetZoomFit_Click(object? sender, RoutedEventArgs e) => SetSheetZoom(0);
+
+    // 0 fits the sheet in the preview; otherwise it is drawn at that many times its size, inside a scrolling box
+    private void SetSheetZoom(int zoomLevel)
+    {
+        _sheetZoom = zoomLevel;
+        ApplySheetZoom();
+    }
+
+    private void ApplySheetZoom()
+    {
+        bool fit = _sheetZoom == 0 || SheetPreviewImage.Source is null;
+        ScrollBarVisibility bars = fit ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
+        SheetPreviewScroll.HorizontalScrollBarVisibility = bars;
+        SheetPreviewScroll.VerticalScrollBarVisibility = bars;
+
+        if (fit)
+        {
+            SheetPreviewImage.Stretch = Avalonia.Media.Stretch.Uniform;
+            SheetPreviewImage.Width = double.NaN;
+            SheetPreviewImage.Height = double.NaN;
+            return;
+        }
+
+        SheetPreviewImage.Stretch = Avalonia.Media.Stretch.Fill;
+        SheetPreviewImage.Width = SheetPreviewImage.Source!.Size.Width * _sheetZoom;
+        SheetPreviewImage.Height = SheetPreviewImage.Source.Size.Height * _sheetZoom;
     }
 
     private void ThemeMode_Click(object? sender, RoutedEventArgs e)

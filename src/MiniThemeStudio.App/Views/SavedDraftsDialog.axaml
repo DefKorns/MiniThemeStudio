@@ -9,7 +9,7 @@
         FontFamily="Segoe UI, Ubuntu, sans-serif">
   <Grid RowDefinitions="Auto,*,Auto" Margin="24">
     <StackPanel Spacing="4">
-      <TextBlock FontSize="{DynamicResource FontSizeTitle}" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Saved drafts" />
+      <TextBlock Classes="dialog-title" Text="Saved drafts" />
       <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
                  Text="Work in progress kept between sessions. Opening a draft makes a working copy; the saved draft only changes when you save the draft again." />
     </StackPanel>
@@ -35,8 +35,7 @@
       <Button x:Name="DeleteButton" Padding="16,8" Click="Delete_Click" Content="Delete draft" IsEnabled="False" />
       <TextBlock x:Name="StatusText" Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" TextTrimming="CharacterEllipsis" />
       <Button Grid.Column="2" Margin="0,0,8,0" Padding="16,8" Click="Close_Click" Content="Close" />
-      <Button x:Name="OpenButton" Grid.Column="3" Padding="16,8" Click="Open_Click" IsEnabled="False"
-              Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Content="Open draft" />
+      <Button x:Name="OpenButton" Grid.Column="3" Padding="16,8" Click="Open_Click" IsEnabled="False" Classes="primary" Content="Open draft" />
     </Grid>
   </Grid>
 </Window>

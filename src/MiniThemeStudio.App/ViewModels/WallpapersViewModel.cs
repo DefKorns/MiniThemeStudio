@@ -64,6 +64,13 @@ public sealed partial class WallpapersViewModel : ViewModelBase
 
     public bool HasWallpaperImages => !PixelBackground.HasPixelBackground;
 
+    // the wallpaper panel; hidden, the list and the preview get its space
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowWallpaperInspector))]
+    private bool isInspectorVisible = true;
+
+    public bool ShowWallpaperInspector => HasWallpaperImages && IsInspectorVisible;
+
     [ObservableProperty]
     private IReadOnlyList<WallpaperAsset> wallpapers = [];
 
@@ -164,6 +171,7 @@ public sealed partial class WallpapersViewModel : ViewModelBase
     private void Reload()
     {
         OnPropertyChanged(nameof(HasWallpaperImages));
+        OnPropertyChanged(nameof(ShowWallpaperInspector));
         string? selectedName = SelectedWallpaper?.Name;
         ThemeResourceReport report = _session.Report;
         Wallpapers = _session.Draft is { } draft

@@ -351,7 +351,7 @@
 
       <!-- TAB 2: WALLPAPERS -->
       <TabItem Header="Wallpapers">
-        <Grid ColumnDefinitions="*,380" Margin="16,12" DataContext="{Binding WallpapersTab}" x:DataType="vm:WallpapersViewModel">
+        <Grid ColumnDefinitions="*,Auto" Margin="16,12" DataContext="{Binding WallpapersTab}" x:DataType="vm:WallpapersViewModel">
           <!-- the NES and Famicom background: colours and the white pictures a script draws it with -->
           <Grid Grid.ColumnSpan="2" ColumnDefinitions="*,360" IsVisible="{Binding HasPixelBackground}"
                 DataContext="{Binding PixelBackground}" x:DataType="vm:PixelBackgroundViewModel">
@@ -405,8 +405,7 @@
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
-                  <Button Padding="12,8" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}"
-                          FontWeight="SemiBold" Command="{Binding ApplyColorsCommand}" Content="Apply" />
+                  <Button Padding="12,8" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Classes="primary" Command="{Binding ApplyColorsCommand}" Content="Apply" />
                   <Button Grid.Column="1" Padding="12,8" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding ResetColorsCommand}" Content="Discard" />
                 </Grid>
                 <Button Padding="12,8" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding RestoreBaseColorsCommand}" Content="Restore Base colours"
@@ -437,7 +436,12 @@
           </Border>
           <Border Classes="card">
             <Grid RowDefinitions="Auto,*">
-              <TextBlock Margin="16,12" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Wallpaper images" />
+              <Grid Margin="16,12,12,12" ColumnDefinitions="*,Auto">
+                <TextBlock VerticalAlignment="Center" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Wallpaper images" />
+                <ToggleButton Grid.Column="1" Padding="8,2" IsChecked="{Binding IsInspectorVisible}" ToolTip.Tip="Show or hide the wallpaper panel">
+                  <lucide:LucideIcon Kind="PanelRight" Size="16" />
+                </ToggleButton>
+              </Grid>
               <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding Wallpapers}" SelectedItem="{Binding SelectedWallpaper}">
                 <ListBox.Styles>
                   <Style Selector="ListBoxItem">
@@ -469,18 +473,18 @@
           </Border>
           </DockPanel>
 
-          <Border Grid.Column="1" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6"
-                  IsVisible="{Binding HasWallpaperImages}">
+          <Border Grid.Column="1" Width="380" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                  IsVisible="{Binding ShowWallpaperInspector}">
             <ScrollViewer>
               <StackPanel Margin="20" Spacing="16">
                 <TextBlock FontFamily="Georgia, serif" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Wallpaper Image" />
-                <Border Height="150" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                <Border Classes="preview checker" Height="200" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
                   <controls:FileImage Margin="8" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" FilePath="{Binding SelectedWallpaper.ImagePath}" Revision="{Binding PreviewRevision}" />
                 </Border>
                 <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedWallpaper.DisplayName}" />
                 <TextBlock FontSize="{DynamicResource FontSizeSmall}" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SelectedWallpaper.UsageText}" TextWrapping="Wrap" />
                 <Grid ColumnDefinitions="*,*" Margin="0,4">
-                  <Button Margin="0,0,4,0" Padding="12,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Command="{Binding ReplaceWallpaperCommand}" Content="Replace PNG" />
+                  <Button Margin="0,0,4,0" Padding="12,8" HorizontalAlignment="Stretch" Classes="primary" Command="{Binding ReplaceWallpaperCommand}" Content="Replace PNG" />
                   <Button Grid.Column="1" Margin="4,0,0,0" Padding="12,8" HorizontalAlignment="Stretch" Command="{Binding ExportWallpaperCommand}" Content="Export PNG" />
                 </Grid>
                 <Button Padding="12,8" HorizontalAlignment="Stretch" Command="{Binding DeleteWallpaperCommand}" Content="{Binding DeleteWallpaperText}" IsVisible="{Binding Mode.IsAdvanced}"
@@ -535,7 +539,7 @@
                       <TextBlock Grid.Row="4" VerticalAlignment="Center" Foreground="{DynamicResource SecondaryTextBrush}" Text="Loops per cycle" />
                       <NumericUpDown Grid.Row="4" Grid.Column="1" Value="{Binding NewLayerLoops}" Increment="1" FormatString="0" Minimum="-16" Maximum="16" />
                     </Grid>
-                    <Button Padding="12,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold"
+                    <Button Padding="12,8" HorizontalAlignment="Stretch" Classes="primary"
                             Command="{Binding AddLayerCommand}" Content="Choose PNG and add layer..."
                             ToolTip.Tip="The image is repeated side by side until it covers the screen, so it scrolls without a seam" />
                   </StackPanel>
@@ -722,13 +726,23 @@
               </Grid>
             </Border>
             <Border Grid.Column="1" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
-              <StackPanel Margin="20" Spacing="16">
-                <TextBlock FontFamily="Georgia, serif" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedSheetGroup.Sheet.Title}" />
-                <TextBlock FontSize="{DynamicResource FontSizeSmall}" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Text="{Binding SelectedSheetGroup.Sheet.Description}" />
-                <Border Height="200" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
-                  <Image Margin="12" Source="{Binding SelectedSheetGroup.Sheet.Image}" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
+              <Grid Margin="20" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="16">
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                  <TextBlock VerticalAlignment="Center" FontFamily="Georgia, serif" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding SelectedSheetGroup.Sheet.Title}" TextTrimming="CharacterEllipsis" />
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                    <Button Padding="8,2" Content="1x" Click="SheetZoom1x_Click" ToolTip.Tip="100% Zoom" />
+                    <Button Padding="8,2" Content="2x" Click="SheetZoom2x_Click" ToolTip.Tip="200% Zoom" />
+                    <Button Padding="8,2" Content="4x" Click="SheetZoom4x_Click" ToolTip.Tip="400% Zoom" />
+                    <Button Padding="8,2" Content="Fit" Click="SheetZoomFit_Click" ToolTip.Tip="Fit the sheet" />
+                  </StackPanel>
+                </Grid>
+                <TextBlock Grid.Row="1" FontSize="{DynamicResource FontSizeSmall}" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Text="{Binding SelectedSheetGroup.Sheet.Description}" />
+                <Border Grid.Row="2" MinHeight="160" Classes="preview checker" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                  <ScrollViewer x:Name="SheetPreviewScroll" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled" AllowAutoHide="False" controls:DragToScroll.IsEnabled="True">
+                    <Image x:Name="SheetPreviewImage" Margin="12" HorizontalAlignment="Center" VerticalAlignment="Center" Source="{Binding SelectedSheetGroup.Sheet.Image}" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
+                  </ScrollViewer>
                 </Border>
-                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                <Grid Grid.Row="3" ColumnDefinitions="*,*" ColumnSpacing="8">
                   <Button Padding="12,8" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Replace sheet..."
                           Command="{Binding ReplaceSheetCommand}" CommandParameter="{Binding SelectedSheetGroup.Sheet}"
                           ToolTip.Tip="A whole sheet edited elsewhere, the same size as this one" />
@@ -736,9 +750,9 @@
                           Command="{Binding ExportSheetCommand}" CommandParameter="{Binding SelectedSheetGroup.Sheet}"
                           ToolTip.Tip="Save the sheet to edit it in an image editor" />
                 </Grid>
-                <TextBlock FontSize="{DynamicResource FontSizeSmall}" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
+                <TextBlock Grid.Row="4" FontSize="{DynamicResource FontSizeSmall}" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
                            Text="An edited sheet keeps every picture in its place: the console cuts them at fixed places." />
-              </StackPanel>
+              </Grid>
             </Border>
           </Grid>
 
@@ -1047,7 +1061,7 @@
         <!-- spacing follows an 8 px grid: 8 inside a group, 16 between groups and as the padding of a panel -->
         <Grid ColumnDefinitions="*,400" ColumnSpacing="16" Margin="16" DataContext="{Binding ColorsTab}" x:DataType="vm:ColorsViewModel">
           <Border Classes="card">
-            <Grid RowDefinitions="Auto,*">
+            <Grid RowDefinitions="Auto,Auto,*">
               <!-- a colour is written to every region, so there is one list: the values are the Base's own region's -->
               <Grid Margin="16,16,16,8" ColumnDefinitions="*,Auto">
                 <StackPanel VerticalAlignment="Center">
@@ -1060,14 +1074,15 @@
                   <Button Padding="16,8" Command="{Binding ResetAllColorsCommand}" Content="Reset all" ToolTip.Tip="Put every colour back to the value of the Base" />
                 </StackPanel>
               </Grid>
+              <TextBox Grid.Row="1" Margin="16,0,16,8" Height="36" Watermark="Search by name, words on screen or hex..." Text="{Binding ColorSearchText}" />
               <!-- each colour with the words the console draws with it, under the screen they are on -->
-              <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding PaletteColors}" SelectedItem="{Binding SelectedPaletteColor}">
+              <ListBox Grid.Row="2" Margin="8,0,8,8" ItemsSource="{Binding PaletteColors}" SelectedItem="{Binding SelectedPaletteColor}">
                 <ListBox.ItemTemplate>
                   <DataTemplate x:DataType="vm:PaletteColorRow">
                     <StackPanel>
                       <TextBlock Margin="8,16,8,8" FontSize="{DynamicResource FontSizeCaption}" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" Text="{Binding Group}" IsVisible="{Binding StartsGroup}" />
-                      <Grid Margin="8,4" ColumnDefinitions="56,*,Auto" ToolTip.Tip="{Binding Name}">
-                        <Border Width="40" Height="24" HorizontalAlignment="Left" CornerRadius="4" Background="{Binding Swatch}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" />
+                      <Grid Margin="8,4" ColumnDefinitions="64,*,Auto" ToolTip.Tip="{Binding Name}">
+                        <Border Width="48" Height="32" HorizontalAlignment="Left" CornerRadius="4" Background="{Binding Swatch}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                           <StackPanel Orientation="Horizontal" Spacing="8">
                             <TextBlock Foreground="{DynamicResource PrimaryTextBrush}" Text="{Binding Title}" />

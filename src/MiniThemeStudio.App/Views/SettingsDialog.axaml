@@ -14,10 +14,10 @@
     </Style>
   </Window.Styles>
 
-  <Border Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" Padding="28,24,28,20">
+  <Border Classes="dialog">
     <Grid RowDefinitions="Auto,*,Auto">
       <StackPanel Spacing="4">
-        <TextBlock x:Name="TitleText" FontSize="{DynamicResource FontSizeHeading}" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Settings" />
+        <TextBlock x:Name="TitleText" Classes="dialog-title" Text="Settings" />
         <TextBlock x:Name="SubtitleText" Foreground="{DynamicResource SecondaryTextBrush}" Text="Configure the workspace and console connection." />
       </StackPanel>
 
@@ -97,7 +97,7 @@
             <TextBlock x:Name="UnsavedChangesText" FontSize="{DynamicResource FontSizeSmall}" Foreground="{DynamicResource SecondaryTextBrush}" Text="Unsaved changes" IsVisible="False" />
           </StackPanel>
           <Button x:Name="CancelButton" Grid.Column="1" Height="40" Margin="8,0" Padding="16,8" Click="Cancel_Click" Content="Cancel" />
-          <Button Grid.Column="2" Height="40" Padding="20,8" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Click="Save_Click" Content="Save changes" />
+          <Button Grid.Column="2" Height="40" Padding="20,8" Classes="primary" Click="Save_Click" Content="Save changes" />
         </Grid>
       </Border>
     </Grid>

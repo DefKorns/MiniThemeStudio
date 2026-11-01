@@ -158,6 +158,20 @@ public sealed partial class ColorsViewModel : ViewModelBase, IDisposable
 
     partial void OnShowUnusedColorsChanged(bool value) => OnSelectedPaletteChanged(SelectedPalette);
 
+    // narrows the list to the colours whose name, words, screen or value contain the text
+    [ObservableProperty]
+    private string colorSearchText = "";
+
+    partial void OnColorSearchTextChanged(string value) => OnSelectedPaletteChanged(SelectedPalette);
+
+    private bool MatchesSearch(PaletteColorRow row)
+    {
+        string text = ColorSearchText.Trim();
+        return text.Length == 0
+            || new[] { row.Title, row.Name, row.Hex, row.Samples, row.Group }
+                .Any(field => field.Contains(text, StringComparison.OrdinalIgnoreCase));
+    }
+
     partial void OnSelectedPaletteChanged(ThemePalette? value)
     {
         UpdateSampleColors();
@@ -173,6 +187,7 @@ public sealed partial class ColorsViewModel : ViewModelBase, IDisposable
                 Samples = SamplesOf(c.Name),
                 Group = ScreenOf(c.Name),
             })
+            .Where(MatchesSearch)
             .OrderBy(row => ScreenOrder(row.Group))
             .ThenBy(row => row.Name, StringComparer.Ordinal)
             .ToList() ?? [];

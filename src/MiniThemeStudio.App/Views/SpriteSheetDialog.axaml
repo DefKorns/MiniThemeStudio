@@ -7,9 +7,9 @@
         ShowInTaskbar="False" WindowStartupLocation="CenterOwner"
         Background="{DynamicResource PageBackgroundBrush}"
         FontFamily="Segoe UI, Ubuntu, sans-serif">
-  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="20">
+  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="24">
     <StackPanel Spacing="4">
-      <TextBlock x:Name="TitleText" FontSize="{DynamicResource FontSizeTitle}" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Import frames from a sprite sheet" />
+      <TextBlock x:Name="TitleText" Classes="dialog-title" Text="Import frames from a sprite sheet" />
       <TextBlock x:Name="HintText" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
                  Text="Open a sheet, mark every background colour as transparent, then click the frames in playback order." />
     </StackPanel>
@@ -74,8 +74,7 @@
         <ComboBoxItem Content="Align centred" />
       </ComboBox>
       <Button Grid.Column="2" Margin="0,0,8,0" Padding="16,8" Click="Cancel_Click" Content="Cancel" />
-      <Button x:Name="UseFramesButton" Grid.Column="3" Padding="16,8" IsEnabled="False" Click="UseFrames_Click"
-              Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" Content="Use frames" />
+      <Button x:Name="UseFramesButton" Grid.Column="3" Padding="16,8" IsEnabled="False" Click="UseFrames_Click" Classes="primary" Content="Use frames" />
     </Grid>
   </Grid>
 </Window>

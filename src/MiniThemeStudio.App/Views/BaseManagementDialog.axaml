@@ -15,7 +15,7 @@
   <Grid RowDefinitions="Auto,*,Auto" Margin="24">
     <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,16">
       <StackPanel Spacing="4">
-        <TextBlock Text="Base Firmware Management" FontSize="{DynamicResource FontSizeTitle}" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" />
+        <TextBlock Classes="dialog-title" Text="Base Firmware Management" />
         <TextBlock Text="Original Base UIs are verified by SHA-256 before they are installed. Provide your own firmware files; none are bundled."
                    TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}" />
       </StackPanel>
@@ -66,7 +66,7 @@
 
     <Grid Grid.Row="2" ColumnDefinitions="Auto,*,Auto" Margin="0,16,0,0">
       <StackPanel x:Name="ImportButtons" Orientation="Horizontal" Spacing="8">
-        <Button Click="ImportFile_Click" Padding="16,8" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold">
+        <Button Click="ImportFile_Click" Padding="16,8" Classes="primary">
           <StackPanel Orientation="Horizontal" Spacing="8">
             <lucide:LucideIcon Kind="Archive" Size="16" />
             <TextBlock Text="Import file (.hsqs / .tar.gz)" />

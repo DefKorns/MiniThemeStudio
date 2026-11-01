@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -21,6 +22,7 @@ public sealed partial class MainWindow : Window, IDisposable
     private bool _isCloseConfirmationOpen;
     private Bitmap? _atlasBitmap;
     private CroppedBitmap? _spritePreview;
+    private int _spriteZoom;
     private readonly Avalonia.Threading.DispatcherTimer _animationTimer = new() { Interval = TimeSpan.FromMilliseconds(16) };
     private readonly System.Diagnostics.Stopwatch _animationClock = System.Diagnostics.Stopwatch.StartNew();
 
@@ -61,10 +63,31 @@ public sealed partial class MainWindow : Window, IDisposable
     private void Zoom4x_Click(object? sender, RoutedEventArgs e) => SetSpriteZoom(4);
     private void ZoomFit_Click(object? sender, RoutedEventArgs e) => SetSpriteZoom(0);
 
-    // 0 fits the sprite in the preview
+    // 0 fits the sprite in the preview; otherwise the sprite is drawn at that many times its size
     private void SetSpriteZoom(int zoomLevel)
     {
-        SpritePreviewImage.Stretch = zoomLevel == 0 ? Avalonia.Media.Stretch.Uniform : Avalonia.Media.Stretch.None;
+        _spriteZoom = zoomLevel;
+        ApplySpriteZoom();
+    }
+
+    private void ApplySpriteZoom()
+    {
+        // fitted, the sprite shrinks to the box; zoomed, the box scrolls over it
+        ScrollBarVisibility bars = _spriteZoom == 0 || _spritePreview is null ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
+        SpritePreviewScroll.HorizontalScrollBarVisibility = bars;
+        SpritePreviewScroll.VerticalScrollBarVisibility = bars;
+
+        if (_spriteZoom == 0 || _spritePreview is null)
+        {
+            SpritePreviewImage.Stretch = Avalonia.Media.Stretch.Uniform;
+            SpritePreviewImage.Width = double.NaN;
+            SpritePreviewImage.Height = double.NaN;
+            return;
+        }
+
+        SpritePreviewImage.Stretch = Avalonia.Media.Stretch.Fill;
+        SpritePreviewImage.Width = _spritePreview.Size.Width * _spriteZoom;
+        SpritePreviewImage.Height = _spritePreview.Size.Height * _spriteZoom;
     }
 
     private void ThemeMode_Click(object? sender, RoutedEventArgs e)
@@ -226,6 +249,7 @@ public sealed partial class MainWindow : Window, IDisposable
                 _atlasBitmap,
                 new PixelRect(frame.X, frame.Y, frame.Width, frame.Height));
             SpritePreviewImage.Source = _spritePreview;
+            ApplySpriteZoom();
         }
         catch
         {

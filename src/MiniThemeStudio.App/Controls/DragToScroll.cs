@@ -1,8 +1,11 @@
 using System;
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 
 namespace MiniThemeStudio.App.Controls;
 
@@ -47,6 +50,12 @@ public static class DragToScroll
 
     private static void OnPressed(object? sender, PointerPressedEventArgs e)
     {
+        // the scroll bars move the content themselves; dragging their thumb must not also drag the content
+        if (e.Source is Visual source && source.GetSelfAndVisualAncestors().OfType<ScrollBar>().Any())
+        {
+            return;
+        }
+
         if (sender is ScrollViewer scrollViewer && scrollViewer.GetValue(DragProperty) is null)
         {
             scrollViewer.SetValue(DragProperty, new Drag(e.GetPosition(scrollViewer), scrollViewer.Offset));

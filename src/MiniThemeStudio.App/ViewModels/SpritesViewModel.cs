@@ -70,6 +70,10 @@ public sealed partial class SpritesViewModel : ViewModelBase
     [ObservableProperty]
     private string spriteSearchText = "";
 
+    // the panel with the preview and the properties of the selected sprite; hidden, the atlas gets its space
+    [ObservableProperty]
+    private bool isInspectorVisible = true;
+
     public bool CanReplaceSprite => SelectedSprite is not null && AtlasImagePath.Length > 0;
 
     // selects the sprite a scene draws; false when no atlas has it

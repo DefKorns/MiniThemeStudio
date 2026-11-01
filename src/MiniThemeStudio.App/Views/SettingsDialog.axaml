@@ -3,20 +3,6 @@
   xmlns:lucide="using:Lucide.Avalonia" x:Class="MiniThemeStudio.App.Views.SettingsDialog" Title="Settings" Width="720" Height="760" MinWidth="620" MinHeight="600" CanResize="True" ShowInTaskbar="False" SystemDecorations="None" TransparencyLevelHint="Transparent" WindowStartupLocation="CenterOwner" Background="Transparent" FontFamily="Segoe UI, Ubuntu, sans-serif">
 
   <Window.Styles>
-    <Style Selector="ToggleButton.connection-segment">
-      <Setter Property="Height" Value="42" />
-      <Setter Property="HorizontalContentAlignment" Value="Center" />
-      <Setter Property="Background" Value="{DynamicResource SurfaceBackgroundBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-    </Style>
-    <Style Selector="ToggleButton.connection-segment:checked">
-      <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-    </Style>
     <Style Selector="TextBox.path-input.invalid-path">
       <Setter Property="BorderBrush" Value="{DynamicResource ErrorTextBrush}" />
     </Style>
@@ -39,13 +25,14 @@
         <StackPanel Margin="0,0,20,24" Spacing="24">
           <StackPanel Spacing="12">
             <TextBlock FontSize="{DynamicResource FontSizeSmall}" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Text="Console connection" />
-            <Grid ColumnDefinitions="*,*">
-              <ToggleButton x:Name="UsbConnectionButton" Classes="connection-segment" Margin="0,0,4,0" CornerRadius="4,0,0,4" Click="ConnectionMode_Click" Content="USB" />
-              <ToggleButton x:Name="NetworkConnectionButton" Grid.Column="1" Classes="connection-segment" Margin="4,0,0,0" CornerRadius="0,4,4,0" Click="ConnectionMode_Click" Content="Network" />
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="24">
+              <StackPanel Orientation="Horizontal" Spacing="24" VerticalAlignment="Center">
+                <RadioButton x:Name="UsbConnectionButton" GroupName="ConnectionMode" Click="ConnectionMode_Click" Content="USB" />
+                <RadioButton x:Name="NetworkConnectionButton" GroupName="ConnectionMode" Click="ConnectionMode_Click" Content="Network" />
+              </StackPanel>
+              <TextBox x:Name="ConsoleHostTextBox" Grid.Column="1" Height="40" Watermark="IP address, e.g. 169.254.13.37" ToolTip.Tip="Console IP address" TextChanged="ConsoleHostTextBox_TextChanged" />
             </Grid>
             <TextBlock x:Name="ConnectionHintText" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" />
-            <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Text="IP address" />
-            <TextBox x:Name="ConsoleHostTextBox" Height="40" Watermark="169.254.13.37" TextChanged="ConsoleHostTextBox_TextChanged" />
           </StackPanel>
 
           <StackPanel Spacing="12">

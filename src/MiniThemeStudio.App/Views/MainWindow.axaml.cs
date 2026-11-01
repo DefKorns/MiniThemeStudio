@@ -98,6 +98,11 @@ public sealed partial class MainWindow : Window, IDisposable
         SpritePreviewImage.Height = _spritePreview.Size.Height * _spriteZoom;
     }
 
+    private void SceneZoomIn_Click(object? sender, RoutedEventArgs e) => SceneCanvas.ZoomBy(1.25);
+    private void SceneZoomOut_Click(object? sender, RoutedEventArgs e) => SceneCanvas.ZoomBy(0.8);
+    private void SceneZoomActual_Click(object? sender, RoutedEventArgs e) => SceneCanvas.ZoomToActualSize();
+    private void SceneZoomFit_Click(object? sender, RoutedEventArgs e) => SceneCanvas.ResetView();
+
     private void SheetZoom1x_Click(object? sender, RoutedEventArgs e) => SetSheetZoom(1);
     private void SheetZoom2x_Click(object? sender, RoutedEventArgs e) => SetSheetZoom(2);
     private void SheetZoom4x_Click(object? sender, RoutedEventArgs e) => SetSheetZoom(4);

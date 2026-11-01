@@ -603,10 +603,21 @@
           <!-- Preview -->
           <Border Classes="card" Grid.Column="1" Margin="0,0,12,0">
             <Grid RowDefinitions="Auto,Auto,*,Auto">
-              <StackPanel Margin="12,8" Orientation="Horizontal" Spacing="16">
-                <CheckBox IsChecked="{Binding IsolateSceneBranch}" Content="Only the selected branch" ToolTip.Tip="Draw only the menu or background the selected node belongs to" />
-                <CheckBox IsChecked="{Binding ShowHiddenSceneNodes}" Content="Show hidden nodes" />
-              </StackPanel>
+              <Grid Margin="12,8" ColumnDefinitions="*,Auto">
+                <StackPanel Orientation="Horizontal" Spacing="16">
+                  <CheckBox IsChecked="{Binding IsolateSceneBranch}" Content="Only the selected branch" ToolTip.Tip="Draw only the menu or background the selected node belongs to" />
+                  <CheckBox IsChecked="{Binding ShowHiddenSceneNodes}" Content="Show hidden nodes" />
+                </StackPanel>
+                <!-- view controls: the wheel zooms too, and the middle button or a drag on empty ground moves the view -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
+                  <TextBlock MinWidth="48" Margin="0,0,8,0" VerticalAlignment="Center" TextAlignment="Right" FontSize="{DynamicResource FontSizeSmall}" Foreground="{DynamicResource SecondaryTextBrush}"
+                             Text="{Binding #SceneCanvas.ZoomPercent, StringFormat='{}{0:0}%'}" />
+                  <Button Padding="8,2" Content="-" Click="SceneZoomOut_Click" ToolTip.Tip="Zoom out" />
+                  <Button Padding="8,2" Content="+" Click="SceneZoomIn_Click" ToolTip.Tip="Zoom in" />
+                  <Button Padding="8,2" Content="1:1" Click="SceneZoomActual_Click" ToolTip.Tip="One console pixel per screen pixel" />
+                  <Button Padding="8,2" Content="Fit" Click="SceneZoomFit_Click" ToolTip.Tip="Show the whole screen" />
+                </StackPanel>
+              </Grid>
               <Grid Grid.Row="1" Margin="12,0,12,8" ColumnDefinitions="240,Auto,*" ColumnSpacing="8">
                 <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding SceneAnimations}" SelectedItem="{Binding SelectedAnimation}" PlaceholderText="Play an animation..."
                           ToolTip.Tip="The animations whose nodes are all in this scene; scripts start them on the console">
@@ -621,7 +632,7 @@
                 </Button>
                 <ContentControl Grid.Column="2" Content="{Binding Clock}" />
               </Grid>
-              <controls:ScenePreview Grid.Row="2" Margin="12,0"
+              <controls:ScenePreview x:Name="SceneCanvas" AllowZoom="True" Grid.Row="2" Margin="12,0"
                                      Root="{Binding PreviewRoot}"
                                      SelectedPath="{Binding SelectedScenePath}"
                                      BranchPath="{Binding PreviewBranchPath}"
@@ -629,7 +640,7 @@
                                      Images="{Binding SceneImages}"
                                      MoveCommand="{Binding MoveNodeCommand}" />
               <TextBlock Grid.Row="3" Margin="12,8" FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
-                         Text="Click an image to select its node and drag it to move it; drag inside a selected group to move the whole group. This is the layout saved in the scene; scripts and animations can still move, show or hide nodes on the console." />
+                         Text="Click an image to select its node and drag it to move it; drag inside a selected group to move the whole group. The wheel zooms; the middle button, or a drag on empty ground, moves the view. This is the layout saved in the scene; scripts and animations can still move, show or hide nodes on the console." />
             </Grid>
           </Border>
 

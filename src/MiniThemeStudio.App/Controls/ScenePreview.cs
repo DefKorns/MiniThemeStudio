@@ -66,8 +66,25 @@ public sealed class ScenePreview : Control
     public static readonly StyledProperty<ICommand?> MoveCommandProperty =
         AvaloniaProperty.Register<ScenePreview, ICommand?>(nameof(MoveCommand));
 
+    // how much the view is enlarged over the one that fits the whole screen in the control (1 is the fitted view);
+    // only a control with AllowZoom answers the wheel and drags its view around
+    public static readonly StyledProperty<double> ZoomProperty =
+        AvaloniaProperty.Register<ScenePreview, double>(nameof(Zoom), 1);
+
+    public static readonly StyledProperty<bool> AllowZoomProperty =
+        AvaloniaProperty.Register<ScenePreview, bool>(nameof(AllowZoom));
+
+    // the enlargement as the percentage of the console screen's size
+    public static readonly DirectProperty<ScenePreview, double> ZoomPercentProperty =
+        AvaloniaProperty.RegisterDirect<ScenePreview, double>(nameof(ZoomPercent), preview => preview.ZoomPercent);
+
     // screen pixels the pointer must travel before a press becomes a drag
     private const double DragThreshold = 3;
+
+    // the limits of Zoom, and the step of one notch of the wheel
+    private const double MinZoom = 0.25;
+    private const double MaxZoom = 16;
+    private const double WheelStep = 1.15;
 
     // screen units: the margin around the framed text (wide enough for the icon beside a title), and how far the
     // framed part is enlarged
@@ -101,10 +118,12 @@ public sealed class ScenePreview : Control
     private Matrix _screenMatrix = Matrix.Identity;
     private string? _hoveredPath;
     private Drag? _drag;
+    private PanDrag? _panDrag;
+    private Vector _pan;
 
     static ScenePreview()
     {
-        AffectsRender<ScenePreview>(RootProperty, SelectedPathProperty, BranchPathProperty, ShowHiddenProperty, ImagesProperty, ColorsProperty, StringsProperty, HiddenOpacityProperty, FocusColorNameProperty, TextBesideIconsProperty);
+        AffectsRender<ScenePreview>(RootProperty, SelectedPathProperty, BranchPathProperty, ShowHiddenProperty, ImagesProperty, ColorsProperty, StringsProperty, HiddenOpacityProperty, FocusColorNameProperty, TextBesideIconsProperty, ZoomProperty);
     }
 
     public SceneNode? Root
@@ -173,6 +192,78 @@ public sealed class ScenePreview : Control
         set => SetValue(MoveCommandProperty, value);
     }
 
+    public double Zoom
+    {
+        get => GetValue(ZoomProperty);
+        set => SetValue(ZoomProperty, value);
+    }
+
+    public bool AllowZoom
+    {
+        get => GetValue(AllowZoomProperty);
+        set => SetValue(AllowZoomProperty, value);
+    }
+
+    public double ZoomPercent => Math.Round(FitScale * Zoom * 100);
+
+    // device pixels per screen unit when the whole screen fits the control
+    private double FitScale => Math.Min(Bounds.Width / ScreenWidth, Bounds.Height / ScreenHeight);
+
+    // back to the view that fits the whole screen
+    public void ResetView()
+    {
+        _pan = default;
+        Zoom = 1;
+        InvalidateVisual();
+    }
+
+    // enlarges (or reduces) the view around the middle of the control
+    public void ZoomBy(double factor) => ZoomAround(new Point(Bounds.Width / 2, Bounds.Height / 2), factor);
+
+    // one console pixel per device pixel
+    public void ZoomToActualSize()
+    {
+        if (FitScale > 0)
+        {
+            ZoomAround(new Point(Bounds.Width / 2, Bounds.Height / 2), 1 / (FitScale * Zoom));
+        }
+    }
+
+    // the point of the screen under the position stays under it
+    private void ZoomAround(Point position, double factor)
+    {
+        double zoom = Math.Clamp(Zoom * factor, MinZoom, MaxZoom);
+        double ratio = zoom / Zoom;
+        if (ratio == 1)
+        {
+            return;
+        }
+
+        var middle = new Point(Bounds.Width / 2, Bounds.Height / 2);
+        Point center = middle + _pan;
+        _pan = (position - (position - center) * ratio) - middle;
+        Zoom = zoom;
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == ZoomProperty || change.Property == BoundsProperty)
+        {
+            RaisePropertyChanged(ZoomPercentProperty, 0, ZoomPercent);
+        }
+    }
+
+    protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
+    {
+        base.OnPointerWheelChanged(e);
+        if (AllowZoom && e.Delta.Y != 0)
+        {
+            ZoomAround(e.GetPosition(this), Math.Pow(WheelStep, e.Delta.Y));
+            e.Handled = true;
+        }
+    }
+
     protected override Size MeasureOverride(Size availableSize)
     {
         if (FocusColorName is { Length: > 0 } focus && double.IsFinite(availableSize.Width) && FocusBox(focus) is { } box)
@@ -185,13 +276,14 @@ public sealed class ScenePreview : Control
 
     public override void Render(DrawingContext context)
     {
-        double scale = Math.Min(Bounds.Width / ScreenWidth, Bounds.Height / ScreenHeight);
+        double scale = FitScale * (AllowZoom ? Zoom : 1);
         if (scale <= 0)
         {
             return;
         }
 
-        _screen = new Rect((Bounds.Width - ScreenWidth * scale) / 2, (Bounds.Height - ScreenHeight * scale) / 2, ScreenWidth * scale, ScreenHeight * scale);
+        Vector pan = AllowZoom ? _pan : default;
+        _screen = new Rect((Bounds.Width - ScreenWidth * scale) / 2 + pan.X, (Bounds.Height - ScreenHeight * scale) / 2 + pan.Y, ScreenWidth * scale, ScreenHeight * scale);
         _screenMatrix = new Matrix(scale, 0, 0, -scale, _screen.Center.X, _screen.Center.Y);
         bool framed = false;
         if (FocusColorName is { Length: > 0 } focus && FocusView(focus, Bounds.Size) is { } focused)
@@ -242,6 +334,18 @@ public sealed class ScenePreview : Control
     {
         base.OnPointerPressed(e);
         Point position = e.GetPosition(this);
+
+        // the middle button, or the left one on empty ground, drags the view around
+        PointerPointProperties properties = e.GetCurrentPoint(this).Properties;
+        if (AllowZoom && (properties.IsMiddleButtonPressed || (properties.IsLeftButtonPressed && FindAt(position) is null)))
+        {
+            _panDrag = new PanDrag(position, _pan);
+            e.Pointer.Capture(this);
+            Cursor = new Cursor(StandardCursorType.SizeAll);
+            e.Handled = true;
+            return;
+        }
+
         if (FindAt(position) is not { } item)
         {
             return;
@@ -270,6 +374,14 @@ public sealed class ScenePreview : Control
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
     {
         base.OnPointerReleased(e);
+        if (_panDrag is not null)
+        {
+            _panDrag = null;
+            e.Pointer.Capture(null);
+            Cursor = null;
+            return;
+        }
+
         if (_drag is not { } drag)
         {
             return;
@@ -297,6 +409,12 @@ public sealed class ScenePreview : Control
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
     {
         base.OnPointerCaptureLost(e);
+        if (_panDrag is not null)
+        {
+            _panDrag = null;
+            Cursor = null;
+        }
+
         if (_drag is not null)
         {
             _drag = null;
@@ -308,6 +426,13 @@ public sealed class ScenePreview : Control
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
+        if (_panDrag is { } panDrag)
+        {
+            _pan = panDrag.StartPan + (e.GetPosition(this) - panDrag.Start);
+            InvalidateVisual();
+            return;
+        }
+
         if (_drag is { } drag)
         {
             Point position = e.GetPosition(this);
@@ -463,7 +588,7 @@ public sealed class ScenePreview : Control
     private void Collect(SceneNode node, Matrix parentWorld, bool hiddenAncestor, double alpha)
     {
         bool hidden = hiddenAncestor || !node.Visible || !node.Enabled;
-        if (hidden && !ShowHidden)
+        if (node.IsEngineOnly || (hidden && !ShowHidden))
         {
             return;
         }
@@ -665,6 +790,14 @@ public sealed class ScenePreview : Control
     // engine [a, b, x, c, d, y]: x' = a*px + b*py + x, y' = c*px + d*py + y
     private static Matrix ToMatrix(SceneTransform transform) =>
         new(transform.A, transform.C, transform.B, transform.D, transform.X, transform.Y);
+
+    // a drag of the whole view: where the pointer went down and where the view was
+    private sealed class PanDrag(Point start, Vector startPan)
+    {
+        public Point Start { get; } = start;
+
+        public Vector StartPan { get; } = startPan;
+    }
 
     private sealed class Drag(string path, string clickedPath, Point start, Matrix toParent, double originX, double originY)
     {

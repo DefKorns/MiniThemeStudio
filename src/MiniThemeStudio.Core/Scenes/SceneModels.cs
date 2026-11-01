@@ -44,6 +44,8 @@ public sealed record SceneVisual(
 public sealed record SceneFill(double Red, double Green, double Blue);
 
 // Alpha is the node's own opacity, which its children inherit
+// IsEngineOnly: a node only the engine uses, so the editor neither lists nor draws it: a camera, or the picture that
+// shows what a camera renders (its texture is a render target, not an image of the theme)
 public sealed record SceneNode(
     string Path,
     string Name,
@@ -54,7 +56,8 @@ public sealed record SceneNode(
     IReadOnlyList<string> ComponentTypes,
     SceneVisual? Visual,
     IReadOnlyList<SceneNode> Children,
-    double Alpha = 1)
+    double Alpha = 1,
+    bool IsEngineOnly = false)
 {
     public string ComponentsText => ComponentTypes.Count == 0 ? "" : string.Join(", ", ComponentTypes.Select(type => type.Replace("Component", "", StringComparison.Ordinal)));
 

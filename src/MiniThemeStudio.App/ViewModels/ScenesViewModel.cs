@@ -174,6 +174,9 @@ public sealed partial class ScenesViewModel : ViewModelBase
     public string SelectedSceneNodeSummary => SelectedSceneNode switch
     {
         null => "Select a node in the list or click an image in the preview.",
+        // CloverBG (scripts/app/clover_bg.lua) shows one of these two and hides the other, whatever the scene says
+        { Name: "default_bg" or "demo_bg" } when SelectedSceneResource == "/prefab/bg.scn" =>
+            "A background the console shows or hides by script (the home or the demo): its Visible setting is ignored. Edit the images inside it, or the layers in the Wallpapers tab.",
         { Visual: { Kind: SceneVisualKind.Sprite, SpriteId: var spriteId } } => $"Draws the atlas sprite {SpriteName(spriteId)}.",
         { Visual: { Kind: SceneVisualKind.Label, Text: var text } } => $"Draws the text \"{text}\".",
         { Visual: { Kind: SceneVisualKind.Texture } } => "Draws an image.",
@@ -533,6 +536,12 @@ public sealed partial class ScenesViewModel : ViewModelBase
 
     private static void AddRows(SceneNode node, int depth, List<SceneTreeRow> rows)
     {
+        // cameras and render targets have nothing the theme can edit
+        if (node.IsEngineOnly)
+        {
+            return;
+        }
+
         rows.Add(new SceneTreeRow(node, depth));
         foreach (SceneNode child in node.Children)
         {

@@ -33,7 +33,9 @@ public sealed class SceneEditor : ISceneEditor
             ?? throw new FileNotFoundException($"Scene not found: resources{sceneResourcePath}");
         JsonObject root = ParseScene(path)["rootWorldNode"] as JsonObject
             ?? throw new InvalidDataException($"{Path.GetFileName(path)} has no rootWorldNode.");
-        return new SceneDocument(sceneResourcePath, layer.ResolveInTheme(sceneResourcePath) is not null, ReadNode(root, ""));
+        var renderTargets = new HashSet<string>(StringComparer.Ordinal);
+        CollectRenderTargets(root, renderTargets);
+        return new SceneDocument(sceneResourcePath, layer.ResolveInTheme(sceneResourcePath) is not null, ReadNode(root, "", renderTargets));
     }
 
     public void EditNode(string themeDraftPath, string? baseUiPath, string sceneResourcePath, string nodePath, SceneNodeEdit edit)
@@ -312,12 +314,35 @@ public sealed class SceneEditor : ISceneEditor
         return new CurveKey(time, CurveInterpolation.Constant, Double(key["value"]) ?? 0, Text: String(key["value"]), Flag: Bool(key["value"]));
     }
 
-    private static SceneNode ReadNode(JsonObject node, string path)
+    // the textures the cameras of the scene render into
+    private static void CollectRenderTargets(JsonObject node, HashSet<string> renderTargets)
+    {
+        foreach (JsonObject component in (node["components"] as JsonArray ?? []).OfType<JsonObject>())
+        {
+            if (String(component["type"]) == "CameraComponent" && String(component["renderTarget"]) is { Length: > 0 } target)
+            {
+                renderTargets.Add(target);
+            }
+        }
+
+        foreach (JsonObject child in (node["children"] as JsonArray ?? []).OfType<JsonObject>())
+        {
+            CollectRenderTargets(child, renderTargets);
+        }
+    }
+
+    private static SceneNode ReadNode(JsonObject node, string path, HashSet<string> renderTargets)
     {
         var components = (node["components"] as JsonArray ?? []).OfType<JsonObject>().ToList();
         var children = (node["children"] as JsonArray ?? []).OfType<JsonObject>()
-            .Select((child, index) => ReadNode(child, path.Length == 0 ? index.ToString(CultureInfo.InvariantCulture) : $"{path}/{index}"))
+            .Select((child, index) => ReadNode(child, path.Length == 0 ? index.ToString(CultureInfo.InvariantCulture) : $"{path}/{index}", renderTargets))
             .ToList();
+
+        // a camera, or the picture of what a camera renders: nothing there for the theme to edit
+        bool engineOnly = path.Length > 0
+            && children.Count == 0
+            && components.All(component => String(component["type"]) == "CameraComponent"
+                || (String(component["type"]) == "TextureComponent" && String(component["textureId"]) is { } texture && renderTargets.Contains(texture)));
 
         return new SceneNode(
             path,
@@ -329,7 +354,8 @@ public sealed class SceneEditor : ISceneEditor
             components.Select(component => String(component["type"]) ?? "?").ToList(),
             ReadVisual(components),
             children,
-            node["color"] is JsonArray { Count: 4 } color ? Double(color[3]) ?? 1 : 1);
+            node["color"] is JsonArray { Count: 4 } color ? Double(color[3]) ?? 1 : 1,
+            engineOnly && components.Count > 0);
     }
 
     private static SceneTransform ReadTransform(JsonNode? value)

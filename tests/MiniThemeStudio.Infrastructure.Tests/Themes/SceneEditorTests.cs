@@ -50,6 +50,26 @@ public sealed class SceneEditorTests : IDisposable
     }
 
     [Fact]
+    public void MarksCamerasAndTheirRenderTargetsAsEngineOnly()
+    {
+        const string target = "82c39184-53d4-49d0-b62b-383d727ab9c4";
+        WriteFile(_basePath, "resources/prefab/camera.scn", $$$"""
+            {"rootWorldNode":{"id":"r","name":"BG","transform":[1,0,0,0,1,0],"components":[],"children":[
+              {"id":"a","name":"Camera","components":[{"type":"CameraComponent","renderTarget":"{{{target}}}"}],"children":[]},
+              {"id":"b","name":"wall","components":[{"type":"TextureComponent","textureId":"{{{WallId}}}","size":[10,10]}],"children":[]},
+              {"id":"c","name":"render","components":[{"type":"TextureComponent","textureId":"{{{target}}}","size":[1280,720]}],"children":[]}
+            ]}}
+            """);
+
+        SceneDocument scene = new SceneEditor().Load(_themePath, _basePath, "/prefab/camera.scn");
+
+        Assert.True(scene.Find("0")!.IsEngineOnly);
+        Assert.False(scene.Find("1")!.IsEngineOnly);
+        Assert.True(scene.Find("2")!.IsEngineOnly);
+        Assert.False(scene.Root.IsEngineOnly);
+    }
+
+    [Fact]
     public void LoadsTheNodeTreeWithTransformsAndVisuals()
     {
         SceneDocument scene = new SceneEditor().Load(_themePath, _basePath, "/prefab/bg.scn");

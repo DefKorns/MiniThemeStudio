@@ -97,6 +97,25 @@ public sealed class CharacterSheetEditorTests : IDisposable
     }
 
     [Fact]
+    public void AReplacementSheetIsStoredAsEightBitRgba()
+    {
+        CharacterSheet sheet = _editor.GetSheets(_themePath, _basePath)[0];
+        string gray = Path.Combine(_themePath, "gray.png");
+        using (var bitmap = new SKBitmap(new SKImageInfo(128, 64, SKColorType.Gray8, SKAlphaType.Opaque)))
+        {
+            bitmap.Erase(new SKColor(120, 120, 120));
+            using SKData data = SKImage.FromBitmap(bitmap).Encode(SKEncodedImageFormat.Png, 100);
+            File.WriteAllBytes(gray, data.ToArray());
+        }
+
+        _editor.ReplaceSheet(_themePath, _basePath, sheet, gray);
+
+        byte[] stored = File.ReadAllBytes(Path.Combine(_themePath, "resources", "sprites", "characters_sbm.png"));
+        Assert.Equal((8, 6, 0), (stored[24], stored[25], stored[28])); // bit depth, RGBA, not interlaced
+        Assert.Equal(new SKColor(120, 120, 120), SKBitmap.Decode(stored).GetPixel(5, 5));
+    }
+
+    [Fact]
     public void EnlargedPixelArtIsDrawnAtItsOwnPixelSize()
     {
         CharacterSheet sheet = _editor.GetSheets(_themePath, _basePath)[0];

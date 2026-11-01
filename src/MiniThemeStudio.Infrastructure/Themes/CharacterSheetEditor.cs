@@ -103,9 +103,8 @@ public sealed class CharacterSheetEditor : ICharacterSheetEditor
                 $"The sheet must be {original.Width} × {original.Height} pixels, like the one it replaces; {Path.GetFileName(sheetImagePath)} is {replacement.Width} × {replacement.Height}."));
         }
 
-        string target = layer.ThemeResourceFile(resource);
-        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-        File.Copy(sheetImagePath, target, true);
+        // written again as the plain RGBA the console reads, not copied as the file came
+        ConsolePng.Save(replacement, layer.ThemeResourceFile(resource));
     }
 
     public (int Width, int Height) MeasurePicture(string pictureImagePath)

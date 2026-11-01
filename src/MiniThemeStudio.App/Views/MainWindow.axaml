@@ -677,7 +677,7 @@
 
       <!-- CHARACTERS -->
       <TabItem Header="Characters">
-        <Grid DataContext="{Binding CharactersTab}" x:DataType="vm:CharactersViewModel" ColumnDefinitions="Auto,*,320" Margin="16,12">
+        <Grid DataContext="{Binding CharactersTab}" x:DataType="vm:CharactersViewModel" ColumnDefinitions="Auto,*,Auto" Margin="16,12">
           <!-- the NES and Famicom UIs draw their characters from sheets: one row at a time, like a SNES character -->
           <Grid Grid.ColumnSpan="3" ColumnDefinitions="*,320" IsVisible="{Binding ShowSheet}">
             <Border Classes="card" Margin="0,0,12,0">
@@ -706,9 +706,9 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                       <DataTemplate x:DataType="vm:SheetFrameView">
-                        <Border Width="120" Padding="8" CornerRadius="4" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                        <Border Width="144" Padding="8" CornerRadius="4" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
                           <StackPanel Spacing="4">
-                            <Image Height="72" Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
+                            <Image Height="96" Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
                             <TextBlock FontWeight="SemiBold" Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
                             <TextBlock FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SizeText}" />
                             <Button Padding="8,4" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Replace..."
@@ -765,10 +765,13 @@
           <Border Classes="card" Grid.Column="1" Margin="0,0,12,0"
                   IsVisible="{Binding ShowSimpleFrames}">
             <Grid RowDefinitions="Auto,Auto,*" Margin="12">
-              <Grid ColumnDefinitions="Auto,200,*" ColumnSpacing="12">
+              <Grid ColumnDefinitions="Auto,200,*,Auto" ColumnSpacing="12">
                 <TextBlock VerticalAlignment="Center" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Frames of" />
                 <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" ItemsSource="{Binding Characters}" SelectedItem="{Binding SelectedCharacter}" />
                 <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="{DynamicResource FontSizeSmall}" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding CharacterSizeText}" TextTrimming="CharacterEllipsis" />
+                <ToggleButton Grid.Column="3" Padding="8,2" IsChecked="{Binding IsInspectorVisible}" ToolTip.Tip="Show or hide the animation panel">
+                  <lucide:LucideIcon Kind="PanelRight" Size="16" />
+                </ToggleButton>
               </Grid>
               <TextBlock Grid.Row="1" Margin="0,4,0,0" FontSize="{DynamicResource FontSizeSmall}" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"
                          Text="Replace each frame with a PNG of the same size. The animations keep using the same frames, so the character keeps moving as on the official theme." />
@@ -781,9 +784,9 @@
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:CharacterFrameRow">
-                      <Border Width="120" Padding="8" CornerRadius="4" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                      <Border Width="144" Padding="8" CornerRadius="4" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
                         <StackPanel Spacing="4">
-                          <Image Height="72" Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
+                          <Image Height="96" Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
                           <TextBlock FontWeight="SemiBold" Text="{Binding Label}" TextTrimming="CharacterEllipsis" />
                           <TextBlock FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding SizeText}" />
                           <Button Padding="8,4" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="Replace..."
@@ -800,7 +803,12 @@
           <Border Classes="card" Grid.Column="1" Margin="0,0,12,0"
                   IsVisible="{Binding ShowAdvancedFrames}">
             <Grid RowDefinitions="Auto,*" Margin="12">
-              <TextBlock FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Frames (faded frames run after the loop, click to select)" />
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock VerticalAlignment="Center" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Frames (faded frames run after the loop, click to select)" />
+                <ToggleButton Grid.Column="1" Padding="8,2" IsChecked="{Binding IsInspectorVisible}" ToolTip.Tip="Show or hide the animation panel">
+                  <lucide:LucideIcon Kind="PanelRight" Size="16" />
+                </ToggleButton>
+              </Grid>
               <ScrollViewer Grid.Row="1" Margin="0,12,0,0">
                 <ListBox x:Name="AnimationFramesList" ItemsSource="{Binding AnimationFrames}" SelectionMode="Multiple,Toggle" Background="Transparent">
                   <ListBox.ItemsPanel>
@@ -810,9 +818,9 @@
                   </ListBox.ItemsPanel>
                   <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:AnimationFrameView">
-                      <Border Width="96" Padding="8" CornerRadius="4" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Opacity="{Binding Opacity}">
+                      <Border Width="112" Padding="8" CornerRadius="4" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Opacity="{Binding Opacity}">
                         <StackPanel Spacing="4">
-                          <Image Height="64" Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
+                          <Image Height="80" Source="{Binding Thumbnail}" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
                           <TextBlock FontSize="{DynamicResource FontSizeCaption}" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
                           <TextBlock FontSize="{DynamicResource FontSizeCaption}" Foreground="{DynamicResource SecondaryTextBrush}" Text="{Binding TimeText}" />
                         </StackPanel>
@@ -824,7 +832,7 @@
             </Grid>
           </Border>
 
-          <Border Grid.Column="2" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding ShowAnimations}">
+          <Border Grid.Column="2" Width="340" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6" IsVisible="{Binding ShowAnimationsPanel}">
             <ScrollViewer>
               <StackPanel Margin="20" Spacing="16">
                 <TextBlock FontFamily="Georgia, serif" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Animation Preview" />
@@ -836,9 +844,10 @@
                     </DataTemplate>
                   </ComboBox.ItemTemplate>
                 </ComboBox>
-                <Border Height="220" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+                <Border Classes="preview" Classes.checker="{Binding IsPreviewCheckerboard}" Height="220" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
                   <Image x:Name="AnimationPreviewImage" Margin="12" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="None" />
                 </Border>
+                <CheckBox IsChecked="{Binding IsPreviewCheckerboard}" Content="Checkerboard background" ToolTip.Tip="Show the transparent parts of the frames" />
                 <CheckBox x:Name="MirrorPreviewCheckBox" Content="Preview flipped" IsChecked="{Binding IsPreviewMirrored}" IsCheckedChanged="MirrorPreview_IsCheckedChanged"
                           ToolTip.Tip="Show the animation flipped horizontally without changing any frame" />
                 <StackPanel Spacing="16" IsVisible="{Binding Mode.IsAdvanced}">
@@ -854,7 +863,7 @@
                 </StackPanel>
                 <Button Padding="12,8" HorizontalAlignment="Stretch" Command="{Binding ApplyFrameTimeCommand}" Content="Apply frame time"
                         ToolTip.Tip="Space the loop frames of this animation evenly at this frame time" />
-                <Button Padding="12,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold"
+                <Button Padding="12,8" HorizontalAlignment="Stretch" Classes="primary"
                         Command="{Binding ReplaceFramesCommand}" Content="Replace frames from sprite sheet..." />
                 <TextBlock FontSize="{DynamicResource FontSizeSmall}" TextWrapping="Wrap" Foreground="{DynamicResource SecondaryTextBrush}"
                            Text="The loop frames are replaced in place and extra frames are added as new textures. Other animations of the character keep their own frames." />
@@ -867,16 +876,16 @@
 
       <!-- TAB 4: FONTS -->
       <TabItem Header="Fonts">
-        <Grid DataContext="{Binding FontsTab}" x:DataType="vm:FontsViewModel" ColumnDefinitions="300,*,300" Margin="16,12">
+        <Grid DataContext="{Binding FontsTab}" x:DataType="vm:FontsViewModel" ColumnDefinitions="300,*,Auto" Margin="16,12">
           <!-- Column 1: Fonts List -->
           <Border Classes="card" Margin="0,0,12,0">
             <Grid RowDefinitions="Auto,Auto,*">
-              <TextBlock Margin="16,12" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="UI Fonts (.fnt / .font)" />
-              <ListBox Grid.Row="1" Margin="8,0,8,8" ItemsSource="{Binding Fonts}" SelectedItem="{Binding SelectedFont}">
+              <TextBlock Margin="16,12,16,8" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="UI Fonts (.fnt / .font)" />
+              <ListBox Grid.Row="1" Margin="8,0,8,8" MaxHeight="216" ItemsSource="{Binding Fonts}" SelectedItem="{Binding SelectedFont}">
                 <ListBox.Styles>
                   <Style Selector="ListBoxItem">
                     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                    <Setter Property="Padding" Value="10,8" />
+                    <Setter Property="Padding" Value="8,4" />
                   </Style>
                 </ListBox.Styles>
                 <ListBox.ItemTemplate>
@@ -899,6 +908,7 @@
                 </ListBox.ItemTemplate>
               </ListBox>
               <Border Grid.Row="2" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
+                <ScrollViewer>
                 <StackPanel Margin="16,12,16,12" Spacing="12">
                   <TextBlock FontFamily="Georgia, serif" FontSize="{DynamicResource FontSizeSubtitle}" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" Text="Font Properties" />
 
@@ -918,7 +928,7 @@
 
                   <!-- Action Buttons: Convert TTF/OTF, Replace PNG, Replace FNT, Export PNG, Export FNT -->
                   <Grid ColumnDefinitions="*,*" Margin="0,4" RowDefinitions="Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="8">
-                    <Button Padding="8,8" HorizontalAlignment="Stretch" Background="{DynamicResource AccentBrush}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold"
+                    <Button Classes="primary" Padding="8,8" HorizontalAlignment="Stretch"
                             Command="{Binding ConvertTrueTypeFontCommand}" Content="Convert TTF / OTF..."
                             Grid.ColumnSpan="2" ToolTip.Tip="Convert .ttf, .otf, or .zip directly into console BMFont" />
                     <Button Grid.Row="1" Padding="8,8" HorizontalAlignment="Stretch"
@@ -932,6 +942,7 @@
                   </Grid>
 
                 </StackPanel>
+                </ScrollViewer>
               </Border>
             </Grid>
           </Border>
@@ -969,6 +980,9 @@
                     <Button Padding="8,2" Content="1x" Click="GlyphAtlasZoom1x_Click" ToolTip.Tip="Atlas at 100%" />
                     <Button Padding="8,2" Content="2x" Click="GlyphAtlasZoom2x_Click" ToolTip.Tip="Atlas at 200%" />
                     <Button Padding="8,2" Content="3x" Click="GlyphAtlasZoom3x_Click" ToolTip.Tip="Atlas at 300%" />
+                    <ToggleButton Margin="8,0,0,0" Padding="8,2" IsChecked="{Binding IsInspectorVisible}" ToolTip.Tip="Show or hide the glyph coverage panel">
+                      <lucide:LucideIcon Kind="PanelRight" Size="16" />
+                    </ToggleButton>
                   </StackPanel>
                 </Grid>
                 <Border Grid.Row="1" Background="{DynamicResource PreviewBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
@@ -982,7 +996,7 @@
           </Border>
 
           <!-- Column 3: Font Details, Glyphs List & Actions -->
-          <Border Grid.Column="2" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
+          <Border Grid.Column="2" Width="320" IsVisible="{Binding IsInspectorVisible}" Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="6">
             <Grid Margin="16" RowDefinitions="Auto,Auto,Auto,*" RowSpacing="12">
                 <StackPanel Spacing="8">
                   <!-- Glyph Coverage Validation -->

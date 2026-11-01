@@ -153,6 +153,17 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool isPreviewMirrored;
 
+    // a checkerboard behind the animation shows the transparent parts of the frames
+    [ObservableProperty]
+    private bool isPreviewCheckerboard = true;
+
+    // the animation panel; hidden, the frames get its space
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowAnimationsPanel))]
+    private bool isInspectorVisible = true;
+
+    public bool ShowAnimationsPanel => ShowAnimations && IsInspectorVisible;
+
     public AtlasSize? CurrentCharacterFrameSize { get; private set; }
 
     [RelayCommand]
@@ -642,6 +653,7 @@ public sealed partial class CharactersViewModel : ViewModelBase, IDisposable
     {
         OnPropertyChanged(nameof(ShowSheet));
         OnPropertyChanged(nameof(ShowAnimations));
+        OnPropertyChanged(nameof(ShowAnimationsPanel));
         OnPropertyChanged(nameof(ShowSimpleFrames));
         OnPropertyChanged(nameof(ShowAdvancedFrames));
     }

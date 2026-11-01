@@ -49,6 +49,10 @@ public sealed partial class FontsViewModel : ViewModelBase
     [ObservableProperty]
     private bool convertJapanese;
 
+    // the glyph coverage panel; hidden, the atlas gets its space
+    [ObservableProperty]
+    private bool isInspectorVisible = true;
+
     [ObservableProperty]
     private bool convertCyrillic;
 

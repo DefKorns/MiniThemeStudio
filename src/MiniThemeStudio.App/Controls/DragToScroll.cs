@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -51,7 +50,7 @@ public static class DragToScroll
     private static void OnPressed(object? sender, PointerPressedEventArgs e)
     {
         // the scroll bars move the content themselves; dragging their thumb must not also drag the content
-        if (e.Source is Visual source && source.GetSelfAndVisualAncestors().OfType<ScrollBar>().Any())
+        if (IsInScrollBar(e.Source as Visual))
         {
             return;
         }
@@ -60,6 +59,19 @@ public static class DragToScroll
         {
             scrollViewer.SetValue(DragProperty, new Drag(e.GetPosition(scrollViewer), scrollViewer.Offset));
         }
+    }
+
+    private static bool IsInScrollBar(Visual? visual)
+    {
+        for (; visual is not null; visual = visual.GetVisualParent())
+        {
+            if (visual is ScrollBar)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static void OnMoved(object? sender, PointerEventArgs e)

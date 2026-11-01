@@ -1,6 +1,7 @@
 using System.IO;
 using System.Net;
 using System;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
@@ -15,6 +16,7 @@ public sealed partial class SettingsDialog : Window
 {
     private const string UsbConsoleHost = "169.254.13.37";
     private readonly AppSettings _settings;
+    private readonly Func<Task>? _manageBases;
     private string _networkConsoleHost;
     private bool _isUpdatingConnectionControls;
     private bool _usesNetwork;
@@ -27,14 +29,17 @@ public sealed partial class SettingsDialog : Window
 
     public SettingsDialog(
         AppSettings settings,
-        bool isInitialSetup = false)
+        bool isInitialSetup = false,
+        Func<Task>? manageBases = null)
     {
         _settings = settings;
+        _manageBases = manageBases;
         _networkConsoleHost = settings.ConsoleHost == UsbConsoleHost
             ? ""
             : settings.ConsoleHost;
         _usesNetwork = settings.ConsoleConnectionMode == ConsoleConnectionMode.Wifi;
         InitializeComponent();
+        ManageBasesButton.IsVisible = manageBases is not null;
 
         ThemeComboBox.ItemsSource = Enum.GetValues<ApplicationThemePreference>();
         DraftRootTextBox.Text = settings.DraftRootPath;
@@ -55,6 +60,14 @@ public sealed partial class SettingsDialog : Window
             TitleText.Text = "Set up Mini Theme Studio";
             SubtitleText.Text = "Choose where drafts are kept and how to reach the console.";
             CancelButton.Content = "Exit";
+        }
+    }
+
+    private async void ManageBases_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_manageBases is not null)
+        {
+            await _manageBases();
         }
     }
 

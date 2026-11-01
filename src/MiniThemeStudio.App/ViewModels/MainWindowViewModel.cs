@@ -140,11 +140,16 @@ public partial class MainWindowViewModel : ViewModelBase
     [ObservableProperty]
     private int selectedTabIndex;
 
+    // the start page can cover an open theme without closing it
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsWorkspaceVisible))]
     private bool isHomeVisible = true;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsWorkspaceVisible))]
     private bool isThemeOpen;
+
+    public bool IsWorkspaceVisible => IsThemeOpen && !IsHomeVisible;
 
     [ObservableProperty]
     private string themeName = "No theme open";
@@ -263,6 +268,18 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         ValidationTab.Run();
         SelectedTabIndex = ValidationTabIndex;
+    }
+
+    [RelayCommand]
+    private void GoToStart()
+    {
+        IsHomeVisible = true;
+    }
+
+    [RelayCommand]
+    private void ResumeWorkspace()
+    {
+        IsHomeVisible = false;
     }
 
     public void ShowHome()

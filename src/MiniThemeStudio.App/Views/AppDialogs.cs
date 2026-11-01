@@ -22,7 +22,7 @@ public sealed class AppDialogs(
 {
     public Task<AppSettings?> EditSettingsAsync(AppSettings current, bool isInitialSetup)
     {
-        return new SettingsDialog(current, isInitialSetup).ShowDialog<AppSettings?>(ActiveWindow.Get());
+        return new SettingsDialog(current, isInitialSetup, ManageBasesAsync).ShowDialog<AppSettings?>(ActiveWindow.Get());
     }
 
     public Task ManageBasesAsync()

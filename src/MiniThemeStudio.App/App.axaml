@@ -1,6 +1,7 @@
 <Application xmlns="https://github.com/avaloniaui"
   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" x:Class="MiniThemeStudio.App.App"
-  xmlns:local="using:MiniThemeStudio.App" RequestedThemeVariant="Default">
+  xmlns:local="using:MiniThemeStudio.App"
+  xmlns:lucide="using:Lucide.Avalonia" RequestedThemeVariant="Default">
 
   <Application.Resources>
     <ResourceDictionary>
@@ -132,6 +133,26 @@
     <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource SystemAccentColorLight1}" />
       <Setter Property="TextElement.Foreground" Value="{DynamicResource AccentTextBrush}" />
+    </Style>
+    <!-- Sidebar button; Button.nav.active is the section being shown -->
+    <Style Selector="Button.nav">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="6" />
+    </Style>
+    <Style Selector="Button.nav:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SidebarSelectedBrush}" />
+    </Style>
+    <Style Selector="Button.nav lucide|LucideIcon">
+      <Setter Property="Foreground" Value="{DynamicResource HeaderMutedBrush}" />
+    </Style>
+    <Style Selector="Button.nav:pointerover lucide|LucideIcon">
+      <Setter Property="Foreground" Value="{DynamicResource HeaderTextBrush}" />
+    </Style>
+    <Style Selector="Button.nav.active">
+      <Setter Property="Background" Value="{DynamicResource SidebarSelectedBrush}" />
+    </Style>
+    <Style Selector="Button.nav.active lucide|LucideIcon">
+      <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
     </Style>
     <Style Selector="Button.ghost">
       <Setter Property="Background" Value="Transparent" />
